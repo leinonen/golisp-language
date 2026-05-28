@@ -280,6 +280,22 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [] (map (fn [x] x) []))`,
 			wantSub: "func(x any) any {",
 		},
+		// 3a: JSON operations
+		{
+			name:    "json/encode emits runtime call",
+			src:     `(defn f [data] (json/encode data))`,
+			wantSub: "_glispJsonEncode(",
+		},
+		{
+			name:    "json/encode adds encoding/json import",
+			src:     `(defn f [data] (json/encode data))`,
+			wantSub: `"encoding/json"`,
+		},
+		{
+			name:    "json/decode emits runtime call",
+			src:     `(defn f [^string s] (json/decode s))`,
+			wantSub: "_glispJsonDecode(",
+		},
 	}
 
 	for _, tt := range tests {

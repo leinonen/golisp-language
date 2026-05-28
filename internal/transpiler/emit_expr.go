@@ -415,6 +415,12 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "join":
 			e.needImport("strings")
 			return e.emitRuntimeCall("_glispJoin", n.Args, 2)
+		case "json/encode":
+			e.needImport("encoding/json")
+			return e.emitRuntimeCall("_glispJsonEncode", n.Args, 1)
+		case "json/decode":
+			e.needImport("encoding/json")
+			return e.emitRuntimeCall("_glispJsonDecode", n.Args, 1)
 		case "subs":
 			return e.emitSubs(n.Args)
 		}

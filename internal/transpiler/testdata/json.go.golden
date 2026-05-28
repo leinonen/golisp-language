@@ -1,8 +1,40 @@
-package transpiler
+package json-demo
 
-// glispRuntime is emitted at the top of every generated Go file.
-// It provides the runtime helpers used by built-in functions.
-const glispRuntime = `
+import (
+	"encoding/json"
+)
+
+func encodeMap() string {
+	result, err := _glispJsonEncode(map[string]any{"name": "alice", "age": 30})
+	if err != nil {
+		return "encode-error"
+	}
+	return result
+}
+
+func decodeStr(s string) {
+	func() any {
+		result, err := _glispJsonDecode(s)
+		if err != nil {
+			return nil
+		}
+		return result
+	}()
+}
+
+func roundtrip(s string) string {
+	decoded, err1 := _glispJsonDecode(s)
+	if err1 != nil {
+		return ""
+	}
+	encoded, err2 := _glispJsonEncode(decoded)
+	if err2 != nil {
+		return ""
+	}
+	return encoded
+}
+
+
 // --- glisp runtime helpers (generated) ---
 
 func _glispGet(m any, key any) any {
@@ -274,67 +306,7 @@ func _glispDrop(n any, coll any) []any {
 	return result
 }
 // --- end glisp runtime helpers ---
-`
 
-// glispSortRuntime is appended when sort-by is used (requires "sort" import).
-const glispSortRuntime = `
-func _glispSortBy(f any, coll any) []any {
-	fn := f.(func(any) any)
-	s := _glispToSlice(coll)
-	result := make([]any, len(s))
-	copy(result, s)
-	sort.SliceStable(result, func(i, j int) bool {
-		ki := fn(result[i])
-		kj := fn(result[j])
-		switch a := ki.(type) {
-		case int:
-			if b, ok := kj.(int); ok {
-				return a < b
-			}
-		case int64:
-			if b, ok := kj.(int64); ok {
-				return a < b
-			}
-		case float64:
-			if b, ok := kj.(float64); ok {
-				return a < b
-			}
-		case string:
-			if b, ok := kj.(string); ok {
-				return a < b
-			}
-		}
-		return false
-	})
-	return result
-}
-`
-
-// glispStrRuntime is appended when split/join are used (requires "strings" import).
-const glispStrRuntime = `
-func _glispSplit(s any, sep any) []any {
-	parts := strings.Split(s.(string), sep.(string))
-	result := make([]any, len(parts))
-	for i, p := range parts {
-		result[i] = p
-	}
-	return result
-}
-
-func _glispJoin(coll any, sep any) string {
-	s := _glispToSlice(coll)
-	parts := make([]string, len(s))
-	for i, v := range s {
-		if str, ok := v.(string); ok {
-			parts[i] = str
-		}
-	}
-	return strings.Join(parts, sep.(string))
-}
-`
-
-// glispJsonRuntime is appended when json/encode or json/decode are used (requires "encoding/json" import).
-const glispJsonRuntime = `
 func _glispJsonEncode(v any) (string, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -351,4 +323,3 @@ func _glispJsonDecode(s any) (any, error) {
 	}
 	return result, nil
 }
-`

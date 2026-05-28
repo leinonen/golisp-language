@@ -1,0 +1,18 @@
+(ns json-demo)
+
+(defn ^string encode-map []
+  (if-err [result err] (json/encode {"name" "alice" "age" 30})
+    "encode-error"
+    result))
+
+(defn decode-str [^string s]
+  (if-err [result err] (json/decode s)
+    nil
+    result))
+
+(defn ^string roundtrip [^string s]
+  (if-err [decoded err1] (json/decode s)
+    ""
+    (if-err [encoded err2] (json/encode decoded)
+      ""
+      encoded)))

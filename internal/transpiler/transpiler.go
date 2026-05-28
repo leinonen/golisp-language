@@ -118,6 +118,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	if e.builtinImports["strings"] {
 		e.write(glispStrRuntime)
 	}
+	if e.builtinImports["encoding/json"] {
+		e.write(glispJsonRuntime)
+	}
 	return nil
 }
 
@@ -134,7 +137,7 @@ func (e *Emitter) hasImport(path string) bool {
 func (e *Emitter) emitImports() error {
 	allImports := make([]ast.ImportSpec, 0, len(e.imports)+2)
 	// Add built-in imports that were actually needed during emission
-	for _, pkg := range []string{"fmt", "errors", "strings", "sort", "testing"} {
+	for _, pkg := range []string{"fmt", "errors", "strings", "sort", "testing", "encoding/json"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			allImports = append(allImports, ast.ImportSpec{Path: pkg})
 		}

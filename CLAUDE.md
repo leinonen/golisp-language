@@ -21,14 +21,14 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/transpiler/emit_concurrency.go` | `go`, `defer`, `chan`, `send!`, `recv!`, `select!`, `if-err`, method/field/struct interop |
 | `internal/transpiler/emit_loop.go` | `loop`/`recur` → `for` |
 | `internal/transpiler/emit_types.go` | `identToGo`, `typeExprToGo`, `zeroValueFor` |
-| `internal/transpiler/emit_runtime.go` | `glispRuntime` constant appended to every output |
+| `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime` (conditional) |
 | `internal/compiler/compiler.go` | Orchestrates pipeline, runs gofmt, runs go build |
 | `cmd/glisp/main.go` | CLI: `print`, `compile`, `build` subcommands |
-| `stdlib/web.go` | Ring adapter — plain Go, not glisp |
+| `stdlib/web.go` | Ring adapter + `JsonResponse` — plain Go, not glisp |
 
 ## Important design decisions
 
-**Two-pass emission**: declarations emitted to a side buffer first so built-in import needs (`fmt`, `errors`) are discovered before writing the package header. See `emitFile` in `transpiler.go`.
+**Two-pass emission**: declarations emitted to a side buffer first so built-in import needs (`fmt`, `errors`, `encoding/json`, …) are discovered before writing the package header. See `emitFile` in `transpiler.go`.
 
 **Statement vs expression position**: `let`/`if`/`do`/`when`/`cond` in statement position emit as plain Go blocks. In expression position they wrap in an IIFE `func() any { ... }()`. `emitStmtNode` handles statement position; `emitExpr` handles expression position.
 
@@ -38,7 +38,9 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 **Type annotations**: `^(chan int)` needs parens because `chan` followed by space would confuse the lexer. `^[string error]` uses brackets to denote multi-return `(string, error)`.
 
-**Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link.
+**Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link. Conditional blocks (`glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`) are appended only when the corresponding built-ins are used, gated by `builtinImports` keys (`"sort"`, `"strings"`, `"encoding/json"`).
+
+**`json/encode` / `json/decode`**: built-in forms (no AST node needed — dispatched by symbol name in `emitCallExpr`). Both return multi-value `(value, error)` and are designed for use with `if-err`. `json/decode` returns `any` so it handles both JSON objects and arrays.
 
 ## Testing
 

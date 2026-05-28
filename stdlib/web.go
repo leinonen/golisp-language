@@ -7,6 +7,7 @@
 package stdlib
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -110,6 +111,16 @@ func WrapRecover(h Handler) Handler {
 			}
 		}()
 		return h(req)
+	}
+}
+
+// JsonResponse creates a Ring-style response with a JSON-encoded body.
+func JsonResponse(status int, body any) map[string]any {
+	b, _ := json.Marshal(body)
+	return map[string]any{
+		"status":  status,
+		"headers": map[string]any{"Content-Type": "application/json"},
+		"body":    string(b),
 	}
 }
 

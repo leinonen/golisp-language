@@ -42,9 +42,9 @@
 ## Phase 3 — Web Server
 
 ### 3a. JSON support
-- [ ] `json/encode` — `map[string]any` → JSON string
-- [ ] `json/decode` — JSON string → `map[string]any, error`
-- [ ] `json-response` stdlib helper
+- [x] `json/encode` — `any` → JSON string (returns `[string error]`)
+- [x] `json/decode` — JSON string → `any, error` (handles objects and arrays)
+- [x] `json-response` stdlib helper
 
 ### 3b. Routing DSL
 - [ ] `routes`, `GET`, `POST`, `PUT`, `DELETE`, `PATCH` stdlib functions

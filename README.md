@@ -109,6 +109,20 @@ glisp build -o myapp file.glsp
 (.-Method r)          ; r.Method  (field access)
 ```
 
+### JSON
+
+```clojure
+(if-err [encoded err] (json/encode {"name" "alice" "score" 42})
+  (println "encode failed")
+  (println encoded))           ; → {"name":"alice","score":42}
+
+(if-err [decoded err] (json/decode "{\"ok\":true}")
+  (println "decode failed")
+  (println (get decoded "ok"))) ; → true
+```
+
+`json/encode` returns `[string error]`. `json/decode` returns `[any error]` — handles both JSON objects and arrays. Use with `if-err`.
+
 ### Web servers (Ring style)
 
 Handlers are plain functions: `map[string]any → map[string]any`.
@@ -118,9 +132,7 @@ Handlers are plain functions: `map[string]any → map[string]any`.
   (:import [fmt golisp/stdlib]))
 
 (defn ^map[string]any handler [^map[string]any req]
-  {:status 200
-   :headers {"Content-Type" "text/plain"}
-   :body "hello"})
+  (stdlib/JsonResponse 200 {"message" "hello"}))
 
 (defn main []
   (fmt/Println "Listening on :3000")
@@ -129,6 +141,8 @@ Handlers are plain functions: `map[string]any → map[string]any`.
 ```
 
 Request map keys: `"method"` `"path"` `"query"` `"headers"` `"body"`.
+
+`stdlib/JsonResponse` sets `Content-Type: application/json` and JSON-encodes the body map.
 
 ### Identifiers
 

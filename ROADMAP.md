@@ -51,20 +51,20 @@
 - [x] Path params: `/users/:id` extracted into request map as `"params"`
 
 ### 3c. Middleware
-- [ ] `wrap-json` — parse JSON body
-- [ ] `wrap-cors` — CORS headers
-- [ ] `wrap-auth` — Bearer token extraction into `"identity"`
-- [ ] `wrap-timeout` — per-request context deadline
-- [ ] `compose` — `(compose wrap-logging wrap-cors handler)`
+- [x] `wrap-json` — parse JSON body
+- [x] `wrap-cors` — CORS headers
+- [x] `wrap-auth` — Bearer token extraction into `"identity"`
+- [x] `wrap-timeout` — per-request context deadline
+- [x] `compose` / `wrap` — `(stdlib/Wrap handler stdlib/WrapLogging stdlib/WrapCors)`
 
 ### 3d. Request helpers
-- [ ] `query-param`, `path-param`, `body-map`, `header`
+- [x] `query-param`, `path-param`, `body-map`, `header`
 
 ### 3e. Static file serving
-- [ ] `serve-files` — `(serve-files "public/")`
+- [x] `serve-files` — `(stdlib/ServeFiles "/static/" "public/")`
 
 ### 3f. Graceful shutdown
-- [ ] `serve-graceful` — drains in-flight requests on SIGINT/SIGTERM
+- [x] `serve-graceful` — drains in-flight requests on SIGINT/SIGTERM
 
 ---
 

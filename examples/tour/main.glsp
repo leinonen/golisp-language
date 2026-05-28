@@ -1,0 +1,89 @@
+; glisp language tour
+; Demonstrates: defn, type annotations, cond, loop/recur, map/filter/reduce,
+;               sort-by, strings, goroutines/channels, if-err, JSON encoding
+
+(ns main
+  (:import [fmt]))
+
+; --- Control flow ---
+
+(defn ^string grade [^int score]
+  (cond
+    (>= score 90) "A"
+    (>= score 80) "B"
+    (>= score 70) "C"
+    (>= score 60) "D"
+    :else         "F"))
+
+; --- Tail-recursive loop ---
+
+(defn ^int fib [^int n]
+  (loop [i n a 0 b 1]
+    (if (<= i 0) a (recur (- i 1) b (+ a b)))))
+
+; --- Higher-order functions ---
+; (str w) coerces any→string so (len (str w)) compiles on any-typed values.
+
+(defn ^[]any long-words [^string text]
+  (let [ws (split (lower-case (trim text)) " ")]
+    (sort-by (fn [w] w)
+             (filter (fn [w] (> (len (str w)) 3)) ws))))
+
+; --- Concurrent class analysis ---
+
+(defn main []
+
+  ; Fibonacci via loop/recur
+  (let [fibs (map (fn [n] (fib (int n))) (range 10))]
+    (fmt/Println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))
+
+  ; String processing
+  (let [words (long-words "the quick brown fox jumps over the lazy dog")]
+    (fmt/Println "long words:" (join words ", ")))
+
+  ; Analyze student classes concurrently
+  (let [classes
+        [{"name" "Math"    "scores" [85 92 78 61 79 88 95]}
+         {"name" "English" "scores" [76 85 90 55 68 73 82]}
+         {"name" "Science" "scores" [91 94 87 98 79 85 92]}]]
+
+    (let [ch (chan ^map[string]any (len classes))]
+
+      ; Spawn one goroutine per class; inline count via (int (reduce ...))
+      (map
+        (fn [c]
+          (let [name   (get c "name")
+                scores (get c "scores")
+                total  (reduce (fn [acc s] (+ (int acc) (int s))) 0 scores)
+                n      (int (reduce (fn [k _] (+ (int k) 1)) 0 scores))
+                avg    (/ (int total) n)
+                pass   (filter (fn [s] (>= (int s) 60)) scores)
+                pass-n (int (reduce (fn [k _] (+ (int k) 1)) 0 pass))]
+            (go (send! ch
+                  {"name"    (str name)
+                   "avg"     avg
+                   "grade"   (grade avg)
+                   "passing" (str pass-n "/" n)}))
+            nil))
+        classes)
+
+      ; Collect and rank by average score
+      (let [results (map (fn [_] (recv! ch)) classes)
+            ranked  (sort-by (fn [r] (get r "avg")) results)]
+
+        (fmt/Println "\n=== Class Report ===")
+        (map
+          (fn [r]
+            (do
+              (fmt/Println " "
+                (get r "name")
+                "| avg:" (get r "avg")
+                "| grade:" (get r "grade")
+                "| passing:" (get r "passing"))
+              nil))
+          ranked)
+
+        ; JSON export via if-err
+        (if-err [out err] (json/encode {"report" ranked})
+          (do (fmt/Println "encode error:" err) nil)
+          (do (fmt/Println "\nJSON:" out) nil))))))

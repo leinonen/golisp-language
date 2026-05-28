@@ -7,11 +7,18 @@
 package stdlib
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 )
 
 // Handler is the type of a Ring-style handler function.
@@ -170,6 +177,162 @@ func Routes(rs ...Route) Handler {
 			return r.handler(req)
 		}
 		return map[string]any{"status": 404, "body": "not found"}
+	}
+}
+
+// WrapJson parses the request body as JSON and stores the result in req["json-body"].
+// The original string body remains in req["body"]. Passes through on parse failure.
+func WrapJson(h Handler) Handler {
+	return func(req map[string]any) map[string]any {
+		if body, ok := req["body"].(string); ok && body != "" {
+			var v any
+			if err := json.Unmarshal([]byte(body), &v); err == nil {
+				req["json-body"] = v
+			}
+		}
+		return h(req)
+	}
+}
+
+// WrapCors adds permissive CORS headers to every response.
+func WrapCors(h Handler) Handler {
+	return func(req map[string]any) map[string]any {
+		resp := h(req)
+		if resp == nil {
+			resp = map[string]any{"status": 200}
+		}
+		hdrs, ok := resp["headers"].(map[string]any)
+		if !ok {
+			hdrs = map[string]any{}
+			resp["headers"] = hdrs
+		}
+		hdrs["Access-Control-Allow-Origin"] = "*"
+		hdrs["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+		hdrs["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+		return resp
+	}
+}
+
+// WrapAuth extracts a Bearer token from the Authorization header and stores it
+// in req["identity"]. Returns 401 if the header is absent or not a Bearer token.
+func WrapAuth(h Handler) Handler {
+	return func(req map[string]any) map[string]any {
+		headers, _ := req["headers"].(map[string]any)
+		auth, _ := headers["Authorization"].(string)
+		if !strings.HasPrefix(auth, "Bearer ") {
+			return map[string]any{"status": 401, "body": "unauthorized"}
+		}
+		req["identity"] = strings.TrimPrefix(auth, "Bearer ")
+		return h(req)
+	}
+}
+
+// WrapTimeout wraps a handler with a deadline of `seconds` seconds.
+// Returns 503 if the handler does not respond in time.
+func WrapTimeout(seconds int) Middleware {
+	d := time.Duration(seconds) * time.Second
+	return func(h Handler) Handler {
+		return func(req map[string]any) map[string]any {
+			ch := make(chan map[string]any, 1)
+			go func() { ch <- h(req) }()
+			select {
+			case resp := <-ch:
+				return resp
+			case <-time.After(d):
+				return map[string]any{"status": 503, "body": "timeout"}
+			}
+		}
+	}
+}
+
+// Compose chains middlewares into one (left = outermost).
+func Compose(mws ...Middleware) Middleware {
+	return func(h Handler) Handler {
+		for i := len(mws) - 1; i >= 0; i-- {
+			h = mws[i](h)
+		}
+		return h
+	}
+}
+
+// Wrap applies middlewares (outermost-first) to handler.
+// glisp usage: (stdlib/Wrap my-handler stdlib/WrapLogging stdlib/WrapCors)
+func Wrap(h Handler, mws ...Middleware) Handler {
+	return Compose(mws...)(h)
+}
+
+// QueryParam returns the named query parameter from req["query"].
+func QueryParam(req map[string]any, name string) string {
+	q, _ := req["query"].(string)
+	vals, _ := url.ParseQuery(q)
+	return vals.Get(name)
+}
+
+// PathParam returns the named path parameter from req["params"].
+func PathParam(req map[string]any, name string) string {
+	params, _ := req["params"].(map[string]any)
+	v, _ := params[name].(string)
+	return v
+}
+
+// BodyMap returns the JSON-decoded body as a map. Checks req["json-body"] first
+// (set by WrapJson), then falls back to decoding req["body"].
+func BodyMap(req map[string]any) map[string]any {
+	if v, ok := req["json-body"].(map[string]any); ok {
+		return v
+	}
+	body, _ := req["body"].(string)
+	var m map[string]any
+	json.Unmarshal([]byte(body), &m) //nolint:errcheck
+	return m
+}
+
+// Header returns the named request header from req["headers"].
+func Header(req map[string]any, name string) string {
+	headers, _ := req["headers"].(map[string]any)
+	v, _ := headers[name].(string)
+	return v
+}
+
+// ServeFiles returns a Handler that serves static files from dir under prefix.
+func ServeFiles(prefix, dir string) Handler {
+	fs := http.StripPrefix(prefix, http.FileServer(http.Dir(dir)))
+	return func(req map[string]any) map[string]any {
+		path, _ := req["path"].(string)
+		r := httptest.NewRequest("GET", path, nil)
+		w := httptest.NewRecorder()
+		fs.ServeHTTP(w, r)
+		result := w.Result()
+		hdrs := map[string]any{}
+		for k, vs := range result.Header {
+			hdrs[k] = strings.Join(vs, ", ")
+		}
+		body, _ := io.ReadAll(result.Body)
+		return map[string]any{
+			"status":  result.StatusCode,
+			"headers": hdrs,
+			"body":    body,
+		}
+	}
+}
+
+// ServeGraceful starts an HTTP server and blocks until SIGINT or SIGTERM,
+// then drains in-flight requests with a 5-second shutdown deadline.
+func ServeGraceful(addr string, h Handler) {
+	srv := &http.Server{Addr: addr, Handler: RingToHTTP(h)}
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("listen error: %v\n", err)
+		}
+	}()
+	<-quit
+	fmt.Println("shutting down...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		fmt.Printf("shutdown error: %v\n", err)
 	}
 }
 

@@ -24,7 +24,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime` (conditional) |
 | `internal/compiler/compiler.go` | Orchestrates pipeline, runs gofmt, runs go build |
 | `cmd/glisp/main.go` | CLI: `print`, `compile`, `build` subcommands |
-| `stdlib/web.go` | Ring adapter + `JsonResponse` — plain Go, not glisp |
+| `stdlib/web.go` | Ring adapter, routing, middleware, request helpers, static files, graceful shutdown — plain Go, not glisp |
 
 ## Important design decisions
 
@@ -41,6 +41,18 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 **Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link. Conditional blocks (`glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`) are appended only when the corresponding built-ins are used, gated by `builtinImports` keys (`"sort"`, `"strings"`, `"encoding/json"`).
 
 **`json/encode` / `json/decode`**: built-in forms (no AST node needed — dispatched by symbol name in `emitCallExpr`). Both return multi-value `(value, error)` and are designed for use with `if-err`. `json/decode` returns `any` so it handles both JSON objects and arrays.
+
+**stdlib web API**: all web functionality lives in `stdlib/web.go` as plain Go — no special transpiler forms. Middleware signature is `func(Handler) Handler`. `Wrap(h Handler, mws ...Middleware)` applies middlewares outermost-first. `WrapJson` stores parsed body in `req["json-body"]`; `WrapAuth` stores the Bearer token in `req["identity"]`. `ServeFiles` bridges Ring ↔ `http.FileServer` via `httptest.ResponseRecorder`. `ServeGraceful` traps SIGINT/SIGTERM and shuts down with a 5 s context deadline.
+
+**`any`-type constraints** — the transpiler emits `any` for most values retrieved at runtime (map lookups, collection elements, loop vars). This causes several Go compile errors:
+
+| Situation | What breaks | Fix |
+|---|---|---|
+| `(len w)` where `w` is `any` | `len` needs a concrete type | `(len (str w))` for strings; for slices use `(int (reduce (fn [n _] (+ (int n) 1)) 0 xs))` |
+| `(if x ...)` where `x` is a non-bool `any` | Go `if` requires boolean | `(= x nil)` or `(not= x nil)` for nil checks |
+| `(fn [c] ... (go ...) )` — `go` as last expr in a `func(...) any` | missing return | add `nil` as the last expr: `(let [...] (go ...) nil)` |
+| `fmt/Println` (or any multi-return Go fn) as the tail of a `func(...) any` closure | `(int, error)` can't coerce to `any` | `(do (fmt/Println ...) nil)` discards the multi-return via IIFE |
+| `(defn ^int f [] (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `^any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
 
 ## Testing
 

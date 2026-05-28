@@ -14,6 +14,7 @@ import (
 	"os"
 
 	"golisp/internal/compiler"
+	"golisp/internal/formatter"
 	"golisp/internal/transpiler"
 )
 
@@ -32,6 +33,8 @@ func main() {
 		printCmd(os.Args[2:])
 	case "test":
 		testCmd(os.Args[2:])
+	case "fmt":
+		fmtCmd(os.Args[2:])
 	case "version":
 		fmt.Println("glisp 0.1.0")
 	default:
@@ -102,6 +105,45 @@ func testCmd(args []string) {
 	}
 }
 
+func fmtCmd(args []string) {
+	fs := flag.NewFlagSet("fmt", flag.ExitOnError)
+	check := fs.Bool("check", false, "exit non-zero if file is not already formatted")
+	if err := fs.Parse(args); err != nil {
+		os.Exit(1)
+	}
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "fmt: requires at least one <file.glsp>")
+		os.Exit(1)
+	}
+	exitCode := 0
+	for _, path := range fs.Args() {
+		src, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		out, err := formatter.Format(string(src))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
+			os.Exit(1)
+		}
+		if *check {
+			if out != string(src) {
+				fmt.Fprintf(os.Stderr, "%s: not formatted\n", path)
+				exitCode = 1
+			}
+		} else {
+			if err := os.WriteFile(path, []byte(out), 0644); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+		}
+	}
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
+}
+
 func usage() {
 	fmt.Fprintln(os.Stderr, `glisp — Clojure-inspired language that transpiles to Go
 
@@ -110,5 +152,6 @@ Usage:
   glisp build   [-o binary]    <file.glsp>   transpile + go build
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
+  glisp fmt     [--check]      <file.glsp>   format source in-place
   glisp version                              print version`)
 }

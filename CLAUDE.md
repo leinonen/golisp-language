@@ -22,8 +22,9 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/transpiler/emit_loop.go` | `loop`/`recur` → `for` |
 | `internal/transpiler/emit_types.go` | `identToGo`, `typeExprToGo`, `zeroValueFor` |
 | `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime` (conditional) |
+| `internal/formatter/formatter.go` | AST → formatted glisp source; `Format(src)` public API |
 | `internal/compiler/compiler.go` | Orchestrates pipeline, runs gofmt, runs go build |
-| `cmd/glisp/main.go` | CLI: `print`, `compile`, `build` subcommands |
+| `cmd/glisp/main.go` | CLI: `print`, `compile`, `build`, `test`, `fmt` subcommands |
 | `stdlib/web.go` | Ring adapter, routing, middleware, request helpers, static files, graceful shutdown — plain Go, not glisp |
 
 ## Important design decisions
@@ -53,6 +54,16 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `(fn [c] ... (go ...) )` — `go` as last expr in a `func(...) any` | missing return | add `nil` as the last expr: `(let [...] (go ...) nil)` |
 | `fmt/Println` (or any multi-return Go fn) as the tail of a `func(...) any` closure | `(int, error)` can't coerce to `any` | `(do (fmt/Println ...) nil)` discards the multi-return via IIFE |
 | `(defn ^int f [] (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `^any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
+
+## Formatter
+
+`glisp fmt` pretty-prints `.glsp` source from the parsed AST. **Comments are not preserved** (stripped by the lexer). Algorithm: try inline rendering first; use it if `indent*2 + len <= 80`, else multi-line. Map literals with >1 pair are always multi-line with value-column alignment. `defn`/`defstruct`/`definterface`/`deftest`/`cond` are always multi-line.
+
+```
+glisp fmt file.glsp          # format in-place
+glisp fmt --check file.glsp  # exit 1 if not already formatted
+make fmt-glsp                # format all examples/*.glsp
+```
 
 ## Testing
 

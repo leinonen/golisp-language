@@ -1,4 +1,4 @@
-.PHONY: build test test-update install clean fmt examples examples-tour examples-api
+.PHONY: build test test-update install clean fmt fmt-glsp examples examples-tour examples-api
 
 BIN := glisp
 
@@ -21,6 +21,9 @@ clean:
 
 fmt:
 	gofmt -w .
+
+fmt-glsp: build
+	find examples -name '*.glsp' | xargs ./$(BIN) fmt
 
 examples: examples-tour examples-api
 

@@ -1,18 +1,10 @@
-; glisp REST API — tasks CRUD server
-; Demonstrates: routing, middleware (WrapLogging, WrapRecover, WrapCors, WrapJson, WrapAuth),
-;               Wrap, QueryParam, PathParam, BodyMap, ServeGraceful
+(ns main (:import [fmt golisp/stdlib]))
 
-(ns main
-  (:import [fmt golisp/stdlib]))
-
-; In-memory task store (read-only; POST/DELETE echo back what would happen)
 (def tasks
-  [{"id" "1" "title" "Buy groceries"    "done" false "priority" "low"}
-   {"id" "2" "title" "Write glisp code" "done" true  "priority" "high"}
-   {"id" "3" "title" "Go for a run"     "done" false "priority" "medium"}
-   {"id" "4" "title" "Read a book"      "done" false "priority" "low"}])
-
-; --- Handlers ---
+  [{"id" "1" "title" "Buy groceries" "done" false "priority" "low"}
+   {"id" "2" "title" "Write glisp code" "done" true "priority" "high"}
+   {"id" "3" "title" "Go for a run" "done" false "priority" "medium"}
+   {"id" "4" "title" "Read a book" "done" false "priority" "low"}])
 
 (defn ^map[string]any health [^map[string]any req]
   (stdlib/JsonResponse 200 {"status" "ok" "tasks" (len tasks)}))
@@ -26,11 +18,10 @@
       (= done-param "false")
         (stdlib/JsonResponse 200
           (filter (fn [t] (= (get t "done") false)) tasks))
-      :else
-        (stdlib/JsonResponse 200 tasks))))
+      :else (stdlib/JsonResponse 200 tasks))))
 
 (defn ^map[string]any get-task [^map[string]any req]
-  (let [id      (stdlib/PathParam req "id")
+  (let [id (stdlib/PathParam req "id")
         matches (filter (fn [t] (= (get t "id") id)) tasks)]
     (if (> (len matches) 0)
       (stdlib/JsonResponse 200 (get matches 0))
@@ -44,30 +35,20 @@
 
 (defn ^map[string]any delete-task [^map[string]any req]
   (let [id (stdlib/PathParam req "id")]
-    (stdlib/JsonResponse 200 {"deleted" id "note" "demo only — no persistence"})))
+    (stdlib/JsonResponse 200
+      {"deleted" id
+       "note"    "demo only — no persistence"})))
 
-; Requires Bearer token (set by WrapAuth into req["identity"])
 (defn ^map[string]any export-tasks [^map[string]any req]
   (stdlib/JsonResponse 200
     {"tasks"       tasks
      "count"       (len tasks)
      "exported-by" (str (get req "identity"))}))
 
-; --- Middleware & routing ---
-
-; WrapAuth applied only to the export handler
-(def export-handler
-  (stdlib/Wrap export-tasks stdlib/WrapAuth))
+(def export-handler (stdlib/Wrap export-tasks stdlib/WrapAuth))
 
 (def app
-  (stdlib/Wrap
-    (stdlib/Routes
-      (stdlib/GET    "/health"      health)
-      (stdlib/GET    "/tasks"       list-tasks)
-      (stdlib/GET    "/tasks/:id"   get-task)
-      (stdlib/POST   "/tasks"       create-task)
-      (stdlib/DELETE "/tasks/:id"   delete-task)
-      (stdlib/GET    "/export"      export-handler))
+  (stdlib/Wrap (stdlib/Routes (stdlib/GET "/health" health) (stdlib/GET "/tasks" list-tasks) (stdlib/GET "/tasks/:id" get-task) (stdlib/POST "/tasks" create-task) (stdlib/DELETE "/tasks/:id" delete-task) (stdlib/GET "/export" export-handler))
     stdlib/WrapLogging
     stdlib/WrapRecover
     stdlib/WrapCors

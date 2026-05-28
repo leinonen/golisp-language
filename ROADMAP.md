@@ -71,10 +71,10 @@
 ## Phase 4 — Developer Experience
 
 ### 4a. Formatter
-- [ ] `glisp fmt file.glsp` — format in-place
-- [ ] `glisp fmt --check` — exit non-zero if unformatted
-- [ ] `make fmt-glsp` Makefile target
-- [ ] Pretty-print over existing AST: consistent indentation, aligned map pairs
+- [x] `glisp fmt file.glsp` — format in-place
+- [x] `glisp fmt --check` — exit non-zero if unformatted
+- [x] `make fmt-glsp` Makefile target
+- [x] Pretty-print over existing AST: consistent indentation, aligned map pairs
 
 ### 4b. REPL
 - [ ] `glisp repl` — read form, transpile, run via `go run`, print result

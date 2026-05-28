@@ -73,6 +73,29 @@ Handlers are `map[string]any → map[string]any`.
       stdlib/WrapJson)))
 ```
 
+## Editor support
+
+### Neovim — syntax highlighting
+
+Add the bundled plugin to your runtimepath in `init.lua`:
+
+```lua
+vim.opt.rtp:prepend("/path/to/go-lisp-2/editors/neovim")
+```
+
+Or with lazy.nvim:
+
+```lua
+{ dir = "/path/to/go-lisp-2/editors/neovim" }
+```
+
+This gives you filetype detection, `commentstring`, `iskeyword` tuning, and syntax
+highlighting that inherits from Clojure (parens, strings, keywords, comments, core
+special forms) plus glisp-specific rules (type annotations, `defstruct`, `if-err`,
+`send!`, etc.).
+
+### Neovim — LSP (diagnostics + hover)
+
 ## LSP (Neovim 0.12+)
 
 `glisp-lsp` is a Language Server that provides diagnostics (parse errors highlighted inline) and hover (show `defn`/`def` signatures).

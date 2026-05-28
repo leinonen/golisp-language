@@ -113,10 +113,46 @@ internal/lsp/
 ### 5d. Completions
 - [x] Top-level `defn`/`def` names, built-in forms, stdlib names
 
-### 5e. VS Code extension
-- [ ] `editors/vscode/` — TextMate grammar for syntax highlighting
-- [ ] `.glsp` file association
-- [ ] Launch `glisp-lsp` as language server
+### 5e. Docstrings
+- [ ] `;;; doc comment` preceding a `defn` stored in AST
+- [ ] Surfaced in hover text and completion detail
+
+### 5f. Rename symbol
+- [ ] `textDocument/rename` — rename across all files in workspace
+
+### 5g. Find references
+- [ ] `textDocument/references` — list all call sites of a symbol
+
+### 5h. Code actions
+- [ ] `textDocument/codeAction` — quick-fixes (e.g. add missing type annotation)
+
+---
+
+## Phase 6 — Language Power
+
+### 6a. Threading macros
+- [ ] `->` — thread-first: `(-> x (f a) (g b))` → `(g (f x a) b)`
+- [ ] `->>` — thread-last: `(->> x (map f) (filter g))`
+- [ ] Implemented as an AST rewrite pass in the parser (no new emit logic)
+
+### 6b. Destructuring
+- [ ] Sequential: `(let [[a b c] coll] ...)` — bind by position
+- [ ] Map: `(let [{k :key} m] ...)` — bind by key
+- [ ] In `fn` param vectors: `(fn [[x y]] ...)`
+
+### 6c. Macro system
+- [ ] `defmacro name [args] body` — define a compile-time transformation
+- [ ] `macroexpand` — expand a macro call for debugging
+- [ ] Requires an evaluation pass before transpilation
+
+---
+
+## Phase 7 — Standard Library
+
+### 7a. HTTP client
+- [ ] `http/get`, `http/post`, `http/put`, `http/delete`, `http/request`
+- [ ] Returns `[response error]` for use with `if-err`
+- [ ] Plain Go in `stdlib/http.go`, mirroring the `web.go` pattern
 
 ---
 
@@ -124,15 +160,11 @@ internal/lsp/
 
 | # | Item | Why |
 |---|---|---|
-| 1 | 2a collection ops | Unblocks real programs immediately |
-| 2 | 2b string ops | Unblocks web handler logic |
-| 3 | 3a JSON | Unblocks API servers |
-| 4 | 3b routing DSL | Makes web code readable |
-| 5 | 3c–3f web features | Production-grade HTTP |
-| 6 | 2c better errors | Quality of life |
-| 7 | 2d test framework | Confidence |
-| 8 | 4a formatter | Consistency |
-| 9 | 5a–5b LSP diagnostics + hover | Editor integration |
-| 10 | 5c–5e LSP completions + jump + VS Code | Full IDE support |
-| 11 | 4b REPL | Interactive development |
-| 12 | 2e multi-file | Larger programs |
+| 1 | 6a threading macros | High DX value, low effort — parser rewrite pass |
+| 2 | 6b destructuring | Idiomatic Clojure patterns, unblocks cleaner programs |
+| 3 | 5e docstrings | Immediate LSP hover improvement, small AST touch |
+| 4 | 7a HTTP client | Enables full client-server programs in glisp |
+| 5 | 5f–5h LSP rename/refs/actions | Full IDE experience |
+| 6 | 4b REPL | Interactive development loop |
+| 7 | 4c source maps | Debug Go panics in .glsp terms |
+| 8 | 6c macro system | Most complex; enables DSL authoring |

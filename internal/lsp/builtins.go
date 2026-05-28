@@ -105,6 +105,107 @@ var builtinDocs = map[string]string{
 	"select!": "(select! cases...)",
 	"if-err":  "(if-err [val err] expr on-err on-ok)",
 
+	// fmt package
+	"fmt/Println":  "(fmt/Println & args)              →  [int error]",
+	"fmt/Printf":   "(fmt/Printf format & args)         →  [int error]",
+	"fmt/Sprintf":  "(fmt/Sprintf format & args)        →  string",
+	"fmt/Errorf":   "(fmt/Errorf format & args)         →  error",
+	"fmt/Fprintf":  "(fmt/Fprintf w format & args)      →  [int error]",
+	"fmt/Fprintln": "(fmt/Fprintln w & args)            →  [int error]",
+	"fmt/Sscanf":   "(fmt/Sscanf str format & args)     →  [int error]",
+
+	// errors package
+	"errors/New": "(errors/New msg)  →  error",
+
+	// os package
+	"os/Exit":   "(os/Exit code)",
+	"os/Getenv": "(os/Getenv key)   →  string",
+	"os/Args":   "os/Args           →  []string",
+
+	// strconv package
+	"strconv/Atoi":        "(strconv/Atoi s)                    →  [int error]",
+	"strconv/Itoa":        "(strconv/Itoa i)                    →  string",
+	"strconv/ParseInt":    "(strconv/ParseInt s base bitSize)   →  [int64 error]",
+	"strconv/ParseFloat":  "(strconv/ParseFloat s bitSize)      →  [float64 error]",
+	"strconv/FormatInt":   "(strconv/FormatInt i base)          →  string",
+	"strconv/FormatFloat": "(strconv/FormatFloat f fmt prec)    →  string",
+
+	// strings package
+	"strings/Contains":   "(strings/Contains s substr)     →  bool",
+	"strings/HasPrefix":  "(strings/HasPrefix s prefix)    →  bool",
+	"strings/HasSuffix":  "(strings/HasSuffix s suffix)    →  bool",
+	"strings/TrimSpace":  "(strings/TrimSpace s)            →  string",
+	"strings/ToUpper":    "(strings/ToUpper s)              →  string",
+	"strings/ToLower":    "(strings/ToLower s)              →  string",
+	"strings/Split":      "(strings/Split s sep)            →  []string",
+	"strings/Join":       "(strings/Join elems sep)         →  string",
+	"strings/Replace":    "(strings/Replace s old new n)   →  string",
+	"strings/ReplaceAll": "(strings/ReplaceAll s old new)  →  string",
+	"strings/Index":      "(strings/Index s substr)         →  int",
+	"strings/TrimPrefix": "(strings/TrimPrefix s prefix)   →  string",
+	"strings/TrimSuffix": "(strings/TrimSuffix s suffix)   →  string",
+	"strings/Count":      "(strings/Count s substr)         →  int",
+	"strings/Repeat":     "(strings/Repeat s count)         →  string",
+	"strings/Trim":       "(strings/Trim s cutset)          →  string",
+
+	// math package
+	"math/Abs":   "(math/Abs x)     →  float64",
+	"math/Max":   "(math/Max a b)   →  float64",
+	"math/Min":   "(math/Min a b)   →  float64",
+	"math/Floor": "(math/Floor x)   →  float64",
+	"math/Ceil":  "(math/Ceil x)    →  float64",
+	"math/Round": "(math/Round x)   →  float64",
+	"math/Sqrt":  "(math/Sqrt x)    →  float64",
+	"math/Pow":   "(math/Pow x y)   →  float64",
+
+	// log package
+	"log/Println": "(log/Println & args)",
+	"log/Printf":  "(log/Printf format & args)",
+	"log/Fatal":   "(log/Fatal & args)",
+	"log/Fatalf":  "(log/Fatalf format & args)",
+
+	// time package
+	"time/Now":         "(time/Now)              →  time.Time",
+	"time/Sleep":       "(time/Sleep duration)",
+	"time/Since":       "(time/Since t)          →  time.Duration",
+	"time/Until":       "(time/Until t)          →  time.Duration",
+	"time/Second":      "time/Second             →  time.Duration  (1s)",
+	"time/Millisecond": "time/Millisecond        →  time.Duration  (1ms)",
+	"time/Minute":      "time/Minute             →  time.Duration  (1m)",
+	"time/Hour":        "time/Hour               →  time.Duration  (1h)",
+
+	// sort package
+	"sort/Slice":   "(sort/Slice coll less-fn)",
+	"sort/Ints":    "(sort/Ints s)",
+	"sort/Strings": "(sort/Strings s)",
+
+	// io
+	"io/EOF": "io/EOF  →  error",
+
+	// stdlib/web.go (golisp/stdlib)
+	"stdlib/Routes":       "(stdlib/Routes & routes)                     →  Handler",
+	"stdlib/GET":          "(stdlib/GET pattern handler)                 →  Route",
+	"stdlib/POST":         "(stdlib/POST pattern handler)                →  Route",
+	"stdlib/PUT":          "(stdlib/PUT pattern handler)                 →  Route",
+	"stdlib/DELETE":       "(stdlib/DELETE pattern handler)              →  Route",
+	"stdlib/PATCH":        "(stdlib/PATCH pattern handler)               →  Route",
+	"stdlib/Wrap":         "(stdlib/Wrap handler & middlewares)          →  Handler",
+	"stdlib/Compose":      "(stdlib/Compose & middlewares)               →  Middleware",
+	"stdlib/WrapJson":     "(stdlib/WrapJson handler)                    →  Handler  — parses JSON body into req[\"json-body\"]",
+	"stdlib/WrapCors":     "(stdlib/WrapCors handler)                    →  Handler",
+	"stdlib/WrapAuth":     "(stdlib/WrapAuth handler)                    →  Handler  — Bearer token → req[\"identity\"]",
+	"stdlib/WrapLogging":  "(stdlib/WrapLogging handler)                 →  Handler",
+	"stdlib/WrapRecover":  "(stdlib/WrapRecover handler)                 →  Handler",
+	"stdlib/WrapTimeout":  "(stdlib/WrapTimeout seconds)                 →  Middleware",
+	"stdlib/JsonResponse": "(stdlib/JsonResponse status body)            →  map[string]any",
+	"stdlib/QueryParam":   "(stdlib/QueryParam req name)                 →  string",
+	"stdlib/PathParam":    "(stdlib/PathParam req name)                  →  string",
+	"stdlib/BodyMap":      "(stdlib/BodyMap req)                         →  map[string]any",
+	"stdlib/Header":       "(stdlib/Header req name)                     →  string",
+	"stdlib/ServeFiles":   "(stdlib/ServeFiles prefix dir)               →  Handler",
+	"stdlib/Serve":        "(stdlib/Serve addr handler)                  →  error",
+	"stdlib/ServeGraceful": "(stdlib/ServeGraceful addr handler)         — blocks; drains on SIGINT/SIGTERM",
+
 	// Declarations
 	"ns":           "(ns name (:import [...]))",
 	"defstruct":    "(defstruct Name ^T1 field1 ...)",

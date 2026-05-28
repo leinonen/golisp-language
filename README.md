@@ -73,6 +73,36 @@ Handlers are `map[string]any → map[string]any`.
       stdlib/WrapJson)))
 ```
 
+## LSP (Neovim 0.12+)
+
+`glisp-lsp` is a Language Server that provides diagnostics (parse errors highlighted inline) and hover (show `defn`/`def` signatures).
+
+### Install
+
+```
+go install ./cmd/glisp-lsp
+# or: make install
+```
+
+### Neovim setup
+
+```lua
+-- ~/.config/nvim/after/ftplugin/glsp.lua  (or in your init.lua)
+
+-- filetype detection
+vim.filetype.add({ extension = { glsp = "glsp" } })
+
+-- register and enable the server
+vim.lsp.config["glisp"] = {
+  cmd          = { "glisp-lsp" },
+  filetypes    = { "glsp" },
+  root_markers = { "go.mod", ".git" },
+}
+vim.lsp.enable("glisp")
+```
+
+Diagnostics appear automatically as you edit. Hover with `K` (default Neovim mapping) over any `defn` or `def` name to see its signature.
+
 ## Examples
 
 ```

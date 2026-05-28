@@ -1,4 +1,5 @@
 glisp
+glisp-lsp
 examples/hello/hello
 examples/webserver/webserver
 examples/collections/collections

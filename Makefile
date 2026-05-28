@@ -1,9 +1,13 @@
-.PHONY: build test test-update install clean fmt fmt-glsp examples examples-tour examples-api
+.PHONY: build build-lsp test test-update install clean fmt fmt-glsp examples examples-tour examples-api
 
-BIN := glisp
+BIN     := glisp
+BIN_LSP := glisp-lsp
 
 build:
 	go build -o $(BIN) ./cmd/glisp
+
+build-lsp:
+	go build -o $(BIN_LSP) ./cmd/glisp-lsp
 
 test:
 	go test ./...
@@ -13,9 +17,10 @@ test-update:
 
 install:
 	go install ./cmd/glisp
+	go install ./cmd/glisp-lsp
 
 clean:
-	rm -f $(BIN)
+	rm -f $(BIN) $(BIN_LSP)
 	rm -f examples/tour/tour examples/api/api
 	find . -name "*.go.out" -delete
 

@@ -101,11 +101,11 @@ internal/lsp/
 ```
 
 ### 5a. Diagnostics
-- [ ] Run lexer+parser on `textDocument/didChange`
-- [ ] Push errors as `textDocument/publishDiagnostics`
+- [x] Run lexer+parser on `textDocument/didChange`
+- [x] Push errors as `textDocument/publishDiagnostics`
 
 ### 5b. Hover
-- [ ] Return type annotation or `defn` signature for symbol under cursor
+- [x] Return type annotation or `defn` signature for symbol under cursor
 
 ### 5c. Jump-to-definition
 - [ ] Resolve symbol → `defn`/`def` location

@@ -547,6 +547,22 @@ func NewTypeAssertExpr(pos Position, ty *TypeExpr, val Node) *TypeAssertExpr {
 	return &TypeAssertExpr{Pos_: pos, Type: ty, Value: val}
 }
 
+// ---------- Test declarations ----------
+
+// DefTestDecl: (deftest name body...)
+// Body contains assert= / assert-true / assert-false / assert-nil / assert-err forms.
+type DefTestDecl struct {
+	Pos_  Position
+	Name  string
+	Body  []Node
+}
+
+func (n *DefTestDecl) nodeMarker()    {}
+func (n *DefTestDecl) Pos() Position  { return n.Pos_ }
+func NewDefTestDecl(pos Position, name string, body []Node) *DefTestDecl {
+	return &DefTestDecl{Pos_: pos, Name: name, Body: body}
+}
+
 // ---------- Error handling ----------
 
 // IfErrExpr: (if-err [val err] expr on-err on-ok)

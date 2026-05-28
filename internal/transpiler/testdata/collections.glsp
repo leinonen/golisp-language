@@ -1,0 +1,20 @@
+(defn ^[]any double-all [^[]any nums]
+  (map (fn [x] (* (int x) 2)) nums))
+
+(defn ^[]any evens [^[]any nums]
+  (filter (fn [x] (= (mod (int x) 2) 0)) nums))
+
+(defn ^int sum [^[]any nums]
+  (int (reduce (fn [acc x] (+ (int acc) (int x))) 0 nums)))
+
+(defn ^[]any first-three [^[]any coll]
+  (take 3 coll))
+
+(defn ^[]any skip-two [^[]any coll]
+  (drop 2 coll))
+
+(defn ^[]any reversed [^[]any coll]
+  (reverse coll))
+
+(defn ^[]any one-to-five []
+  (range 1 6))

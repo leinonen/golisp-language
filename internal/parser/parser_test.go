@@ -238,3 +238,72 @@ func TestParseLoop(t *testing.T) {
 		t.Fatalf("bindings: got %d, want 2", len(lo.Bindings))
 	}
 }
+
+func TestErrorSourceContext(t *testing.T) {
+	_, err := ParseString("(defn foo []\n  (defun bad))")
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+	msg := err.Error()
+	if !contains(msg, "defun") {
+		t.Errorf("error should mention defun, got: %s", msg)
+	}
+	if !contains(msg, "defn") {
+		t.Errorf("error should suggest defn, got: %s", msg)
+	}
+	// should include source line
+	if !contains(msg, "(defun bad)") {
+		t.Errorf("error should include source line, got: %s", msg)
+	}
+	// should include ^ pointer
+	if !contains(msg, "^") {
+		t.Errorf("error should include ^ pointer, got: %s", msg)
+	}
+}
+
+func TestDidYouMean(t *testing.T) {
+	cases := []struct {
+		src  string
+		hint string
+	}{
+		{"(defun foo [] 1)", "defn"},
+		{"(lambda [x] x)", "fn"},
+		{"(begin 1 2)", "do"},
+	}
+	for _, c := range cases {
+		_, err := ParseString(c.src)
+		if err == nil {
+			t.Errorf("%q: expected parse error", c.src)
+			continue
+		}
+		if !contains(err.Error(), c.hint) {
+			t.Errorf("%q: error %q should contain hint %q", c.src, err.Error(), c.hint)
+		}
+	}
+}
+
+func TestParseDefTest(t *testing.T) {
+	nodes := mustParse(t, `(deftest my-test (assert= 1 1) (assert-true true))`)
+	dt, ok := nodes[0].(*ast.DefTestDecl)
+	if !ok {
+		t.Fatalf("got %T, want *ast.DefTestDecl", nodes[0])
+	}
+	if dt.Name != "my-test" {
+		t.Errorf("name: got %q, want %q", dt.Name, "my-test")
+	}
+	if len(dt.Body) != 2 {
+		t.Errorf("body len: got %d, want 2", len(dt.Body))
+	}
+}
+
+func contains(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
+		func() bool {
+			for i := 0; i <= len(s)-len(sub); i++ {
+				if s[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+			return false
+		}())
+}

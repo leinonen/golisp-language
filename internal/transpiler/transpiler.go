@@ -17,7 +17,7 @@ func Transpile(src string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	nodes, err := parser.Parse(tokens)
+	nodes, err := parser.ParseSource(tokens, src)
 	if err != nil {
 		return "", err
 	}
@@ -110,8 +110,14 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	// Append declarations
 	e.write(declEmitter.buf.String())
 
-	// Runtime helpers
+	// Runtime helpers (base always included; extras only when needed)
 	e.write(glispRuntime)
+	if e.builtinImports["sort"] {
+		e.write(glispSortRuntime)
+	}
+	if e.builtinImports["strings"] {
+		e.write(glispStrRuntime)
+	}
 	return nil
 }
 
@@ -128,7 +134,7 @@ func (e *Emitter) hasImport(path string) bool {
 func (e *Emitter) emitImports() error {
 	allImports := make([]ast.ImportSpec, 0, len(e.imports)+2)
 	// Add built-in imports that were actually needed during emission
-	for _, pkg := range []string{"fmt", "errors"} {
+	for _, pkg := range []string{"fmt", "errors", "strings", "sort", "testing"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			allImports = append(allImports, ast.ImportSpec{Path: pkg})
 		}
@@ -164,6 +170,8 @@ func (e *Emitter) emitTopLevel(n ast.Node) error {
 		return e.emitStructDecl(v)
 	case *ast.InterfaceDecl:
 		return e.emitInterfaceDecl(v)
+	case *ast.DefTestDecl:
+		return e.emitDefTestDecl(v)
 	default:
 		return fmt.Errorf("unsupported top-level form: %T at %s", n, n.Pos())
 	}

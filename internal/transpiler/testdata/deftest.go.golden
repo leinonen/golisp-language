@@ -2,34 +2,45 @@ package main
 
 import (
 	"fmt"
-	"golisp/stdlib"
-	"log"
+	"testing"
 )
 
-func homeHandler(req map[string]any) map[string]any {
-	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/html"}, "body": "<h1>Hello from glisp!</h1>"}
+func add(a int, b int) int {
+	return (a + b)
 }
 
-func echoHandler(req map[string]any) map[string]any {
-	body := _glispGet(req, "body")
-	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/plain"}, "body": (fmt.Sprintf("%v", "echo: ") + fmt.Sprintf("%v", body))}
+func greet(name string) string {
+	return (fmt.Sprintf("%v", "hello ") + fmt.Sprintf("%v", name))
 }
 
-func router(req map[string]any) map[string]any {
-	path := _glispGet(req, "path")
-	if path == "/" {
-		return homeHandler(req)
-	} else if path == "/echo" {
-		return echoHandler(req)
-	} else {
-		return map[string]any{"status": 404, "body": "not found"}
+func TestMathOps(t *testing.T) {
+	if (add(1, 2)) != (3) {
+		t.Errorf("assert= failed: expected %v, got %v", 3, add(1, 2))
+	}
+	if (add(0, 0)) != (0) {
+		t.Errorf("assert= failed: expected %v, got %v", 0, add(0, 0))
+	}
+	if (add(-1, 1)) != (0) {
+		t.Errorf("assert= failed: expected %v, got %v", 0, add(-1, 1))
+	}
+	if !(add(5, 5) > 9) {
+		t.Errorf("assert-true failed")
+	}
+	if add(1, 1) == 3 {
+		t.Errorf("assert-false failed")
 	}
 }
 
-func main() {
-	fmt.Println("Starting server on :3000")
-	err := stdlib.Serve(":3000", router)
-	log.Fatal(err)
+func TestStringOps(t *testing.T) {
+	if (greet("world")) != ("hello world") {
+		t.Errorf("assert= failed: expected %v, got %v", "hello world", greet("world"))
+	}
+	if greet("x") == "hello y" {
+		t.Errorf("assert-false failed")
+	}
+	if (nil) != nil {
+		t.Errorf("assert-nil failed: got %v", nil)
+	}
 }
 
 // --- glisp runtime helpers (generated) ---

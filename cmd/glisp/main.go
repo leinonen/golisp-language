@@ -5,6 +5,7 @@
 //	glisp compile <file.glsp> -o out   — transpile to out.go
 //	glisp build   <file.glsp>          — transpile + go build
 //	glisp print   <file.glsp>          — print Go output to stdout
+//	glisp test    <file.glsp>          — compile + go test
 package main
 
 import (
@@ -29,6 +30,8 @@ func main() {
 		buildCmd(os.Args[2:])
 	case "print":
 		printCmd(os.Args[2:])
+	case "test":
+		testCmd(os.Args[2:])
 	case "version":
 		fmt.Println("glisp 0.1.0")
 	default:
@@ -88,6 +91,17 @@ func printCmd(args []string) {
 	fmt.Print(out)
 }
 
+func testCmd(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "test: requires <file.glsp>")
+		os.Exit(1)
+	}
+	if err := compiler.CompileTest(args[0]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
 func usage() {
 	fmt.Fprintln(os.Stderr, `glisp — Clojure-inspired language that transpiles to Go
 
@@ -95,5 +109,6 @@ Usage:
   glisp compile [-o output.go] <file.glsp>   transpile to Go source
   glisp build   [-o binary]    <file.glsp>   transpile + go build
   glisp print   <file.glsp>                  print Go output to stdout
+  glisp test    <file.glsp>                  compile + run tests
   glisp version                              print version`)
 }

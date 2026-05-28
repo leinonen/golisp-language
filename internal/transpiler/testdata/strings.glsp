@@ -1,0 +1,23 @@
+(defn ^string shout [^string s]
+  (upper-case s))
+
+(defn ^string whisper [^string s]
+  (lower-case s))
+
+(defn ^string clean [^string s]
+  (trim s))
+
+(defn ^[]any words [^string s]
+  (split s " "))
+
+(defn ^string sentence [^[]any parts]
+  (join parts " "))
+
+(defn ^bool has-prefix? [^string s ^string prefix]
+  (starts-with? s prefix))
+
+(defn ^string redact [^string s ^string word]
+  (replace s word "***"))
+
+(defn ^string middle [^string s]
+  (subs s 1 4))

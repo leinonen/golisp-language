@@ -3,35 +3,35 @@
 ## Phase 2 — Language Completeness
 
 ### 2a. Core collection operations
-- [ ] `map` — `(map f coll)`
-- [ ] `filter` — `(filter pred coll)`
-- [ ] `reduce` — `(reduce f init coll)`
-- [ ] `take` / `drop` — slice prefix/suffix
-- [ ] `reverse`
-- [ ] `contains?` — key in map or value in slice
-- [ ] `some` / `every?` — predicate over collection
-- [ ] `sort-by` — sort slice by key fn
-- [ ] `flatten`
-- [ ] `range` — `(range n)` or `(range start end)`
+- [x] `map` — `(map f coll)`
+- [x] `filter` — `(filter pred coll)`
+- [x] `reduce` — `(reduce f init coll)`
+- [x] `take` / `drop` — slice prefix/suffix
+- [x] `reverse`
+- [x] `contains?` — key in map, value in slice, or substring
+- [x] `some` / `every?` — predicate over collection
+- [x] `sort-by` — sort slice by key fn
+- [x] `flatten`
+- [x] `range` — `(range n)` or `(range start end)`
 
 ### 2b. String operations
-- [ ] `subs` — `(subs s start end?)`
-- [ ] `upper-case` / `lower-case`
-- [ ] `trim`
-- [ ] `split` / `join`
-- [ ] `starts-with?` / `ends-with?`
-- [ ] `replace`
-- [ ] `contains?` on string
+- [x] `subs` — `(subs s start end?)`
+- [x] `upper-case` / `lower-case`
+- [x] `trim`
+- [x] `split` / `join`
+- [x] `starts-with?` / `ends-with?`
+- [x] `replace`
+- [x] `contains?` on string (handled by unified `contains?`)
 
 ### 2c. Better error messages
-- [ ] Show offending source line with `^` pointer
-- [ ] "Did you mean?" hints for common typos (`defun` → `defn`, `lambda` → `fn`)
+- [x] Show offending source line with `^` pointer
+- [x] "Did you mean?" hints for common typos (`defun` → `defn`, `lambda` → `fn`)
 - [ ] Distinguish parse errors from transpile errors
 
 ### 2d. Test framework
-- [ ] `deftest` special form → `func TestXxx(t *testing.T)`
-- [ ] `assert=`, `assert-true`, `assert-false`, `assert-nil`, `assert-err`
-- [ ] `glisp test file.glsp` CLI command
+- [x] `deftest` special form → `func TestXxx(t *testing.T)`
+- [x] `assert=`, `assert-true`, `assert-false`, `assert-nil`, `assert-err`
+- [x] `glisp test file.glsp` CLI command
 
 ### 2e. Multi-file / namespace support
 - [ ] `glisp build dir/` — compile all `.glsp` files in a directory

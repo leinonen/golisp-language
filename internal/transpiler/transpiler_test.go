@@ -141,6 +141,145 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [] (defer (println "done")) (println "body"))`,
 			wantSub: "defer ",
 		},
+		// 2a: collection operations
+		{
+			name:    "map",
+			src:     `(defn f [coll] (map (fn [x] x) coll))`,
+			wantSub: "_glispMap(",
+		},
+		{
+			name:    "filter",
+			src:     `(defn f [coll] (filter (fn [x] x) coll))`,
+			wantSub: "_glispFilter(",
+		},
+		{
+			name:    "reduce",
+			src:     `(defn f [coll] (reduce (fn [acc x] acc) 0 coll))`,
+			wantSub: "_glispReduce(",
+		},
+		{
+			name:    "take",
+			src:     `(defn f [coll] (take 3 coll))`,
+			wantSub: "_glispTake(",
+		},
+		{
+			name:    "drop",
+			src:     `(defn f [coll] (drop 2 coll))`,
+			wantSub: "_glispDrop(",
+		},
+		{
+			name:    "reverse",
+			src:     `(defn f [coll] (reverse coll))`,
+			wantSub: "_glispReverse(",
+		},
+		{
+			name:    "contains?",
+			src:     `(defn f [m] (contains? m "key"))`,
+			wantSub: "_glispContains(",
+		},
+		{
+			name:    "some",
+			src:     `(defn f [coll] (some (fn [x] x) coll))`,
+			wantSub: "_glispSome(",
+		},
+		{
+			name:    "every?",
+			src:     `(defn f [coll] (every? (fn [x] x) coll))`,
+			wantSub: "_glispEvery(",
+		},
+		{
+			name:    "sort-by",
+			src:     `(defn f [coll] (sort-by (fn [x] x) coll))`,
+			wantSub: "_glispSortBy(",
+		},
+		{
+			name:    "flatten",
+			src:     `(defn f [coll] (flatten coll))`,
+			wantSub: "_glispFlatten(",
+		},
+		{
+			name:    "range",
+			src:     `(defn f [] (range 10))`,
+			wantSub: "_glispRange(",
+		},
+		// 2b: string operations
+		{
+			name:    "upper-case",
+			src:     `(defn f [^string s] (upper-case s))`,
+			wantSub: "strings.ToUpper(",
+		},
+		{
+			name:    "lower-case",
+			src:     `(defn f [^string s] (lower-case s))`,
+			wantSub: "strings.ToLower(",
+		},
+		{
+			name:    "trim",
+			src:     `(defn f [^string s] (trim s))`,
+			wantSub: "strings.TrimSpace(",
+		},
+		{
+			name:    "starts-with?",
+			src:     `(defn f [^string s] (starts-with? s "foo"))`,
+			wantSub: "strings.HasPrefix(",
+		},
+		{
+			name:    "ends-with?",
+			src:     `(defn f [^string s] (ends-with? s "bar"))`,
+			wantSub: "strings.HasSuffix(",
+		},
+		{
+			name:    "replace",
+			src:     `(defn f [^string s] (replace s "a" "b"))`,
+			wantSub: "strings.ReplaceAll(",
+		},
+		{
+			name:    "split",
+			src:     `(defn f [^string s] (split s ","))`,
+			wantSub: "_glispSplit(",
+		},
+		{
+			name:    "join",
+			src:     `(defn f [coll] (join coll ","))`,
+			wantSub: "_glispJoin(",
+		},
+		{
+			name:    "subs two-arg",
+			src:     `(defn f [^string s] (subs s 2))`,
+			wantSub: "_glispToString(s))[2:]",
+		},
+		{
+			name:    "subs three-arg",
+			src:     `(defn f [^string s] (subs s 1 4))`,
+			wantSub: "_glispToString(s))[1:4]",
+		},
+		// 2d: test framework
+		{
+			name:    "deftest emits test func",
+			src:     `(ns main) (deftest my-test (assert= (+ 1 2) 3))`,
+			wantSub: "func TestMyTest(t *testing.T)",
+		},
+		{
+			name:    "assert= emits comparison",
+			src:     `(ns main) (deftest t (assert= 1 1))`,
+			wantSub: `t.Errorf("assert= failed`,
+		},
+		{
+			name:    "assert-true emits bool check",
+			src:     `(ns main) (deftest t (assert-true true))`,
+			wantSub: `t.Errorf("assert-true failed")`,
+		},
+		{
+			name:    "assert-nil emits nil check",
+			src:     `(ns main) (deftest t (assert-nil nil))`,
+			wantSub: `t.Errorf("assert-nil failed`,
+		},
+		// fn default return type
+		{
+			name:    "fn defaults to any return",
+			src:     `(defn f [] (map (fn [x] x) []))`,
+			wantSub: "func(x any) any {",
+		},
 	}
 
 	for _, tt := range tests {

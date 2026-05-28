@@ -10,24 +10,46 @@ import (
 	"golisp/internal/lexer"
 )
 
+// didYouMean maps common Lisp/Scheme/Clojure forms to their glisp equivalents.
+var didYouMean = map[string]string{
+	"defun":    "defn",
+	"define":   "def or defn",
+	"lambda":   "fn",
+	"begin":    "do",
+	"defmacro": "(macros not yet supported)",
+	"defvar":   "def",
+	"setq":     "def",
+	"progn":    "do",
+	"funcall":  "(just call the function directly)",
+	"apply":    "(just call the function directly)",
+}
+
 // Parse converts a token stream into a slice of top-level AST nodes.
 func Parse(tokens []lexer.Token) ([]ast.Node, error) {
 	p := &parser{tokens: tokens}
 	return p.parseAll()
 }
 
-// ParseString is a convenience wrapper.
+// ParseString tokenizes and parses source, attaching source context to errors.
 func ParseString(src string) ([]ast.Node, error) {
 	tokens, err := lexer.Tokenize(src)
 	if err != nil {
 		return nil, err
 	}
-	return Parse(tokens)
+	p := &parser{tokens: tokens, src: src}
+	return p.parseAll()
+}
+
+// ParseSource parses a pre-tokenized stream with source text for error context.
+func ParseSource(tokens []lexer.Token, src string) ([]ast.Node, error) {
+	p := &parser{tokens: tokens, src: src}
+	return p.parseAll()
 }
 
 type parser struct {
 	tokens []lexer.Token
 	pos    int
+	src    string // original source text for error context; may be empty
 }
 
 func (p *parser) peek() lexer.Token {
@@ -57,7 +79,27 @@ func (p *parser) expect(tt lexer.TokenType) (lexer.Token, error) {
 
 func (p *parser) errorf(format string, args ...any) error {
 	tok := p.peek()
-	return fmt.Errorf("%d:%d: %s", tok.Line, tok.Column, fmt.Sprintf(format, args...))
+	msg := fmt.Sprintf(format, args...)
+	if p.src != "" {
+		ctx := p.sourceContext(tok.Line, tok.Column)
+		return fmt.Errorf("%d:%d: %s%s", tok.Line, tok.Column, msg, ctx)
+	}
+	return fmt.Errorf("%d:%d: %s", tok.Line, tok.Column, msg)
+}
+
+// sourceContext returns a two-line string showing the offending source line
+// and a ^ pointer to the column.
+func (p *parser) sourceContext(line, col int) string {
+	lines := strings.Split(p.src, "\n")
+	if line <= 0 || line > len(lines) {
+		return ""
+	}
+	srcLine := lines[line-1]
+	if col < 1 {
+		col = 1
+	}
+	pointer := strings.Repeat(" ", col-1) + "^"
+	return fmt.Sprintf("\n  %s\n  %s", srcLine, pointer)
 }
 
 func (p *parser) mkpos(tok lexer.Token) ast.Position {
@@ -291,6 +333,14 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseIfErr(pos)
 		case "as":
 			return p.parseTypeAssert(pos)
+		case "deftest":
+			return p.parseDefTest(pos)
+		}
+
+		// "Did you mean?" hints for common mistakes from other Lisps.
+		if hint, ok := didYouMean[head.Text]; ok {
+			p.advance() // consume the bad symbol so error points at it
+			return nil, p.errorf("%q is not valid glisp — did you mean %s?", head.Text, hint)
 		}
 
 		// Method call: (.MethodName obj args...)
@@ -1033,4 +1083,22 @@ func (p *parser) parseBody() ([]ast.Node, error) {
 
 func (p *parser) parseArgs() ([]ast.Node, error) {
 	return p.parseBody()
+}
+
+// ---------- deftest ----------
+
+func (p *parser) parseDefTest(pos ast.Position) (*ast.DefTestDecl, error) {
+	p.advance() // consume "deftest"
+	nameTok, err := p.expect(lexer.TokenSymbol)
+	if err != nil {
+		return nil, err
+	}
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewDefTestDecl(pos, nameTok.Text, body), nil
 }

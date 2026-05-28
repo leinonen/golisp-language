@@ -2,34 +2,40 @@ package main
 
 import (
 	"fmt"
-	"golisp/stdlib"
-	"log"
+	"sort"
 )
 
-func homeHandler(req map[string]any) map[string]any {
-	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/html"}, "body": "<h1>Hello from glisp!</h1>"}
-}
-
-func echoHandler(req map[string]any) map[string]any {
-	body := _glispGet(req, "body")
-	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/plain"}, "body": (fmt.Sprintf("%v", "echo: ") + fmt.Sprintf("%v", body))}
-}
-
-func router(req map[string]any) map[string]any {
-	path := _glispGet(req, "path")
-	if path == "/" {
-		return homeHandler(req)
-	} else if path == "/echo" {
-		return echoHandler(req)
-	} else {
-		return map[string]any{"status": 404, "body": "not found"}
-	}
-}
-
 func main() {
-	fmt.Println("Starting server on :3000")
-	err := stdlib.Serve(":3000", router)
-	log.Fatal(err)
+	nums := _glispRange(1, 11)
+	doubled := _glispMap(func(x any) any {
+		return (_glispToInt(x) * 2)
+	}, nums)
+	fmt.Println("doubled:", doubled)
+	evens := _glispFilter(func(x any) any {
+		return ((_glispToInt(x) % 2) == 0)
+	}, nums)
+	fmt.Println("evens:", evens)
+	total := _glispReduce(func(acc any, x any) any {
+		return (_glispToInt(acc) + _glispToInt(x))
+	}, 0, nums)
+	fmt.Println("sum 1..10:", total)
+	fmt.Println("take 3:", _glispTake(3, nums))
+	fmt.Println("drop 7:", _glispDrop(7, nums))
+	fmt.Println("reversed:", _glispReverse(_glispTake(5, nums)))
+	fmt.Println("contains 5?", _glispContains(nums, 5))
+	fmt.Println("contains 99?", _glispContains(nums, 99))
+	fmt.Println("some even?", _glispSome(func(x any) any {
+		return ((_glispToInt(x) % 2) == 0)
+	}, nums))
+	fmt.Println("every > 0?", _glispEvery(func(x any) any {
+		return (_glispToInt(x) > 0)
+	}, nums))
+	words := []any{"banana", "apple", "cherry", "date"}
+	fmt.Println("sorted:", _glispSortBy(func(x any) any {
+		return x
+	}, words))
+	nested := []any{[]any{1, 2}, []any{3, 4}, []any{5}}
+	fmt.Println("flattened:", _glispFlatten(nested))
 }
 
 // --- glisp runtime helpers (generated) ---
@@ -304,3 +310,34 @@ func _glispDrop(n any, coll any) []any {
 }
 
 // --- end glisp runtime helpers ---
+
+func _glispSortBy(f any, coll any) []any {
+	fn := f.(func(any) any)
+	s := _glispToSlice(coll)
+	result := make([]any, len(s))
+	copy(result, s)
+	sort.SliceStable(result, func(i, j int) bool {
+		ki := fn(result[i])
+		kj := fn(result[j])
+		switch a := ki.(type) {
+		case int:
+			if b, ok := kj.(int); ok {
+				return a < b
+			}
+		case int64:
+			if b, ok := kj.(int64); ok {
+				return a < b
+			}
+		case float64:
+			if b, ok := kj.(float64); ok {
+				return a < b
+			}
+		case string:
+			if b, ok := kj.(string); ok {
+				return a < b
+			}
+		}
+		return false
+	})
+	return result
+}

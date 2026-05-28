@@ -1,0 +1,19 @@
+(ns main)
+
+(defn ^int add [^int a ^int b]
+  (+ a b))
+
+(defn ^string greet [^string name]
+  (str "hello " name))
+
+(deftest math-ops
+  (assert= (add 1 2) 3)
+  (assert= (add 0 0) 0)
+  (assert= (add -1 1) 0)
+  (assert-true (> (add 5 5) 9))
+  (assert-false (= (add 1 1) 3)))
+
+(deftest string-ops
+  (assert= (greet "world") "hello world")
+  (assert-false (= (greet "x") "hello y"))
+  (assert-nil nil))

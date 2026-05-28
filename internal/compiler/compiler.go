@@ -42,6 +42,23 @@ func Compile(srcPath string, outPath string) error {
 	return nil
 }
 
+// CompileTest compiles a .glsp file to a _test.go file and runs `go test`.
+func CompileTest(srcPath string) error {
+	base := strings.TrimSuffix(srcPath, filepath.Ext(srcPath))
+	goPath := base + "_test.go"
+	if err := Compile(srcPath, goPath); err != nil {
+		return err
+	}
+	cmd := exec.Command("go", "test", filepath.Base(goPath))
+	cmd.Dir = filepath.Dir(srcPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("go test: %w", err)
+	}
+	return nil
+}
+
 // CompileAndBuild compiles a .glsp file to Go and then runs `go build`.
 func CompileAndBuild(srcPath string, outBin string) error {
 	goPath := strings.TrimSuffix(srcPath, filepath.Ext(srcPath)) + ".go"

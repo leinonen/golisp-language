@@ -1,0 +1,43 @@
+; Demonstrates collection operations: map, filter, reduce, take, drop,
+; reverse, contains?, some, every?, sort-by, flatten, range.
+
+(ns main
+  (:import [fmt]))
+
+(defn main []
+  (let [nums (range 1 11)]
+
+    ; map: double each number
+    (let [doubled (map (fn [x] (* (int x) 2)) nums)]
+      (fmt/Println "doubled:" doubled))
+
+    ; filter: keep evens
+    (let [evens (filter (fn [x] (= (mod (int x) 2) 0)) nums)]
+      (fmt/Println "evens:" evens))
+
+    ; reduce: sum
+    (let [total (reduce (fn [acc x] (+ (int acc) (int x))) 0 nums)]
+      (fmt/Println "sum 1..10:" total))
+
+    ; take / drop
+    (fmt/Println "take 3:" (take 3 nums))
+    (fmt/Println "drop 7:" (drop 7 nums))
+
+    ; reverse
+    (fmt/Println "reversed:" (reverse (take 5 nums)))
+
+    ; contains?
+    (fmt/Println "contains 5?" (contains? nums 5))
+    (fmt/Println "contains 99?" (contains? nums 99))
+
+    ; some / every?
+    (fmt/Println "some even?" (some (fn [x] (= (mod (int x) 2) 0)) nums))
+    (fmt/Println "every > 0?" (every? (fn [x] (> (int x) 0)) nums))
+
+    ; sort-by (descending via negation)
+    (let [words ["banana" "apple" "cherry" "date"]]
+      (fmt/Println "sorted:" (sort-by (fn [x] x) words)))
+
+    ; flatten
+    (let [nested [[1 2] [3 4] [5]]]
+      (fmt/Println "flattened:" (flatten nested)))))

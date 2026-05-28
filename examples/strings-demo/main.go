@@ -2,34 +2,24 @@ package main
 
 import (
 	"fmt"
-	"golisp/stdlib"
-	"log"
+	"strings"
 )
 
-func homeHandler(req map[string]any) map[string]any {
-	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/html"}, "body": "<h1>Hello from glisp!</h1>"}
-}
-
-func echoHandler(req map[string]any) map[string]any {
-	body := _glispGet(req, "body")
-	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/plain"}, "body": (fmt.Sprintf("%v", "echo: ") + fmt.Sprintf("%v", body))}
-}
-
-func router(req map[string]any) map[string]any {
-	path := _glispGet(req, "path")
-	if path == "/" {
-		return homeHandler(req)
-	} else if path == "/echo" {
-		return echoHandler(req)
-	} else {
-		return map[string]any{"status": 404, "body": "not found"}
-	}
-}
-
 func main() {
-	fmt.Println("Starting server on :3000")
-	err := stdlib.Serve(":3000", router)
-	log.Fatal(err)
+	s := "  Hello, World!  "
+	fmt.Println("trimmed:   ", strings.TrimSpace(_glispToString(s)))
+	fmt.Println("upper:     ", strings.ToUpper(_glispToString(strings.TrimSpace(_glispToString(s)))))
+	fmt.Println("lower:     ", strings.ToLower(_glispToString(strings.TrimSpace(_glispToString(s)))))
+	clean := strings.TrimSpace(_glispToString(s))
+	fmt.Println("starts Hello?", strings.HasPrefix(_glispToString(clean), _glispToString("Hello")))
+	fmt.Println("ends !?", strings.HasSuffix(_glispToString(clean), _glispToString("!")))
+	fmt.Println("contains World?", _glispContains(clean, "World"))
+	fmt.Println("subs 7 12:   ", (_glispToString(clean))[7:12])
+	fmt.Println("replaced:    ", strings.ReplaceAll(_glispToString(clean), _glispToString("World"), _glispToString("glisp")))
+	csv := "one,two,three,four"
+	parts := _glispSplit(csv, ",")
+	fmt.Println("split:", parts)
+	fmt.Println("joined:", _glispJoin(parts, " | "))
 }
 
 // --- glisp runtime helpers (generated) ---
@@ -304,3 +294,23 @@ func _glispDrop(n any, coll any) []any {
 }
 
 // --- end glisp runtime helpers ---
+
+func _glispSplit(s any, sep any) []any {
+	parts := strings.Split(s.(string), sep.(string))
+	result := make([]any, len(parts))
+	for i, p := range parts {
+		result[i] = p
+	}
+	return result
+}
+
+func _glispJoin(coll any, sep any) string {
+	s := _glispToSlice(coll)
+	parts := make([]string, len(s))
+	for i, v := range s {
+		if str, ok := v.(string); ok {
+			parts[i] = str
+		}
+	}
+	return strings.Join(parts, sep.(string))
+}

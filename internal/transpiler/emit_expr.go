@@ -57,12 +57,20 @@ func (e *Emitter) emitMapLit(n *ast.MapLit) error {
 }
 
 // emitFnExpr emits an anonymous function literal.
+// fn always returns any by default — every glisp expression has a value.
+// Use ^void annotation to suppress the return type (for side-effect-only fns).
 func (e *Emitter) emitFnExpr(n *ast.FnExpr) error {
 	params, err := e.formatParams(n.Params)
 	if err != nil {
 		return err
 	}
 	retStr := e.formatReturnType(n.ReturnType)
+	isVoid := retStr == "void"
+	if isVoid {
+		retStr = ""
+	} else if retStr == "" {
+		retStr = "any"
+	}
 	if retStr != "" {
 		e.writef("func(%s) %s {", params, retStr)
 	} else {
@@ -70,7 +78,7 @@ func (e *Emitter) emitFnExpr(n *ast.FnExpr) error {
 	}
 	e.nl()
 	e.push()
-	if err := e.emitBody(n.Body, retStr != ""); err != nil {
+	if err := e.emitBody(n.Body, !isVoid); err != nil {
 		return err
 	}
 	e.pop()
@@ -362,6 +370,53 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return e.emitDoseq(n.Args)
 		case "dotimes":
 			return e.emitDotimes(n.Args)
+		// 2a: collection operations
+		case "map":
+			return e.emitRuntimeCall("_glispMap", n.Args, 2)
+		case "filter":
+			return e.emitRuntimeCall("_glispFilter", n.Args, 2)
+		case "reduce":
+			return e.emitRuntimeCall("_glispReduce", n.Args, 3)
+		case "reverse":
+			return e.emitRuntimeCall("_glispReverse", n.Args, 1)
+		case "contains?":
+			return e.emitRuntimeCall("_glispContains", n.Args, 2)
+		case "some":
+			return e.emitRuntimeCall("_glispSome", n.Args, 2)
+		case "every?":
+			return e.emitRuntimeCall("_glispEvery", n.Args, 2)
+		case "sort-by":
+			e.needImport("sort")
+			return e.emitRuntimeCall("_glispSortBy", n.Args, 2)
+		case "flatten":
+			return e.emitRuntimeCall("_glispFlatten", n.Args, 1)
+		case "range":
+			return e.emitVariadicRuntimeCall("_glispRange", n.Args)
+		case "take":
+			return e.emitRuntimeCall("_glispTake", n.Args, 2)
+		case "drop":
+			return e.emitRuntimeCall("_glispDrop", n.Args, 2)
+		// 2b: string operations
+		case "upper-case":
+			return e.emitStrOp("strings.ToUpper", n.Args, 1)
+		case "lower-case":
+			return e.emitStrOp("strings.ToLower", n.Args, 1)
+		case "trim":
+			return e.emitStrOp("strings.TrimSpace", n.Args, 1)
+		case "starts-with?":
+			return e.emitStrOp2("strings.HasPrefix", n.Args)
+		case "ends-with?":
+			return e.emitStrOp2("strings.HasSuffix", n.Args)
+		case "replace":
+			return e.emitReplace(n.Args)
+		case "split":
+			e.needImport("strings")
+			return e.emitRuntimeCall("_glispSplit", n.Args, 2)
+		case "join":
+			e.needImport("strings")
+			return e.emitRuntimeCall("_glispJoin", n.Args, 2)
+		case "subs":
+			return e.emitSubs(n.Args)
 		}
 	}
 
@@ -711,7 +766,8 @@ func (e *Emitter) emitIntConv(args []ast.Node) error {
 	if len(args) != 1 {
 		return fmt.Errorf("int requires 1 argument")
 	}
-	e.write("int(")
+	// Use _glispToInt so it works on any (e.g. values from range/map/filter).
+	e.write("_glispToInt(")
 	if err := e.emitExpr(args[0]); err != nil {
 		return err
 	}
@@ -870,6 +926,118 @@ func (e *Emitter) emitReturnExpr(n *ast.ReturnExpr) error {
 		}
 	}
 	e.nl()
+	return nil
+}
+
+// emitRuntimeCall emits a call to a runtime helper with a fixed arity check.
+func (e *Emitter) emitRuntimeCall(fn string, args []ast.Node, arity int) error {
+	if len(args) != arity {
+		return fmt.Errorf("%s requires %d argument(s), got %d", fn, arity, len(args))
+	}
+	e.writef("%s(", fn)
+	for i, arg := range args {
+		if i > 0 {
+			e.write(", ")
+		}
+		if err := e.emitExpr(arg); err != nil {
+			return err
+		}
+	}
+	e.write(")")
+	return nil
+}
+
+// emitVariadicRuntimeCall emits a call to a runtime helper accepting any number of args.
+func (e *Emitter) emitVariadicRuntimeCall(fn string, args []ast.Node) error {
+	e.writef("%s(", fn)
+	for i, arg := range args {
+		if i > 0 {
+			e.write(", ")
+		}
+		if err := e.emitExpr(arg); err != nil {
+			return err
+		}
+	}
+	e.write(")")
+	return nil
+}
+
+// emitStrOp emits a single-arg strings.Xxx(_glispToString(s)) call.
+func (e *Emitter) emitStrOp(fn string, args []ast.Node, arity int) error {
+	if len(args) != arity {
+		return fmt.Errorf("%s requires %d argument(s)", fn, arity)
+	}
+	e.needImport("strings")
+	e.writef("%s(_glispToString(", fn)
+	if err := e.emitExpr(args[0]); err != nil {
+		return err
+	}
+	e.write("))")
+	return nil
+}
+
+// emitStrOp2 emits a two-arg strings.Xxx(_glispToString(s), _glispToString(t)) call.
+func (e *Emitter) emitStrOp2(fn string, args []ast.Node) error {
+	if len(args) != 2 {
+		return fmt.Errorf("%s requires 2 arguments", fn)
+	}
+	e.needImport("strings")
+	e.writef("%s(_glispToString(", fn)
+	if err := e.emitExpr(args[0]); err != nil {
+		return err
+	}
+	e.write("), _glispToString(")
+	if err := e.emitExpr(args[1]); err != nil {
+		return err
+	}
+	e.write("))")
+	return nil
+}
+
+// emitReplace emits (replace s from to) → strings.ReplaceAll(s, from, to)
+func (e *Emitter) emitReplace(args []ast.Node) error {
+	if len(args) != 3 {
+		return fmt.Errorf("replace requires 3 arguments: s from to")
+	}
+	e.needImport("strings")
+	e.write("strings.ReplaceAll(_glispToString(")
+	if err := e.emitExpr(args[0]); err != nil {
+		return err
+	}
+	e.write("), _glispToString(")
+	if err := e.emitExpr(args[1]); err != nil {
+		return err
+	}
+	e.write("), _glispToString(")
+	if err := e.emitExpr(args[2]); err != nil {
+		return err
+	}
+	e.write("))")
+	return nil
+}
+
+// emitSubs emits (subs s start) or (subs s start end)
+func (e *Emitter) emitSubs(args []ast.Node) error {
+	if len(args) < 2 || len(args) > 3 {
+		return fmt.Errorf("subs requires 2 or 3 arguments")
+	}
+	e.write("(_glispToString(")
+	if err := e.emitExpr(args[0]); err != nil {
+		return err
+	}
+	e.write("))[")
+	if err := e.emitExpr(args[1]); err != nil {
+		return err
+	}
+	if len(args) == 3 {
+		e.write(":")
+		if err := e.emitExpr(args[2]); err != nil {
+			return err
+		}
+	} else {
+		e.write(":")
+	}
+	e.write("]")
 	return nil
 }
 

@@ -1,0 +1,24 @@
+; Demonstrates string operations: upper/lower-case, trim, split, join,
+; starts-with?, ends-with?, replace, subs, contains?.
+
+(ns main
+  (:import [fmt]))
+
+(defn main []
+  (let [s "  Hello, World!  "]
+
+    (fmt/Println "trimmed:   " (trim s))
+    (fmt/Println "upper:     " (upper-case (trim s)))
+    (fmt/Println "lower:     " (lower-case (trim s)))
+
+    (let [clean (trim s)]
+      (fmt/Println "starts Hello?" (starts-with? clean "Hello"))
+      (fmt/Println "ends !?"       (ends-with? clean "!"))
+      (fmt/Println "contains World?" (contains? clean "World"))
+      (fmt/Println "subs 7 12:   " (subs clean 7 12))
+      (fmt/Println "replaced:    " (replace clean "World" "glisp")))
+
+    (let [csv "one,two,three,four"]
+      (let [parts (split csv ",")]
+        (fmt/Println "split:"  parts)
+        (fmt/Println "joined:" (join parts " | "))))))

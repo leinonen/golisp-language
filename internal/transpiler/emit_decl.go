@@ -1,6 +1,7 @@
 package transpiler
 
 import (
+	"fmt"
 	"strings"
 
 	"golisp/internal/ast"
@@ -96,6 +97,151 @@ func (e *Emitter) emitInterfaceDecl(n *ast.InterfaceDecl) error {
 	e.pop()
 	e.line("}")
 	return nil
+}
+
+// emitDefTestDecl emits a deftest as a Go test function.
+func (e *Emitter) emitDefTestDecl(n *ast.DefTestDecl) error {
+	e.needImport("testing")
+	goName := "Test" + titleCase(identToGo(n.Name))
+	e.linef("func %s(t *testing.T) {", goName)
+	e.push()
+	for _, node := range n.Body {
+		if err := e.emitAssertStmt(node); err != nil {
+			return err
+		}
+	}
+	e.pop()
+	e.line("}")
+	return nil
+}
+
+// emitAssertStmt emits one statement inside a deftest body.
+// Recognizes assert=, assert-true, assert-false, assert-nil, assert-err.
+// Anything else is emitted as a regular statement.
+func (e *Emitter) emitAssertStmt(n ast.Node) error {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return e.emitStmtNode(n)
+	}
+	sym, ok := call.Head.(*ast.Symbol)
+	if !ok {
+		return e.emitStmtNode(n)
+	}
+
+	switch sym.Name {
+	case "assert=":
+		if len(call.Args) != 2 {
+			return fmt.Errorf("assert= requires 2 arguments")
+		}
+		e.writeIndent()
+		e.write("if (")
+		if err := e.emitExpr(call.Args[0]); err != nil {
+			return err
+		}
+		e.write(") != (")
+		if err := e.emitExpr(call.Args[1]); err != nil {
+			return err
+		}
+		e.write(") {")
+		e.nl()
+		e.push()
+		e.writeIndent()
+		e.write(`t.Errorf("assert= failed: expected %v, got %v", `)
+		if err := e.emitExpr(call.Args[1]); err != nil {
+			return err
+		}
+		e.write(", ")
+		if err := e.emitExpr(call.Args[0]); err != nil {
+			return err
+		}
+		e.write(")")
+		e.nl()
+		e.pop()
+		e.line("}")
+		return nil
+
+	case "assert-true":
+		if len(call.Args) != 1 {
+			return fmt.Errorf("assert-true requires 1 argument")
+		}
+		e.writeIndent()
+		e.write("if !(")
+		if err := e.emitExpr(call.Args[0]); err != nil {
+			return err
+		}
+		e.write(") {")
+		e.nl()
+		e.push()
+		e.writeIndent()
+		e.write(`t.Errorf("assert-true failed")`)
+		e.nl()
+		e.pop()
+		e.line("}")
+		return nil
+
+	case "assert-false":
+		if len(call.Args) != 1 {
+			return fmt.Errorf("assert-false requires 1 argument")
+		}
+		e.writeIndent()
+		e.write("if (")
+		if err := e.emitExpr(call.Args[0]); err != nil {
+			return err
+		}
+		e.write(") {")
+		e.nl()
+		e.push()
+		e.writeIndent()
+		e.write(`t.Errorf("assert-false failed")`)
+		e.nl()
+		e.pop()
+		e.line("}")
+		return nil
+
+	case "assert-nil":
+		if len(call.Args) != 1 {
+			return fmt.Errorf("assert-nil requires 1 argument")
+		}
+		e.writeIndent()
+		e.write("if (")
+		if err := e.emitExpr(call.Args[0]); err != nil {
+			return err
+		}
+		e.write(") != nil {")
+		e.nl()
+		e.push()
+		e.writeIndent()
+		e.write(`t.Errorf("assert-nil failed: got %v", `)
+		if err := e.emitExpr(call.Args[0]); err != nil {
+			return err
+		}
+		e.write(")")
+		e.nl()
+		e.pop()
+		e.line("}")
+		return nil
+
+	case "assert-err":
+		if len(call.Args) != 1 {
+			return fmt.Errorf("assert-err requires 1 argument")
+		}
+		e.writeIndent()
+		e.write("if (")
+		if err := e.emitExpr(call.Args[0]); err != nil {
+			return err
+		}
+		e.write(") == nil {")
+		e.nl()
+		e.push()
+		e.writeIndent()
+		e.write(`t.Errorf("assert-err failed: expected non-nil error")`)
+		e.nl()
+		e.pop()
+		e.line("}")
+		return nil
+	}
+
+	return e.emitStmtNode(n)
 }
 
 // formatParams converts a param list to a Go parameter string.

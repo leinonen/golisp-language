@@ -1,35 +1,37 @@
 package main
 
-import (
-	"fmt"
-	"golisp/stdlib"
-	"log"
-)
-
-func homeHandler(req map[string]any) map[string]any {
-	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/html"}, "body": "<h1>Hello from glisp!</h1>"}
+func doubleAll(nums []any) []any {
+	return _glispMap(func(x any) any {
+		return (_glispToInt(x) * 2)
+	}, nums)
 }
 
-func echoHandler(req map[string]any) map[string]any {
-	body := _glispGet(req, "body")
-	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/plain"}, "body": (fmt.Sprintf("%v", "echo: ") + fmt.Sprintf("%v", body))}
+func evens(nums []any) []any {
+	return _glispFilter(func(x any) any {
+		return ((_glispToInt(x) % 2) == 0)
+	}, nums)
 }
 
-func router(req map[string]any) map[string]any {
-	path := _glispGet(req, "path")
-	if path == "/" {
-		return homeHandler(req)
-	} else if path == "/echo" {
-		return echoHandler(req)
-	} else {
-		return map[string]any{"status": 404, "body": "not found"}
-	}
+func sum(nums []any) int {
+	return _glispToInt(_glispReduce(func(acc any, x any) any {
+		return (_glispToInt(acc) + _glispToInt(x))
+	}, 0, nums))
 }
 
-func main() {
-	fmt.Println("Starting server on :3000")
-	err := stdlib.Serve(":3000", router)
-	log.Fatal(err)
+func firstThree(coll []any) []any {
+	return _glispTake(3, coll)
+}
+
+func skipTwo(coll []any) []any {
+	return _glispDrop(2, coll)
+}
+
+func reversed(coll []any) []any {
+	return _glispReverse(coll)
+}
+
+func oneToFive() []any {
+	return _glispRange(1, 6)
 }
 
 // --- glisp runtime helpers (generated) ---

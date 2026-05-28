@@ -1,0 +1,5 @@
+(defn ^int sum-to [^int n]
+  (loop [i 0 acc 0]
+    (if (> i n)
+      acc
+      (recur (+ i 1) (+ acc i)))))

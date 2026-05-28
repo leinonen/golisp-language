@@ -1,0 +1,5 @@
+(defn ^int double [^int x]
+  (* x 2))
+
+(defn ^string greet [^string name]
+  (str "Hello, " name "!"))

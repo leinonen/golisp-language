@@ -1,0 +1,14 @@
+; Hello World in glisp
+
+(defn ^string greet [^string name]
+  (str "Hello, " name "!"))
+
+(defn main []
+  (println (greet "World"))
+  (let [x 10
+        y 20
+        result (+ x y)]
+    (println "Sum:" result))
+  (let [ch (chan ^string 1)]
+    (go (send! ch (greet "goroutine")))
+    (println (recv! ch))))

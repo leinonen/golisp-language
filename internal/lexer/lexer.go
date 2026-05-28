@@ -1,0 +1,332 @@
+package lexer
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"unicode"
+)
+
+// Tokenize converts a source string into a slice of Tokens.
+// Returns an error on unexpected input.
+func Tokenize(source string) ([]Token, error) {
+	l := &lexer{
+		src:    []rune(source),
+		line:   1,
+		column: 1,
+	}
+	return l.tokenize()
+}
+
+type lexer struct {
+	src    []rune
+	pos    int
+	line   int
+	column int
+}
+
+func (l *lexer) peek() rune {
+	if l.pos >= len(l.src) {
+		return 0
+	}
+	return l.src[l.pos]
+}
+
+func (l *lexer) peekAt(offset int) rune {
+	idx := l.pos + offset
+	if idx >= len(l.src) {
+		return 0
+	}
+	return l.src[idx]
+}
+
+func (l *lexer) advance() rune {
+	if l.pos >= len(l.src) {
+		return 0
+	}
+	ch := l.src[l.pos]
+	l.pos++
+	if ch == '\n' {
+		l.line++
+		l.column = 1
+	} else {
+		l.column++
+	}
+	return ch
+}
+
+func (l *lexer) errorf(format string, args ...any) error {
+	return fmt.Errorf("%d:%d: %s", l.line, l.column, fmt.Sprintf(format, args...))
+}
+
+func (l *lexer) tokenize() ([]Token, error) {
+	var tokens []Token
+	for {
+		l.skipWhitespaceAndComments()
+		if l.pos >= len(l.src) {
+			tokens = append(tokens, Token{Type: TokenEOF, Line: l.line, Column: l.column})
+			break
+		}
+		tok, err := l.nextToken()
+		if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, tok)
+	}
+	return tokens, nil
+}
+
+func (l *lexer) skipWhitespaceAndComments() {
+	for l.pos < len(l.src) {
+		ch := l.peek()
+		if unicode.IsSpace(ch) {
+			l.advance()
+			continue
+		}
+		// line comment
+		if ch == ';' {
+			for l.pos < len(l.src) && l.peek() != '\n' {
+				l.advance()
+			}
+			continue
+		}
+		// comma is whitespace in Lisp
+		if ch == ',' {
+			l.advance()
+			continue
+		}
+		break
+	}
+}
+
+func (l *lexer) nextToken() (Token, error) {
+	line, col := l.line, l.column
+	ch := l.peek()
+
+	switch {
+	case ch == '(':
+		l.advance()
+		return Token{Type: TokenLParen, Text: "(", Line: line, Column: col}, nil
+
+	case ch == ')':
+		l.advance()
+		return Token{Type: TokenRParen, Text: ")", Line: line, Column: col}, nil
+
+	case ch == '[':
+		l.advance()
+		return Token{Type: TokenLBracket, Text: "[", Line: line, Column: col}, nil
+
+	case ch == ']':
+		l.advance()
+		return Token{Type: TokenRBracket, Text: "]", Line: line, Column: col}, nil
+
+	case ch == '{':
+		l.advance()
+		return Token{Type: TokenLBrace, Text: "{", Line: line, Column: col}, nil
+
+	case ch == '}':
+		l.advance()
+		return Token{Type: TokenRBrace, Text: "}", Line: line, Column: col}, nil
+
+	case ch == '#' && l.peekAt(1) == '{':
+		l.advance()
+		l.advance()
+		return Token{Type: TokenHashLBrace, Text: "#{", Line: line, Column: col}, nil
+
+	case ch == '\'':
+		l.advance()
+		return Token{Type: TokenQuote, Text: "'", Line: line, Column: col}, nil
+
+	case ch == '"':
+		return l.readString(line, col)
+
+	case ch == '^':
+		return l.readTypeAnnot(line, col)
+
+	case ch == ':':
+		return l.readKeyword(line, col)
+
+	case ch == '-' && isDigit(l.peekAt(1)):
+		return l.readNumber(line, col)
+
+	case isDigit(ch):
+		return l.readNumber(line, col)
+
+	default:
+		return l.readSymbol(line, col)
+	}
+}
+
+func (l *lexer) readString(line, col int) (Token, error) {
+	l.advance() // consume opening "
+	var sb strings.Builder
+	for l.pos < len(l.src) {
+		ch := l.advance()
+		if ch == '"' {
+			return Token{Type: TokenString, Text: sb.String(), Line: line, Column: col}, nil
+		}
+		if ch == '\\' {
+			esc := l.advance()
+			switch esc {
+			case 'n':
+				sb.WriteByte('\n')
+			case 't':
+				sb.WriteByte('\t')
+			case 'r':
+				sb.WriteByte('\r')
+			case '"':
+				sb.WriteByte('"')
+			case '\\':
+				sb.WriteByte('\\')
+			default:
+				sb.WriteByte('\\')
+				sb.WriteRune(esc)
+			}
+			continue
+		}
+		sb.WriteRune(ch)
+	}
+	return Token{}, l.errorf("unterminated string literal")
+}
+
+// readTypeAnnot reads everything after ^ as a Go type string.
+// Tracks bracket depth for [], () so compound types like []string and (chan int)
+// are consumed whole.
+func (l *lexer) readTypeAnnot(line, col int) (Token, error) {
+	l.advance() // consume ^
+	if l.pos >= len(l.src) {
+		return Token{}, l.errorf("expected type after ^")
+	}
+
+	var sb strings.Builder
+	depth := 0
+	first := true
+
+	for l.pos < len(l.src) {
+		ch := l.peek()
+
+		// Terminate on whitespace when not inside brackets
+		if depth == 0 && unicode.IsSpace(ch) {
+			break
+		}
+		// Terminate on closing delimiters that don't belong to us
+		if depth == 0 && (ch == ')' || ch == ']' || ch == '}') {
+			break
+		}
+
+		if ch == '(' || ch == '[' {
+			depth++
+		} else if ch == ')' || ch == ']' {
+			depth--
+			if depth < 0 {
+				break
+			}
+		}
+
+		first = false
+		_ = first
+		sb.WriteRune(ch)
+		l.advance()
+	}
+
+	text := sb.String()
+	if text == "" {
+		return Token{}, l.errorf("empty type annotation after ^")
+	}
+	return Token{Type: TokenTypeAnnot, Text: text, Line: line, Column: col}, nil
+}
+
+func (l *lexer) readKeyword(line, col int) (Token, error) {
+	l.advance() // consume :
+	var sb strings.Builder
+	for l.pos < len(l.src) && isSymbolChar(l.peek()) {
+		sb.WriteRune(l.advance())
+	}
+	text := sb.String()
+	if text == "" {
+		return Token{}, l.errorf("empty keyword")
+	}
+	return Token{Type: TokenKeyword, Text: text, Line: line, Column: col}, nil
+}
+
+func (l *lexer) readNumber(line, col int) (Token, error) {
+	var sb strings.Builder
+	isFloat := false
+
+	if l.peek() == '-' {
+		sb.WriteRune(l.advance())
+	}
+	for l.pos < len(l.src) && isDigit(l.peek()) {
+		sb.WriteRune(l.advance())
+	}
+	if l.pos < len(l.src) && l.peek() == '.' && isDigit(l.peekAt(1)) {
+		isFloat = true
+		sb.WriteRune(l.advance()) // '.'
+		for l.pos < len(l.src) && isDigit(l.peek()) {
+			sb.WriteRune(l.advance())
+		}
+	}
+	// optional exponent
+	if l.pos < len(l.src) && (l.peek() == 'e' || l.peek() == 'E') {
+		isFloat = true
+		sb.WriteRune(l.advance())
+		if l.pos < len(l.src) && (l.peek() == '+' || l.peek() == '-') {
+			sb.WriteRune(l.advance())
+		}
+		for l.pos < len(l.src) && isDigit(l.peek()) {
+			sb.WriteRune(l.advance())
+		}
+	}
+
+	text := sb.String()
+	if isFloat {
+		_, err := strconv.ParseFloat(text, 64)
+		if err != nil {
+			return Token{}, l.errorf("invalid float: %s", text)
+		}
+		return Token{Type: TokenFloat, Text: text, Line: line, Column: col}, nil
+	}
+	_, err := strconv.ParseInt(text, 10, 64)
+	if err != nil {
+		return Token{}, l.errorf("invalid integer: %s", text)
+	}
+	return Token{Type: TokenInt, Text: text, Line: line, Column: col}, nil
+}
+
+func (l *lexer) readSymbol(line, col int) (Token, error) {
+	var sb strings.Builder
+	for l.pos < len(l.src) && isSymbolChar(l.peek()) {
+		sb.WriteRune(l.advance())
+	}
+	text := sb.String()
+	if text == "" {
+		ch := l.advance()
+		return Token{}, l.errorf("unexpected character %q", ch)
+	}
+	switch text {
+	case "nil":
+		return Token{Type: TokenNil, Text: text, Line: line, Column: col}, nil
+	case "true":
+		return Token{Type: TokenTrue, Text: text, Line: line, Column: col}, nil
+	case "false":
+		return Token{Type: TokenFalse, Text: text, Line: line, Column: col}, nil
+	}
+	return Token{Type: TokenSymbol, Text: text, Line: line, Column: col}, nil
+}
+
+func isDigit(ch rune) bool {
+	return ch >= '0' && ch <= '9'
+}
+
+// isSymbolChar returns true for characters valid in a symbol.
+// Includes letters, digits, and Lisp-conventional punctuation.
+func isSymbolChar(ch rune) bool {
+	if unicode.IsLetter(ch) || unicode.IsDigit(ch) {
+		return true
+	}
+	switch ch {
+	case '-', '_', '+', '*', '/', '?', '!', '=', '<', '>', '.', '&', '#', '%', '|', '~':
+		return true
+	}
+	return false
+}

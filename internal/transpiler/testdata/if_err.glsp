@@ -1,0 +1,4 @@
+(defn ^[string error] safe-read [^string path]
+  (if-err [data err] (read-file path)
+    (values "" err)
+    (values data nil)))

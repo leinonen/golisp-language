@@ -1,0 +1,28 @@
+; Ring-style web server example
+; Demonstrates: ns/import, defn, map literals, cond, let, error handling
+
+(ns main
+  (:import [fmt log golisp/stdlib]))
+
+(defn ^map[string]any home-handler [^map[string]any req]
+  {:status 200
+   :headers {"Content-Type" "text/html"}
+   :body "<h1>Hello from glisp!</h1>"})
+
+(defn ^map[string]any echo-handler [^map[string]any req]
+  (let [body (get req "body")]
+    {:status 200
+     :headers {"Content-Type" "text/plain"}
+     :body (str "echo: " body)}))
+
+(defn ^map[string]any router [^map[string]any req]
+  (let [path (get req "path")]
+    (cond
+      (= path "/")      (home-handler req)
+      (= path "/echo")  (echo-handler req)
+      :else {:status 404 :body "not found"})))
+
+(defn main []
+  (fmt/Println "Starting server on :3000")
+  (let [err (stdlib/Serve ":3000" router)]
+    (log/Fatal err)))

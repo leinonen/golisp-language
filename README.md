@@ -1,4 +1,4 @@
-# glisp
+# glisp language
 
 Clojure-style S-expression language that transpiles to Go. Write Ring-style web servers without the JVM.
 
@@ -74,6 +74,58 @@ Handlers are `map[string]any → map[string]any`.
       stdlib/WrapJson)))
 ```
 
+## Docker packaging
+
+`glisp build` produces a statically-linked binary with no external dependencies, so it runs in a `scratch` image.
+
+```dockerfile
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+RUN apk add --no-cache git && \
+    go install github.com/leinonen/golisp-language/cmd/glisp@latest
+
+WORKDIR /app
+COPY . .
+
+# Produces a statically-linked binary
+RUN CGO_ENABLED=0 glisp build src/
+
+# Runtime stage — zero OS overhead
+FROM scratch
+COPY --from=builder /app/src /app
+ENTRYPOINT ["/app/src"]
+```
+
+Build and run:
+
+```
+docker build -t myapp .
+docker run -p 3000:3000 myapp
+```
+
+The final image contains only your binary. Typical size: 8–15 MB.
+
+### Multi-file projects
+
+For a directory build (`glisp build dir/`) the output binary name matches the directory name:
+
+```dockerfile
+RUN CGO_ENABLED=0 glisp build api/
+COPY --from=builder /app/api /app
+```
+
+### Health checks
+
+`scratch` has no shell, so use the `HEALTHCHECK` exec form with your app's own endpoint:
+
+```dockerfile
+HEALTHCHECK --interval=10s --timeout=3s \
+  CMD ["/app/src", "--healthz"]   # implement a /healthz flag in main
+```
+
+Or use a sidecar/external probe and skip the `HEALTHCHECK` entirely.
+
 ## Editor support
 
 ### Neovim — syntax highlighting
@@ -81,13 +133,13 @@ Handlers are `map[string]any → map[string]any`.
 Add the bundled plugin to your runtimepath in `init.lua`:
 
 ```lua
-vim.opt.rtp:prepend("/path/to/go-lisp-2/editors/neovim")
+vim.opt.rtp:prepend("/path/to/golisp-language/editors/neovim")
 ```
 
 Or with lazy.nvim:
 
 ```lua
-{ dir = "/path/to/go-lisp-2/editors/neovim" }
+{ dir = "/path/to/golisp-language/editors/neovim" }
 ```
 
 This gives you filetype detection, `commentstring`, `iskeyword` tuning, and syntax

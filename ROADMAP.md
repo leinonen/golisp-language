@@ -34,8 +34,8 @@
 - [x] `glisp test file.glsp` CLI command
 
 ### 2e. Multi-file / namespace support
-- [ ] `glisp build dir/` — compile all `.glsp` files in a directory
-- [ ] Files sharing the same `ns` compile into the same Go package
+- [x] `glisp build dir/` — compile all `.glsp` files in a directory
+- [x] Files sharing the same `ns` compile into the same Go package
 
 ---
 

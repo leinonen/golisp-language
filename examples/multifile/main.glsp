@@ -1,0 +1,7 @@
+(ns main (:import [fmt]))
+
+(defn main []
+  (fmt/Println (greet "World"))
+  (fmt/Println (greet "glisp"))
+  (let [nums (map (fn [n] (square (int n))) (range 1 6))]
+    (print-results "squares" nums)))

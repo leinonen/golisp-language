@@ -67,11 +67,18 @@ func buildCmd(args []string) {
 		os.Exit(1)
 	}
 	if fs.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "build: requires <file.glsp>")
+		fmt.Fprintln(os.Stderr, "build: requires <file.glsp> or <dir/>")
 		os.Exit(1)
 	}
-	if err := compiler.CompileAndBuild(fs.Arg(0), *out); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	arg := fs.Arg(0)
+	var buildErr error
+	if info, err := os.Stat(arg); err == nil && info.IsDir() {
+		buildErr = compiler.CompileDir(arg, *out)
+	} else {
+		buildErr = compiler.CompileAndBuild(arg, *out)
+	}
+	if buildErr != nil {
+		fmt.Fprintln(os.Stderr, buildErr)
 		os.Exit(1)
 	}
 }
@@ -150,6 +157,7 @@ func usage() {
 Usage:
   glisp compile [-o output.go] <file.glsp>   transpile to Go source
   glisp build   [-o binary]    <file.glsp>   transpile + go build
+  glisp build   [-o binary]    <dir/>        compile all .glsp in dir
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
   glisp fmt     [--check]      <file.glsp>   format source in-place

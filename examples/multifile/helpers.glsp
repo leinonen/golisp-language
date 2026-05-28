@@ -1,0 +1,10 @@
+(ns main (:import [fmt]))
+
+(defn ^string greet [^string name]
+  (str "Hello, " name "!"))
+
+(defn ^int square [^int n]
+  (* n n))
+
+(defn print-results [^string label ^[]any nums]
+  (fmt/Printf "%s: %v\n" label nums))

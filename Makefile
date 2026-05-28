@@ -1,4 +1,4 @@
-.PHONY: build build-lsp test test-update install clean fmt fmt-glsp examples examples-tour examples-api
+.PHONY: build build-lsp test test-update install clean fmt fmt-glsp examples examples-tour examples-api examples-shapes examples-multifile
 
 BIN     := glisp
 BIN_LSP := glisp-lsp
@@ -21,7 +21,8 @@ install:
 
 clean:
 	rm -f $(BIN) $(BIN_LSP)
-	rm -f examples/tour/tour examples/api/api examples/shapes/shapes
+	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile
+	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
 	find . -name "*.go.out" -delete
 
 fmt:
@@ -30,7 +31,7 @@ fmt:
 fmt-glsp: build
 	find examples -name '*.glsp' | xargs ./$(BIN) fmt
 
-examples: examples-tour examples-api examples-shapes
+examples: examples-tour examples-api examples-shapes examples-multifile
 
 examples-tour: build
 	./$(BIN) build -o examples/tour/tour examples/tour/main.glsp
@@ -40,3 +41,6 @@ examples-api: build
 
 examples-shapes: build
 	./$(BIN) build -o examples/shapes/shapes examples/shapes/main.glsp
+
+examples-multifile: build
+	./$(BIN) build -o examples/multifile/multifile examples/multifile/

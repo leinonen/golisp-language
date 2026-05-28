@@ -40,6 +40,26 @@ func Transpile(src string) (string, error) {
 	return e.buf.String(), nil
 }
 
+// TranspileNoRuntime transpiles source to Go without appending runtime helpers.
+// It also returns the set of built-in packages used so the caller can generate
+// a shared runtime file for multi-file package builds.
+func TranspileNoRuntime(src string) (string, map[string]bool, error) {
+	tokens, err := lexer.Tokenize(src)
+	if err != nil {
+		return "", nil, &ParseError{Err: err}
+	}
+	nodes, err := parser.ParseSource(tokens, src)
+	if err != nil {
+		return "", nil, &ParseError{Err: err}
+	}
+	e := newEmitter()
+	e.emitRuntime = false
+	if err := e.emitFile(nodes); err != nil {
+		return "", nil, &TranspileError{Err: err}
+	}
+	return e.buf.String(), e.builtinImports, nil
+}
+
 // Emitter accumulates Go source text with indentation tracking.
 type Emitter struct {
 	buf     strings.Builder
@@ -56,6 +76,9 @@ type Emitter struct {
 	loopInReturn bool
 	// builtinImports tracks which built-in packages are needed
 	builtinImports map[string]bool
+	// emitRuntime controls whether runtime helpers are appended to the output.
+	// True by default; set false for multi-file builds that use a shared runtime file.
+	emitRuntime bool
 }
 
 func (e *Emitter) needImport(pkg string) {
@@ -66,7 +89,7 @@ func (e *Emitter) needImport(pkg string) {
 }
 
 func newEmitter() *Emitter {
-	return &Emitter{pkg: "main"}
+	return &Emitter{pkg: "main", emitRuntime: true}
 }
 
 func (e *Emitter) fresh(prefix string) string {
@@ -122,16 +145,18 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	// Append declarations
 	e.write(declEmitter.buf.String())
 
-	// Runtime helpers (base always included; extras only when needed)
-	e.write(glispRuntime)
-	if e.builtinImports["sort"] {
-		e.write(glispSortRuntime)
-	}
-	if e.builtinImports["strings"] {
-		e.write(glispStrRuntime)
-	}
-	if e.builtinImports["encoding/json"] {
-		e.write(glispJsonRuntime)
+	// Runtime helpers (omitted for multi-file builds that use a shared runtime file)
+	if e.emitRuntime {
+		e.write(glispRuntime)
+		if e.builtinImports["sort"] {
+			e.write(glispSortRuntime)
+		}
+		if e.builtinImports["strings"] {
+			e.write(glispStrRuntime)
+		}
+		if e.builtinImports["encoding/json"] {
+			e.write(glispJsonRuntime)
+		}
 	}
 	return nil
 }

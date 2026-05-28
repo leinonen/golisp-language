@@ -90,3 +90,111 @@ func CompileAndBuild(srcPath string, outBin string) error {
 	}
 	return nil
 }
+
+// CompileDir compiles all .glsp files in srcDir into a single Go package and
+// builds a binary. All files must share the same package name (ns last segment).
+// Each .glsp produces a .go file in the same directory; a shared glisp_runtime.go
+// is written with the union of runtime helpers needed across all files.
+func CompileDir(srcDir string, outBin string) error {
+	globs, err := filepath.Glob(filepath.Join(srcDir, "*.glsp"))
+	if err != nil {
+		return fmt.Errorf("glob %s: %w", srcDir, err)
+	}
+	if len(globs) == 0 {
+		return fmt.Errorf("no .glsp files found in %s", srcDir)
+	}
+
+	type fileResult struct {
+		goPath  string
+		goSrc   string
+		pkgName string
+		builtins map[string]bool
+	}
+
+	results := make([]fileResult, 0, len(globs))
+	mergedBuiltins := map[string]bool{}
+
+	for _, srcPath := range globs {
+		src, err := os.ReadFile(srcPath)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", srcPath, err)
+		}
+
+		goSrc, builtins, err := transpiler.TranspileNoRuntime(string(src))
+		if err != nil {
+			var pe *transpiler.ParseError
+			var te *transpiler.TranspileError
+			switch {
+			case errors.As(err, &pe):
+				return fmt.Errorf("%s: parse error: %w", srcPath, pe.Err)
+			case errors.As(err, &te):
+				return fmt.Errorf("%s: transpile error: %w", srcPath, te.Err)
+			default:
+				return fmt.Errorf("%s: %w", srcPath, err)
+			}
+		}
+
+		// Extract package name from first line of generated source ("package <name>")
+		pkgName := "main"
+		if first := strings.SplitN(goSrc, "\n", 2)[0]; strings.HasPrefix(first, "package ") {
+			pkgName = strings.TrimPrefix(first, "package ")
+		}
+
+		goPath := strings.TrimSuffix(srcPath, filepath.Ext(srcPath)) + ".go"
+		results = append(results, fileResult{goPath: goPath, goSrc: goSrc, pkgName: pkgName, builtins: builtins})
+		for k := range builtins {
+			mergedBuiltins[k] = true
+		}
+	}
+
+	// All files must share the same package name
+	pkgName := results[0].pkgName
+	for _, r := range results[1:] {
+		if r.pkgName != pkgName {
+			return fmt.Errorf("mixed package names in %s: %q and %q (all files must share the same ns)", srcDir, pkgName, r.pkgName)
+		}
+	}
+
+	// Write per-file Go sources
+	for _, r := range results {
+		if err := os.WriteFile(r.goPath, []byte(r.goSrc), 0644); err != nil {
+			return fmt.Errorf("write %s: %w", r.goPath, err)
+		}
+		if cmd := exec.Command("gofmt", "-w", r.goPath); cmd != nil {
+			if out, err := cmd.CombinedOutput(); err != nil {
+				fmt.Fprintf(os.Stderr, "gofmt warning: %v\n%s\n", err, out)
+			}
+		}
+	}
+
+	// Write shared runtime file
+	runtimePath := filepath.Join(srcDir, "glisp_runtime.go")
+	runtimeSrc := transpiler.RuntimeSource(pkgName, mergedBuiltins)
+	if err := os.WriteFile(runtimePath, []byte(runtimeSrc), 0644); err != nil {
+		return fmt.Errorf("write %s: %w", runtimePath, err)
+	}
+	if cmd := exec.Command("gofmt", "-w", runtimePath); cmd != nil {
+		if out, err := cmd.CombinedOutput(); err != nil {
+			fmt.Fprintf(os.Stderr, "gofmt warning: %v\n%s\n", err, out)
+		}
+	}
+
+	// Build the package directory (absolute path so go build resolves it correctly)
+	absSrcDir, err := filepath.Abs(srcDir)
+	if err != nil {
+		return fmt.Errorf("abs path %s: %w", srcDir, err)
+	}
+	args := []string{"build"}
+	if outBin != "" {
+		args = append(args, "-o", outBin)
+	}
+	args = append(args, absSrcDir)
+
+	cmd := exec.Command("go", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("go build: %w", err)
+	}
+	return nil
+}

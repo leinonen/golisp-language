@@ -23,7 +23,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/transpiler/emit_types.go` | `identToGo`, `typeExprToGo`, `zeroValueFor` |
 | `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime` (conditional) |
 | `internal/formatter/formatter.go` | AST → formatted glisp source; `Format(src)` public API |
-| `internal/compiler/compiler.go` | Orchestrates pipeline, runs gofmt, runs go build |
+| `internal/compiler/compiler.go` | Orchestrates pipeline: `Compile`, `CompileAndBuild`, `CompileDir`, `CompileTest` |
 | `cmd/glisp/main.go` | CLI: `print`, `compile`, `build`, `test`, `fmt` subcommands |
 | `stdlib/web.go` | Ring adapter, routing, middleware, request helpers, static files, graceful shutdown — plain Go, not glisp |
 | `cmd/glisp-lsp/main.go` | LSP server entry point — JSON-RPC 2.0 over stdio |
@@ -46,7 +46,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 **Type annotations**: `^(chan int)` needs parens because `chan` followed by space would confuse the lexer. `^[string error]` uses brackets to denote multi-return `(string, error)`.
 
-**Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link. Conditional blocks (`glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`) are appended only when the corresponding built-ins are used, gated by `builtinImports` keys (`"sort"`, `"strings"`, `"encoding/json"`).
+**Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link. Conditional blocks (`glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`) are appended only when the corresponding built-ins are used, gated by `builtinImports` keys (`"sort"`, `"strings"`, `"encoding/json"`). For multi-file builds (`glisp build dir/`), helpers are instead written once to `glisp_runtime.go` in the same directory via `transpiler.RuntimeSource`; individual files use `TranspileNoRuntime` which sets `emitRuntime=false`.
 
 **`json/encode` / `json/decode`**: built-in forms (no AST node needed — dispatched by symbol name in `emitCallExpr`). Both return multi-value `(value, error)` and are designed for use with `if-err`. `json/decode` returns `any` so it handles both JSON objects and arrays.
 

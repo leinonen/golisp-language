@@ -47,8 +47,8 @@
 - [x] `json-response` stdlib helper
 
 ### 3b. Routing DSL
-- [ ] `routes`, `GET`, `POST`, `PUT`, `DELETE`, `PATCH` stdlib functions
-- [ ] Path params: `/users/:id` extracted into request map as `"params"`
+- [x] `routes`, `GET`, `POST`, `PUT`, `DELETE`, `PATCH` stdlib functions
+- [x] Path params: `/users/:id` extracted into request map as `"params"`
 
 ### 3c. Middleware
 - [ ] `wrap-json` — parse JSON body

@@ -128,3 +128,67 @@ func JsonResponse(status int, body any) map[string]any {
 func Serve(addr string, h Handler) error {
 	return http.ListenAndServe(addr, RingToHTTP(h))
 }
+
+// Route pairs an HTTP method and URL pattern with a handler.
+type Route struct {
+	method  string
+	pattern string
+	handler Handler
+}
+
+// GET creates a route that matches GET requests on pattern.
+func GET(pattern string, h Handler) Route { return Route{"GET", pattern, h} }
+
+// POST creates a route that matches POST requests on pattern.
+func POST(pattern string, h Handler) Route { return Route{"POST", pattern, h} }
+
+// PUT creates a route that matches PUT requests on pattern.
+func PUT(pattern string, h Handler) Route { return Route{"PUT", pattern, h} }
+
+// DELETE creates a route that matches DELETE requests on pattern.
+func DELETE(pattern string, h Handler) Route { return Route{"DELETE", pattern, h} }
+
+// PATCH creates a route that matches PATCH requests on pattern.
+func PATCH(pattern string, h Handler) Route { return Route{"PATCH", pattern, h} }
+
+// Routes combines multiple routes into a single Handler. Tries each route in
+// order; the first matching method+pattern wins. Path params (e.g. :id) are
+// extracted and stored in req["params"]. Returns 404 if no route matches.
+func Routes(rs ...Route) Handler {
+	return func(req map[string]any) map[string]any {
+		method, _ := req["method"].(string)
+		path, _ := req["path"].(string)
+		for _, r := range rs {
+			if r.method != method {
+				continue
+			}
+			params, ok := matchPath(r.pattern, path)
+			if !ok {
+				continue
+			}
+			req["params"] = params
+			return r.handler(req)
+		}
+		return map[string]any{"status": 404, "body": "not found"}
+	}
+}
+
+// matchPath matches a URL pattern against a concrete path. Segments starting
+// with ':' are wildcards that capture the corresponding path segment by name.
+// Returns the captured params and true on success, or nil and false otherwise.
+func matchPath(pattern, path string) (map[string]any, bool) {
+	ps := strings.Split(strings.TrimPrefix(pattern, "/"), "/")
+	vs := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	if len(ps) != len(vs) {
+		return nil, false
+	}
+	params := map[string]any{}
+	for i, p := range ps {
+		if strings.HasPrefix(p, ":") {
+			params[p[1:]] = vs[i]
+		} else if p != vs[i] {
+			return nil, false
+		}
+	}
+	return params, true
+}

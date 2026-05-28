@@ -15,20 +15,16 @@ func echoHandler(req map[string]any) map[string]any {
 	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/plain"}, "body": (fmt.Sprintf("%v", "echo: ") + fmt.Sprintf("%v", body))}
 }
 
-func router(req map[string]any) map[string]any {
-	path := _glispGet(req, "path")
-	if path == "/" {
-		return homeHandler(req)
-	} else if path == "/echo" {
-		return echoHandler(req)
-	} else {
-		return map[string]any{"status": 404, "body": "not found"}
-	}
+func greetHandler(req map[string]any) map[string]any {
+	name := _glispGet(_glispGet(req, "params"), "name")
+	return map[string]any{"status": 200, "headers": map[string]any{"Content-Type": "text/plain"}, "body": (fmt.Sprintf("%v", "Hello, ") + fmt.Sprintf("%v", name) + fmt.Sprintf("%v", "!"))}
 }
+
+var app = stdlib.Routes(stdlib.GET("/", homeHandler), stdlib.GET("/echo", echoHandler), stdlib.GET("/hello/:name", greetHandler))
 
 func main() {
 	fmt.Println("Starting server on :3000")
-	err := stdlib.Serve(":3000", router)
+	err := stdlib.Serve(":3000", app)
 	log.Fatal(err)
 }
 

@@ -1,5 +1,5 @@
 ; Ring-style web server example
-; Demonstrates: ns/import, defn, map literals, cond, let, error handling
+; Demonstrates: routing DSL, path params, defn, map literals, let
 
 (ns main
   (:import [fmt log golisp/stdlib]))
@@ -15,14 +15,19 @@
      :headers {"Content-Type" "text/plain"}
      :body (str "echo: " body)}))
 
-(defn ^map[string]any router [^map[string]any req]
-  (let [path (get req "path")]
-    (cond
-      (= path "/")      (home-handler req)
-      (= path "/echo")  (echo-handler req)
-      :else {:status 404 :body "not found"})))
+(defn ^map[string]any greet-handler [^map[string]any req]
+  (let [name (get (get req "params") "name")]
+    {:status 200
+     :headers {"Content-Type" "text/plain"}
+     :body (str "Hello, " name "!")}))
+
+(def app
+  (stdlib/Routes
+    (stdlib/GET "/" home-handler)
+    (stdlib/GET "/echo" echo-handler)
+    (stdlib/GET "/hello/:name" greet-handler)))
 
 (defn main []
   (fmt/Println "Starting server on :3000")
-  (let [err (stdlib/Serve ":3000" router)]
+  (let [err (stdlib/Serve ":3000" app)]
     (log/Fatal err)))

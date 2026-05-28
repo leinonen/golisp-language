@@ -156,6 +156,56 @@ func TestHover_callSite(t *testing.T) {
 	}
 }
 
+// ── Built-in hover ───────────────────────────────────────────────────────────
+
+func TestHover_builtin_map(t *testing.T) {
+	src := "(map inc xs)"
+	result := FindHover(src, 0, 1)
+	if result == nil {
+		t.Fatal("expected hover for built-in 'map'")
+	}
+	if result.Contents != builtinDocs["map"] {
+		t.Errorf("unexpected contents: %q", result.Contents)
+	}
+}
+
+func TestHover_builtin_thread(t *testing.T) {
+	src := "(-> x inc str)"
+	result := FindHover(src, 0, 1)
+	if result == nil {
+		t.Fatal("expected hover for '->'")
+	}
+}
+
+func TestHover_builtin_ifErr(t *testing.T) {
+	src := "(if-err [v e] expr e v)"
+	result := FindHover(src, 0, 1)
+	if result == nil {
+		t.Fatal("expected hover for 'if-err'")
+	}
+}
+
+func TestHover_builtin_json(t *testing.T) {
+	// json/encode contains '/' which is a symbol rune
+	src := "(json/encode x)"
+	result := FindHover(src, 0, 1)
+	if result == nil {
+		t.Fatal("expected hover for 'json/encode'")
+	}
+}
+
+func TestHover_userDefn_overrides_builtin(t *testing.T) {
+	// A user-defined 'map' should shadow the built-in entry.
+	src := "(defn map [f xs] nil)"
+	result := FindHover(src, 0, 6)
+	if result == nil {
+		t.Fatal("expected hover")
+	}
+	if result.Contents == builtinDocs["map"] {
+		t.Error("user defn should override built-in")
+	}
+}
+
 // ── symbolAtPosition ──────────────────────────────────────────────────────────
 
 func TestSymbolAtPosition(t *testing.T) {

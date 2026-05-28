@@ -26,6 +26,9 @@ func FindHover(source string, line, col int) *HoverResult {
 	}
 	sig, ok := buildSymbolTable(nodes)[name]
 	if !ok {
+		sig, ok = builtinDocs[name]
+	}
+	if !ok {
 		return nil
 	}
 	return &HoverResult{Contents: sig}

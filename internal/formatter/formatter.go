@@ -139,6 +139,8 @@ func format(n ast.Node, indent int) string {
 		return formatStruct(v, indent)
 	case *ast.InterfaceDecl:
 		return formatInterface(v, indent)
+	case *ast.MethodDecl:
+		return formatMethod(v, indent)
 	case *ast.DefTestDecl:
 		return formatDefTest(v, indent)
 	}
@@ -347,6 +349,8 @@ func inline(n ast.Node) string {
 		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.InterfaceDecl:
 		return "(definterface " + v.Name + " ...)"
+	case *ast.MethodDecl:
+		return "(defmethod ^" + v.ReceiverType.Text + " " + v.Name + " ...)"
 	case *ast.DefTestDecl:
 		parts := []string{"deftest", v.Name}
 		for _, b := range v.Body {
@@ -737,6 +741,21 @@ func formatInterface(v *ast.InterfaceDecl, indent int) string {
 			sb.WriteString(" ^" + m.ReturnType.Text)
 		}
 		sb.WriteString(")")
+	}
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func formatMethod(v *ast.MethodDecl, indent int) string {
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(defmethod ^" + v.ReceiverType.Text + " " + v.Name)
+	allParams := append([]ast.Param{{Name: v.ReceiverName}}, v.Params...)
+	sb.WriteString(" " + inlineParams(allParams))
+	if v.ReturnType != nil {
+		sb.WriteString(" ^" + v.ReturnType.Text)
+	}
+	for _, b := range v.Body {
+		sb.WriteString("\n" + format(b, indent+1))
 	}
 	sb.WriteString(")")
 	return sb.String()

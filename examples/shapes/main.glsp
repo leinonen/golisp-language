@@ -1,0 +1,44 @@
+; Shape area calculator — demonstrates definterface, defstruct, defmethod.
+; Each shape type implements the Shape interface independently;
+; print-shape dispatches through the interface without knowing the concrete type.
+
+(ns main
+  (:import [fmt math]))
+
+(definterface Shape
+  (Area [] ^float64)
+  (Describe [] ^string))
+
+(defstruct Circle ^float64 radius)
+
+(defmethod ^Circle Area [c] ^float64
+  (* math/Pi (.-Radius c) (.-Radius c)))
+
+(defmethod ^Circle Describe [c] ^string
+  (fmt/Sprintf "circle(r=%.2f)" (.-Radius c)))
+
+(defstruct Rect ^float64 width ^float64 height)
+
+(defmethod ^Rect Area [r] ^float64
+  (* (.-Width r) (.-Height r)))
+
+(defmethod ^Rect Describe [r] ^string
+  (fmt/Sprintf "rect(%.2f x %.2f)" (.-Width r) (.-Height r)))
+
+(defstruct Triangle ^float64 a ^float64 b ^float64 c)
+
+(defmethod ^Triangle Area [t] ^float64
+  (let [s (* 0.5 (+ (.-A t) (.-B t) (.-C t)))]
+    (math/Sqrt (* s (- s (.-A t)) (- s (.-B t)) (- s (.-C t))))))
+
+(defmethod ^Triangle Describe [t] ^string
+  (fmt/Sprintf "triangle(%.2f, %.2f, %.2f)" (.-A t) (.-B t) (.-C t)))
+
+(defn print-shape [^Shape s]
+  (fmt/Printf "  %-28s  area = %.4f\n" (.Describe s) (.Area s)))
+
+(defn main []
+  (fmt/Println "Shapes:")
+  (print-shape (Circle.   {:radius 5.0}))
+  (print-shape (Rect.     {:width 4.0 :height 6.0}))
+  (print-shape (Triangle. {:a 3.0 :b 4.0 :c 5.0})))

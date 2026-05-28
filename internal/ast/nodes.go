@@ -252,6 +252,25 @@ func NewInterfaceDecl(pos Position, name string, methods []InterfaceMethod) *Int
 	return &InterfaceDecl{Pos_: pos, Name: name, Methods: methods}
 }
 
+// MethodDecl: (defmethod ^*ReceiverType name [receiver params...] ^RetType body...)
+type MethodDecl struct {
+	Pos_         Position
+	ReceiverType *TypeExpr
+	ReceiverName string
+	Name         string
+	Params       []Param
+	ReturnType   *TypeExpr
+	Body         []Node
+}
+
+func (n *MethodDecl) nodeMarker()   {}
+func (n *MethodDecl) Pos() Position { return n.Pos_ }
+func NewMethodDecl(pos Position, recvType *TypeExpr, recvName, name string,
+	params []Param, retType *TypeExpr, body []Node) *MethodDecl {
+	return &MethodDecl{Pos_: pos, ReceiverType: recvType, ReceiverName: recvName,
+		Name: name, Params: params, ReturnType: retType, Body: body}
+}
+
 // ---------- Expressions ----------
 
 // CallExpr: (f arg1 arg2 ...)

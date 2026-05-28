@@ -21,7 +21,7 @@ install:
 
 clean:
 	rm -f $(BIN) $(BIN_LSP)
-	rm -f examples/tour/tour examples/api/api
+	rm -f examples/tour/tour examples/api/api examples/shapes/shapes
 	find . -name "*.go.out" -delete
 
 fmt:
@@ -30,10 +30,13 @@ fmt:
 fmt-glsp: build
 	find examples -name '*.glsp' | xargs ./$(BIN) fmt
 
-examples: examples-tour examples-api
+examples: examples-tour examples-api examples-shapes
 
 examples-tour: build
 	./$(BIN) build -o examples/tour/tour examples/tour/main.glsp
 
 examples-api: build
 	./$(BIN) build -o examples/api/api examples/api/main.glsp
+
+examples-shapes: build
+	./$(BIN) build -o examples/shapes/shapes examples/shapes/main.glsp

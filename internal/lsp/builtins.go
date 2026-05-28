@@ -210,6 +210,7 @@ var builtinDocs = map[string]string{
 	"ns":           "(ns name (:import [...]))",
 	"defstruct":    "(defstruct Name ^T1 field1 ...)",
 	"definterface": "(definterface Name (Method [params] ^Ret) ...)",
+	"defmethod":    "(defmethod ^*ReceiverType name [receiver params...] ^RetType body...)\nDefine a method on a struct type. Receiver type annotation specifies the Go receiver (^T value, ^*T pointer). First param in the vector is the receiver variable name.",
 	"deftest":      "(deftest name body...)",
 
 	// Assertions

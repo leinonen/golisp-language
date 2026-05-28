@@ -99,6 +99,31 @@ func (e *Emitter) emitInterfaceDecl(n *ast.InterfaceDecl) error {
 	return nil
 }
 
+// emitMethodDecl emits a method with a receiver.
+func (e *Emitter) emitMethodDecl(n *ast.MethodDecl) error {
+	receiverType := typeExprToGo(n.ReceiverType.Text)
+	goName := identToGo(n.Name)
+	params, err := e.formatParams(n.Params)
+	if err != nil {
+		return err
+	}
+	retStr := e.formatReturnType(n.ReturnType)
+	e.writeIndent()
+	if retStr != "" {
+		e.writef("func (%s %s) %s(%s) %s {", n.ReceiverName, receiverType, goName, params, retStr)
+	} else {
+		e.writef("func (%s %s) %s(%s) {", n.ReceiverName, receiverType, goName, params)
+	}
+	e.nl()
+	e.push()
+	if err := e.emitBody(n.Body, retStr != ""); err != nil {
+		return err
+	}
+	e.pop()
+	e.line("}")
+	return nil
+}
+
 // emitDefTestDecl emits a deftest as a Go test function.
 func (e *Emitter) emitDefTestDecl(n *ast.DefTestDecl) error {
 	e.needImport("testing")

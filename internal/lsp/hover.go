@@ -80,9 +80,37 @@ func buildSymbolTable(nodes []ast.Node) map[string]string {
 			table[n.Name] = fmt.Sprintf("(defstruct %s)", n.Name)
 		case *ast.InterfaceDecl:
 			table[n.Name] = fmt.Sprintf("(definterface %s)", n.Name)
+		case *ast.MethodDecl:
+			table[n.Name] = formatMethodSig(n)
 		}
 	}
 	return table
+}
+
+func formatMethodSig(n *ast.MethodDecl) string {
+	var sb strings.Builder
+	sb.WriteString("(defmethod ^")
+	sb.WriteString(n.ReceiverType.Text)
+	sb.WriteString(" ")
+	sb.WriteString(n.Name)
+	sb.WriteString(" [")
+	sb.WriteString(n.ReceiverName)
+	for _, p := range n.Params {
+		sb.WriteString(" ")
+		if p.TypeAnnot != nil {
+			sb.WriteString("^")
+			sb.WriteString(p.TypeAnnot.Text)
+			sb.WriteString(" ")
+		}
+		sb.WriteString(p.Name)
+	}
+	sb.WriteString("]")
+	if n.ReturnType != nil {
+		sb.WriteString(" ^")
+		sb.WriteString(n.ReturnType.Text)
+	}
+	sb.WriteString(")")
+	return sb.String()
 }
 
 func formatDefnSig(n *ast.DefnDecl) string {

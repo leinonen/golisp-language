@@ -34,6 +34,10 @@ func FindCompletions(source string, line, col int) []CompletionItem {
 				label = n.Name
 				detail = fmt.Sprintf("(definterface %s)", n.Name)
 				kind = 8
+			case *ast.MethodDecl:
+				label = n.Name
+				detail = formatMethodSig(n)
+				kind = 2
 			}
 			if label != "" && strings.HasPrefix(label, prefix) {
 				seen[label] = true

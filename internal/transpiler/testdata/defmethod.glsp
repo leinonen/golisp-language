@@ -1,0 +1,14 @@
+(ns defmethod)
+
+(definterface Stringer
+  (String [] ^string))
+
+(defstruct Point ^float64 x ^float64 y)
+
+(defmethod ^*Point String [p] ^string
+  (str (.-X p) "," (.-Y p)))
+
+(defstruct Rect ^float64 width ^float64 height)
+
+(defmethod ^Rect Area [r] ^float64
+  (* (.-Width r) (.-Height r)))

@@ -185,6 +185,8 @@ func (e *Emitter) emitTopLevel(n ast.Node) error {
 		return e.emitStructDecl(v)
 	case *ast.InterfaceDecl:
 		return e.emitInterfaceDecl(v)
+	case *ast.MethodDecl:
+		return e.emitMethodDecl(v)
 	case *ast.DefTestDecl:
 		return e.emitDefTestDecl(v)
 	default:

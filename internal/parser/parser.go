@@ -295,6 +295,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseDefstruct(pos)
 		case "definterface":
 			return p.parseDefinterface(pos)
+		case "defmethod":
+			return p.parseDefmethod(pos)
 		case "fn":
 			return p.parseFn(pos)
 		case "let":
@@ -546,6 +548,41 @@ func (p *parser) parseDefinterface(pos ast.Position) (*ast.InterfaceDecl, error)
 		return nil, err
 	}
 	return ast.NewInterfaceDecl(pos, nameTok.Text, methods), nil
+}
+
+func (p *parser) parseDefmethod(pos ast.Position) (*ast.MethodDecl, error) {
+	p.advance() // "defmethod"
+	recvTypeTok, err := p.expect(lexer.TokenTypeAnnot)
+	if err != nil {
+		return nil, err
+	}
+	recvType := ast.NewTypeExpr(p.mkpos(recvTypeTok), recvTypeTok.Text)
+	nameTok, err := p.expect(lexer.TokenSymbol)
+	if err != nil {
+		return nil, err
+	}
+	allParams, err := p.parseParamList()
+	if err != nil {
+		return nil, err
+	}
+	if len(allParams) == 0 {
+		return nil, p.errorf("defmethod requires at least a receiver param")
+	}
+	recvName := allParams[0].Name
+	params := allParams[1:]
+	var retType *ast.TypeExpr
+	if p.peekType() == lexer.TokenTypeAnnot {
+		tok := p.advance()
+		retType = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
+	}
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewMethodDecl(pos, recvType, recvName, nameTok.Text, params, retType, body), nil
 }
 
 func (p *parser) parseFn(pos ast.Position) (*ast.FnExpr, error) {

@@ -88,8 +88,45 @@ func TestHover_defn(t *testing.T) {
 		t.Fatal("expected hover for 'foo'")
 	}
 	want := "(defn foo [a b])"
-	if result.Contents != want {
-		t.Errorf("want %q, got %q", want, result.Contents)
+	if result.Sig != want {
+		t.Errorf("want %q, got %q", want, result.Sig)
+	}
+}
+
+func TestHover_defnDocString(t *testing.T) {
+	src := `(defn greet [name] "Greet a person by name." (str "Hi " name))`
+	result := FindHover(src, 0, 6)
+	if result == nil {
+		t.Fatal("expected hover for 'greet'")
+	}
+	if result.Sig != "(defn greet [name])" {
+		t.Errorf("unexpected sig: %q", result.Sig)
+	}
+	if result.Doc != "Greet a person by name." {
+		t.Errorf("unexpected doc: %q", result.Doc)
+	}
+}
+
+func TestHover_defnLoneStringNotDoc(t *testing.T) {
+	// A defn whose sole body form is a string — should NOT be treated as a doc string.
+	src := `(defn greeting [] "Hello, World!")`
+	result := FindHover(src, 0, 6)
+	if result == nil {
+		t.Fatal("expected hover for 'greeting'")
+	}
+	if result.Doc != "" {
+		t.Errorf("lone string should not become doc, got: %q", result.Doc)
+	}
+}
+
+func TestHover_builtinDoc(t *testing.T) {
+	src := "(map inc xs)"
+	result := FindHover(src, 0, 1)
+	if result == nil {
+		t.Fatal("expected hover for built-in 'map'")
+	}
+	if result.Doc == "" {
+		t.Error("expected non-empty doc for 'map'")
 	}
 }
 
@@ -103,8 +140,8 @@ func TestHover_defnWithTypes(t *testing.T) {
 		t.Fatal("expected hover for 'add'")
 	}
 	want := "(defn ^int add [^int a ^int b])"
-	if result.Contents != want {
-		t.Errorf("want %q, got %q", want, result.Contents)
+	if result.Sig != want {
+		t.Errorf("want %q, got %q", want, result.Sig)
 	}
 }
 
@@ -118,8 +155,8 @@ func TestHover_def(t *testing.T) {
 		t.Fatal("expected hover for 'port'")
 	}
 	want := "(def ^int port)"
-	if result.Contents != want {
-		t.Errorf("want %q, got %q", want, result.Contents)
+	if result.Sig != want {
+		t.Errorf("want %q, got %q", want, result.Sig)
 	}
 }
 
@@ -151,8 +188,8 @@ func TestHover_callSite(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected hover for call-site 'add'")
 	}
-	if result.Contents != "(defn add [a b])" {
-		t.Errorf("unexpected contents: %q", result.Contents)
+	if result.Sig != "(defn add [a b])" {
+		t.Errorf("unexpected contents: %q", result.Sig)
 	}
 }
 
@@ -164,8 +201,8 @@ func TestHover_builtin_map(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected hover for built-in 'map'")
 	}
-	if result.Contents != builtinDocs["map"] {
-		t.Errorf("unexpected contents: %q", result.Contents)
+	if result.Sig != builtinDocs["map"].Sig {
+		t.Errorf("unexpected sig: %q", result.Sig)
 	}
 }
 
@@ -201,7 +238,7 @@ func TestHover_userDefn_overrides_builtin(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected hover")
 	}
-	if result.Contents == builtinDocs["map"] {
+	if result.Sig == builtinDocs["map"].Sig {
 		t.Error("user defn should override built-in")
 	}
 }

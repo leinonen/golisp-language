@@ -19,11 +19,11 @@ func FindCompletions(source string, line, col int) []CompletionItem {
 	nodes, err := parser.ParseString(source)
 	if err == nil {
 		for _, node := range nodes {
-			var label, detail string
+			var label, detail, doc string
 			var kind int
 			switch n := node.(type) {
 			case *ast.DefnDecl:
-				label, detail, kind = n.Name, formatDefnSig(n), 3
+				label, detail, kind, doc = n.Name, formatDefnSig(n), 3, n.Doc
 			case *ast.DefDecl:
 				label, detail, kind = n.Name, formatDefSig(n), 6
 			case *ast.StructDecl:
@@ -35,20 +35,18 @@ func FindCompletions(source string, line, col int) []CompletionItem {
 				detail = fmt.Sprintf("(definterface %s)", n.Name)
 				kind = 8
 			case *ast.MethodDecl:
-				label = n.Name
-				detail = formatMethodSig(n)
-				kind = 2
+				label, detail, kind, doc = n.Name, formatMethodSig(n), 2, n.Doc
 			}
 			if label != "" && strings.HasPrefix(label, prefix) {
 				seen[label] = true
-				items = append(items, CompletionItem{Label: label, Kind: kind, Detail: detail})
+				items = append(items, CompletionItem{Label: label, Kind: kind, Detail: detail, Documentation: doc})
 			}
 		}
 	}
 
-	for name, sig := range builtinDocs {
+	for name, bd := range builtinDocs {
 		if !seen[name] && strings.HasPrefix(name, prefix) {
-			items = append(items, CompletionItem{Label: name, Kind: 14, Detail: sig})
+			items = append(items, CompletionItem{Label: name, Kind: 14, Detail: bd.Sig, Documentation: bd.Doc})
 		}
 	}
 

@@ -106,11 +106,12 @@ func (s *Server) handleHover(req *Request) *Response {
 	if result == nil {
 		return s.ok(req, nil)
 	}
+	value := "```clojure\n" + result.Sig + "\n```"
+	if result.Doc != "" {
+		value += "\n\n" + result.Doc
+	}
 	return s.ok(req, Hover{
-		Contents: MarkupContent{
-			Kind:  "markdown",
-			Value: "```clojure\n" + result.Contents + "\n```",
-		},
+		Contents: MarkupContent{Kind: "markdown", Value: value},
 	})
 }
 

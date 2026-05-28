@@ -460,6 +460,17 @@ func (p *parser) parseDef(pos ast.Position) (*ast.DefDecl, error) {
 	return ast.NewDefDecl(pos, nameTok.Text, annot, val), nil
 }
 
+// extractDoc treats the first body element as a doc string only when body has
+// 2+ forms, so a lone string-returning function is not misidentified.
+func extractDoc(body []ast.Node) (doc string, rest []ast.Node) {
+	if len(body) >= 2 {
+		if s, ok := body[0].(*ast.StringLit); ok {
+			return s.Value, body[1:]
+		}
+	}
+	return "", body
+}
+
 func (p *parser) parseDefn(pos ast.Position) (*ast.DefnDecl, error) {
 	p.advance() // "defn"
 	var retType *ast.TypeExpr
@@ -475,14 +486,15 @@ func (p *parser) parseDefn(pos ast.Position) (*ast.DefnDecl, error) {
 	if err != nil {
 		return nil, err
 	}
-	body, err := p.parseBody()
+	rawBody, err := p.parseBody()
 	if err != nil {
 		return nil, err
 	}
 	if _, err := p.expect(lexer.TokenRParen); err != nil {
 		return nil, err
 	}
-	return ast.NewDefnDecl(pos, nameTok.Text, params, retType, body), nil
+	doc, body := extractDoc(rawBody)
+	return ast.NewDefnDecl(pos, nameTok.Text, params, retType, doc, body), nil
 }
 
 func (p *parser) parseDefstruct(pos ast.Position) (*ast.StructDecl, error) {
@@ -575,14 +587,15 @@ func (p *parser) parseDefmethod(pos ast.Position) (*ast.MethodDecl, error) {
 		tok := p.advance()
 		retType = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
 	}
-	body, err := p.parseBody()
+	rawBody, err := p.parseBody()
 	if err != nil {
 		return nil, err
 	}
 	if _, err := p.expect(lexer.TokenRParen); err != nil {
 		return nil, err
 	}
-	return ast.NewMethodDecl(pos, recvType, recvName, nameTok.Text, params, retType, body), nil
+	doc, body := extractDoc(rawBody)
+	return ast.NewMethodDecl(pos, recvType, recvName, nameTok.Text, params, retType, doc, body), nil
 }
 
 func (p *parser) parseFn(pos ast.Position) (*ast.FnExpr, error) {

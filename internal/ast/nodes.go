@@ -217,13 +217,14 @@ type DefnDecl struct {
 	Name       string
 	Params     []Param
 	ReturnType *TypeExpr
+	Doc        string
 	Body       []Node
 }
 
-func (n *DefnDecl) nodeMarker()    {}
-func (n *DefnDecl) Pos() Position  { return n.Pos_ }
-func NewDefnDecl(pos Position, name string, params []Param, ret *TypeExpr, body []Node) *DefnDecl {
-	return &DefnDecl{Pos_: pos, Name: name, Params: params, ReturnType: ret, Body: body}
+func (n *DefnDecl) nodeMarker()   {}
+func (n *DefnDecl) Pos() Position { return n.Pos_ }
+func NewDefnDecl(pos Position, name string, params []Param, ret *TypeExpr, doc string, body []Node) *DefnDecl {
+	return &DefnDecl{Pos_: pos, Name: name, Params: params, ReturnType: ret, Doc: doc, Body: body}
 }
 
 // StructDecl: (defstruct Name ^T1 field1 ^T2 field2 ...)
@@ -260,15 +261,16 @@ type MethodDecl struct {
 	Name         string
 	Params       []Param
 	ReturnType   *TypeExpr
+	Doc          string
 	Body         []Node
 }
 
 func (n *MethodDecl) nodeMarker()   {}
 func (n *MethodDecl) Pos() Position { return n.Pos_ }
 func NewMethodDecl(pos Position, recvType *TypeExpr, recvName, name string,
-	params []Param, retType *TypeExpr, body []Node) *MethodDecl {
+	params []Param, retType *TypeExpr, doc string, body []Node) *MethodDecl {
 	return &MethodDecl{Pos_: pos, ReceiverType: recvType, ReceiverName: recvName,
-		Name: name, Params: params, ReturnType: retType, Body: body}
+		Name: name, Params: params, ReturnType: retType, Doc: doc, Body: body}
 }
 
 // ---------- Expressions ----------

@@ -107,9 +107,10 @@ type CompletionParams struct {
 }
 
 type CompletionItem struct {
-	Label  string `json:"label"`
-	Kind   int    `json:"kind,omitempty"`
-	Detail string `json:"detail,omitempty"`
+	Label         string `json:"label"`
+	Kind          int    `json:"kind,omitempty"`
+	Detail        string `json:"detail,omitempty"`
+	Documentation string `json:"documentation,omitempty"`
 }
 
 type ServerInfo struct {

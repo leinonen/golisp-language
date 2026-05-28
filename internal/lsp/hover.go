@@ -8,9 +8,10 @@ import (
 	"golisp/internal/parser"
 )
 
-// HoverResult holds the hover text for a symbol.
+// HoverResult holds the hover content for a symbol.
 type HoverResult struct {
-	Contents string
+	Sig string
+	Doc string
 }
 
 // FindHover returns the hover information for the symbol at (line, col) (0-based).
@@ -24,14 +25,13 @@ func FindHover(source string, line, col int) *HoverResult {
 	if err != nil {
 		return nil
 	}
-	sig, ok := buildSymbolTable(nodes)[name]
-	if !ok {
-		sig, ok = builtinDocs[name]
+	if info, ok := buildSymbolTable(nodes)[name]; ok {
+		return &info
 	}
-	if !ok {
-		return nil
+	if bd, ok := builtinDocs[name]; ok {
+		return &HoverResult{Sig: bd.Sig, Doc: bd.Doc}
 	}
-	return &HoverResult{Contents: sig}
+	return nil
 }
 
 // symbolAtPosition extracts the glisp symbol token under the cursor.
@@ -67,21 +67,21 @@ func isSymbolRune(r rune) bool {
 	return true
 }
 
-// buildSymbolTable maps top-level definition names to their signatures.
-func buildSymbolTable(nodes []ast.Node) map[string]string {
-	table := make(map[string]string)
+// buildSymbolTable maps top-level definition names to their signatures and doc strings.
+func buildSymbolTable(nodes []ast.Node) map[string]HoverResult {
+	table := make(map[string]HoverResult)
 	for _, node := range nodes {
 		switch n := node.(type) {
 		case *ast.DefnDecl:
-			table[n.Name] = formatDefnSig(n)
+			table[n.Name] = HoverResult{Sig: formatDefnSig(n), Doc: n.Doc}
 		case *ast.DefDecl:
-			table[n.Name] = formatDefSig(n)
+			table[n.Name] = HoverResult{Sig: formatDefSig(n)}
 		case *ast.StructDecl:
-			table[n.Name] = fmt.Sprintf("(defstruct %s)", n.Name)
+			table[n.Name] = HoverResult{Sig: fmt.Sprintf("(defstruct %s)", n.Name)}
 		case *ast.InterfaceDecl:
-			table[n.Name] = fmt.Sprintf("(definterface %s)", n.Name)
+			table[n.Name] = HoverResult{Sig: fmt.Sprintf("(definterface %s)", n.Name)}
 		case *ast.MethodDecl:
-			table[n.Name] = formatMethodSig(n)
+			table[n.Name] = HoverResult{Sig: formatMethodSig(n), Doc: n.Doc}
 		}
 	}
 	return table

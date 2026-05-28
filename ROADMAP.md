@@ -108,10 +108,10 @@ internal/lsp/
 - [x] Return type annotation or `defn` signature for symbol under cursor
 
 ### 5c. Jump-to-definition
-- [ ] Resolve symbol → `defn`/`def` location
+- [x] Resolve symbol → `defn`/`def` location
 
 ### 5d. Completions
-- [ ] Top-level `defn`/`def` names, built-in forms, stdlib names
+- [x] Top-level `defn`/`def` names, built-in forms, stdlib names
 
 ### 5e. VS Code extension
 - [ ] `editors/vscode/` — TextMate grammar for syntax highlighting

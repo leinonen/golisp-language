@@ -79,8 +79,37 @@ type InitializeResult struct {
 }
 
 type ServerCapabilities struct {
-	TextDocumentSync int  `json:"textDocumentSync"`
-	HoverProvider    bool `json:"hoverProvider"`
+	TextDocumentSync   int                `json:"textDocumentSync"`
+	HoverProvider      bool               `json:"hoverProvider"`
+	DefinitionProvider bool               `json:"definitionProvider,omitempty"`
+	CompletionProvider *CompletionOptions `json:"completionProvider,omitempty"`
+}
+
+type CompletionOptions struct{}
+
+// Definition
+
+type Location struct {
+	URI   string `json:"uri"`
+	Range Range  `json:"range"`
+}
+
+type DefinitionParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Position     Position               `json:"position"`
+}
+
+// Completion
+
+type CompletionParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Position     Position               `json:"position"`
+}
+
+type CompletionItem struct {
+	Label  string `json:"label"`
+	Kind   int    `json:"kind,omitempty"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type ServerInfo struct {

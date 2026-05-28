@@ -124,7 +124,7 @@ vim.lsp.config["glisp"] = {
 vim.lsp.enable("glisp")
 ```
 
-Diagnostics appear automatically as you edit. Hover with `K` (default Neovim mapping) over any `defn` or `def` name to see its signature.
+Diagnostics appear automatically as you edit. Hover with `K` (default Neovim mapping) over any `defn` or `def` name to see its signature. Jump to definition with `gd`. Completions trigger automatically as you type.
 
 ## Examples
 

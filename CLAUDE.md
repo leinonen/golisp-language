@@ -26,6 +26,13 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/compiler/compiler.go` | Orchestrates pipeline, runs gofmt, runs go build |
 | `cmd/glisp/main.go` | CLI: `print`, `compile`, `build`, `test`, `fmt` subcommands |
 | `stdlib/web.go` | Ring adapter, routing, middleware, request helpers, static files, graceful shutdown — plain Go, not glisp |
+| `cmd/glisp-lsp/main.go` | LSP server entry point — JSON-RPC 2.0 over stdio |
+| `internal/lsp/server.go` | JSON-RPC dispatch, doc state, handler wiring |
+| `internal/lsp/hover.go` | Hover provider + `buildSymbolTable`, `symbolAtPosition` helpers |
+| `internal/lsp/definition.go` | Jump-to-definition provider |
+| `internal/lsp/completion.go` | Completion provider + `prefixAtPosition` |
+| `internal/lsp/diagnostics.go` | Parse error → LSP diagnostic push |
+| `internal/lsp/builtins.go` | 221-entry doc map for built-in hover + completion detail |
 
 ## Important design decisions
 

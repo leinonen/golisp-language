@@ -36,6 +36,10 @@ func (s *Server) Handle(req *Request) (*Response, []*Notification) {
 		return nil, s.handleDidClose(req)
 	case "textDocument/hover":
 		return s.handleHover(req), nil
+	case "textDocument/definition":
+		return s.handleDefinition(req), nil
+	case "textDocument/completion":
+		return s.handleCompletion(req), nil
 	default:
 		if !req.IsNotification() {
 			return s.methodNotFound(req), nil
@@ -47,8 +51,10 @@ func (s *Server) Handle(req *Request) (*Response, []*Notification) {
 func (s *Server) handleInitialize(req *Request) *Response {
 	return s.ok(req, InitializeResult{
 		Capabilities: ServerCapabilities{
-			TextDocumentSync: TextDocumentSyncFull,
-			HoverProvider:    true,
+			TextDocumentSync:   TextDocumentSyncFull,
+			HoverProvider:      true,
+			DefinitionProvider: true,
+			CompletionProvider: &CompletionOptions{},
 		},
 		ServerInfo: ServerInfo{Name: "glisp-lsp", Version: "0.1.0"},
 	})
@@ -106,6 +112,38 @@ func (s *Server) handleHover(req *Request) *Response {
 			Value: "```clojure\n" + result.Contents + "\n```",
 		},
 	})
+}
+
+func (s *Server) handleDefinition(req *Request) *Response {
+	var p DefinitionParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.invalidParams(req, err.Error())
+	}
+	source, ok := s.docs[p.TextDocument.URI]
+	if !ok {
+		return s.ok(req, nil)
+	}
+	r := FindDefinition(source, p.Position.Line, p.Position.Character)
+	if r == nil {
+		return s.ok(req, nil)
+	}
+	return s.ok(req, Location{URI: p.TextDocument.URI, Range: *r})
+}
+
+func (s *Server) handleCompletion(req *Request) *Response {
+	var p CompletionParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.invalidParams(req, err.Error())
+	}
+	source, ok := s.docs[p.TextDocument.URI]
+	if !ok {
+		return s.ok(req, []CompletionItem{})
+	}
+	items := FindCompletions(source, p.Position.Line, p.Position.Character)
+	if items == nil {
+		items = []CompletionItem{}
+	}
+	return s.ok(req, items)
 }
 
 func (s *Server) diagNotif(uri, source string) *Notification {

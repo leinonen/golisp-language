@@ -208,6 +208,199 @@ func TestHover_userDefn_overrides_builtin(t *testing.T) {
 
 // ── symbolAtPosition ──────────────────────────────────────────────────────────
 
+// ── Definition ───────────────────────────────────────────────────────────────
+
+func TestDefinition_callSite(t *testing.T) {
+	src := "(defn add [a b] (+ a b))\n(add 1 2)"
+	// "add" at line 1, col 1
+	r := FindDefinition(src, 1, 1)
+	if r == nil {
+		t.Fatal("expected definition range")
+	}
+	// defn starts at line 0, col 0 (the opening '(')
+	if r.Start.Line != 0 || r.Start.Character != 0 {
+		t.Errorf("want {0,0}, got {%d,%d}", r.Start.Line, r.Start.Character)
+	}
+}
+
+func TestDefinition_def(t *testing.T) {
+	src := "(def port 8080)\n(println port)"
+	// "port" at line 1, col 10: "(println port)"  0123456789012
+	r := FindDefinition(src, 1, 10)
+	if r == nil {
+		t.Fatal("expected definition range")
+	}
+	if r.Start.Line != 0 || r.Start.Character != 0 {
+		t.Errorf("want {0,0}, got {%d,%d}", r.Start.Line, r.Start.Character)
+	}
+}
+
+func TestDefinition_unknown(t *testing.T) {
+	src := "(defn foo [] bar)"
+	// "bar" at col 13 — not defined
+	r := FindDefinition(src, 0, 13)
+	if r != nil {
+		t.Errorf("expected nil for unknown symbol, got %v", r)
+	}
+}
+
+func TestDefinition_builtin(t *testing.T) {
+	src := "(map inc xs)"
+	// "map" at col 1 — builtin has no source location
+	r := FindDefinition(src, 0, 1)
+	if r != nil {
+		t.Errorf("expected nil for builtin, got %v", r)
+	}
+}
+
+func TestDefinition_multiLine(t *testing.T) {
+	src := "(def a 1)\n(def b 2)\n(defn add [x y] (+ x y))\n(add a b)"
+	// "add" at line 3, col 1
+	r := FindDefinition(src, 3, 1)
+	if r == nil {
+		t.Fatal("expected definition range")
+	}
+	// defn is on line 2 (0-based)
+	if r.Start.Line != 2 {
+		t.Errorf("want line 2, got %d", r.Start.Line)
+	}
+}
+
+// ── Completions ───────────────────────────────────────────────────────────────
+
+func TestCompletions_includesUserDefs(t *testing.T) {
+	src := "(defn add [a b] (+ a b))\n(def port 8080)"
+	items := FindCompletions(src, 0, 0) // col 0 on '(' → empty prefix → all
+	labels := map[string]bool{}
+	for _, item := range items {
+		labels[item.Label] = true
+	}
+	if !labels["add"] {
+		t.Error("expected 'add' in completions")
+	}
+	if !labels["port"] {
+		t.Error("expected 'port' in completions")
+	}
+}
+
+func TestCompletions_includesBuiltins(t *testing.T) {
+	src := "(defn foo [] nil)"
+	items := FindCompletions(src, 0, 0)
+	labels := map[string]bool{}
+	for _, item := range items {
+		labels[item.Label] = true
+	}
+	if !labels["map"] {
+		t.Error("expected builtin 'map' in completions")
+	}
+	if !labels["filter"] {
+		t.Error("expected builtin 'filter' in completions")
+	}
+}
+
+func TestCompletions_prefix(t *testing.T) {
+	src := "(defn foo [] nil)\n(defn foobar [] nil)"
+	// col 8 in "(defn foo..." → runes[6]='f' runes[7]='o', end=8 → prefix "fo"
+	items := FindCompletions(src, 0, 8)
+	labels := map[string]bool{}
+	for _, item := range items {
+		labels[item.Label] = true
+	}
+	if !labels["foo"] {
+		t.Error("expected 'foo' with prefix 'fo'")
+	}
+	if !labels["foobar"] {
+		t.Error("expected 'foobar' with prefix 'fo'")
+	}
+	if labels["bar"] {
+		t.Error("'bar' should not appear with prefix 'fo'")
+	}
+}
+
+func TestCompletions_noMatch(t *testing.T) {
+	// "(zzzz" fails to parse → no user defs; no builtin starts with "zzzz"
+	src := "(defn foo [] nil)\n(zzzz"
+	items := FindCompletions(src, 1, 5) // col 5 on "(zzzz" → prefix "zzzz"
+	if len(items) != 0 {
+		t.Errorf("expected 0 completions for prefix 'zzzz', got %d", len(items))
+	}
+}
+
+func TestCompletions_kinds(t *testing.T) {
+	src := "(defn add [a b] (+ a b))\n(def port 8080)\n(defstruct User ^string name)"
+	items := FindCompletions(src, 0, 0)
+	kindFor := map[string]int{}
+	for _, item := range items {
+		kindFor[item.Label] = item.Kind
+	}
+	if kindFor["add"] != 3 {
+		t.Errorf("defn kind: want 3, got %d", kindFor["add"])
+	}
+	if kindFor["port"] != 6 {
+		t.Errorf("def kind: want 6, got %d", kindFor["port"])
+	}
+	if kindFor["User"] != 22 {
+		t.Errorf("defstruct kind: want 22, got %d", kindFor["User"])
+	}
+}
+
+func TestCompletions_userOverridesBuiltin(t *testing.T) {
+	src := "(defn map [f xs] nil)"
+	items := FindCompletions(src, 0, 0)
+	var mapItem *CompletionItem
+	for i := range items {
+		if items[i].Label == "map" {
+			mapItem = &items[i]
+			break
+		}
+	}
+	if mapItem == nil {
+		t.Fatal("expected 'map' in completions")
+	}
+	if mapItem.Kind == 14 {
+		t.Error("user-defined 'map' should not have builtin kind 14")
+	}
+}
+
+func TestCompletions_sorted(t *testing.T) {
+	src := "(defn zoo [] nil)\n(defn abc [] nil)"
+	items := FindCompletions(src, 0, 0)
+	abcIdx, zooIdx := -1, -1
+	for i, item := range items {
+		if item.Label == "abc" {
+			abcIdx = i
+		}
+		if item.Label == "zoo" {
+			zooIdx = i
+		}
+	}
+	if abcIdx == -1 {
+		t.Fatal("'abc' not found")
+	}
+	if zooIdx == -1 {
+		t.Fatal("'zoo' not found")
+	}
+	if abcIdx > zooIdx {
+		t.Errorf("expected 'abc' before 'zoo', got abc=%d zoo=%d", abcIdx, zooIdx)
+	}
+}
+
+func TestCompletions_detail(t *testing.T) {
+	src := "(defn add [^int a ^int b] (+ a b))"
+	items := FindCompletions(src, 0, 0)
+	for _, item := range items {
+		if item.Label == "add" {
+			if item.Detail == "" {
+				t.Error("expected non-empty detail for 'add'")
+			}
+			return
+		}
+	}
+	t.Error("'add' not found in completions")
+}
+
+// ── symbolAtPosition ──────────────────────────────────────────────────────────
+
 func TestSymbolAtPosition(t *testing.T) {
 	cases := []struct {
 		src  string

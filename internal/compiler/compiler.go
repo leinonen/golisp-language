@@ -2,6 +2,7 @@
 package compiler
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -21,7 +22,16 @@ func Compile(srcPath string, outPath string) error {
 
 	goSrc, err := transpiler.Transpile(string(src))
 	if err != nil {
-		return fmt.Errorf("transpile %s: %w", srcPath, err)
+		var pe *transpiler.ParseError
+		var te *transpiler.TranspileError
+		switch {
+		case errors.As(err, &pe):
+			return fmt.Errorf("%s: parse error: %w", srcPath, pe.Err)
+		case errors.As(err, &te):
+			return fmt.Errorf("%s: transpile error: %w", srcPath, te.Err)
+		default:
+			return fmt.Errorf("%s: %w", srcPath, err)
+		}
 	}
 
 	if outPath == "" {

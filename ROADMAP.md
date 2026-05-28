@@ -26,7 +26,7 @@
 ### 2c. Better error messages
 - [x] Show offending source line with `^` pointer
 - [x] "Did you mean?" hints for common typos (`defun` → `defn`, `lambda` → `fn`)
-- [ ] Distinguish parse errors from transpile errors
+- [x] Distinguish parse errors from transpile errors
 
 ### 2d. Test framework
 - [x] `deftest` special form → `func TestXxx(t *testing.T)`

@@ -10,20 +10,32 @@ import (
 	"golisp/internal/parser"
 )
 
+// ParseError wraps a lexer or parser error.
+type ParseError struct{ Err error }
+
+func (e *ParseError) Error() string { return "parse error: " + e.Err.Error() }
+func (e *ParseError) Unwrap() error { return e.Err }
+
+// TranspileError wraps a code-generation error from the emitter.
+type TranspileError struct{ Err error }
+
+func (e *TranspileError) Error() string { return "transpile error: " + e.Err.Error() }
+func (e *TranspileError) Unwrap() error { return e.Err }
+
 // Transpile is the top-level entry point: source text → Go source text.
 // The returned Go source is not gofmt'd; call gofmt externally.
 func Transpile(src string) (string, error) {
 	tokens, err := lexer.Tokenize(src)
 	if err != nil {
-		return "", err
+		return "", &ParseError{Err: err}
 	}
 	nodes, err := parser.ParseSource(tokens, src)
 	if err != nil {
-		return "", err
+		return "", &ParseError{Err: err}
 	}
 	e := newEmitter()
 	if err := e.emitFile(nodes); err != nil {
-		return "", err
+		return "", &TranspileError{Err: err}
 	}
 	return e.buf.String(), nil
 }

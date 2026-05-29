@@ -296,6 +296,48 @@ func TestParseDefTest(t *testing.T) {
 	}
 }
 
+func TestDocComment(t *testing.T) {
+	t.Run("sets Doc on defn", func(t *testing.T) {
+		nodes := mustParse(t, ";;; Returns the sum.\n(defn ^int add [^int a ^int b] (+ a b))")
+		fn := nodes[0].(*ast.DefnDecl)
+		if fn.Doc != "Returns the sum." {
+			t.Errorf("Doc: got %q, want %q", fn.Doc, "Returns the sum.")
+		}
+	})
+
+	t.Run("overrides string literal doc", func(t *testing.T) {
+		nodes := mustParse(t, ";;; Comment doc.\n(defn ^int f [] \"String doc.\" 1)")
+		fn := nodes[0].(*ast.DefnDecl)
+		if fn.Doc != "Comment doc." {
+			t.Errorf("Doc: got %q, want %q", fn.Doc, "Comment doc.")
+		}
+	})
+
+	t.Run("last of multiple comments wins", func(t *testing.T) {
+		nodes := mustParse(t, ";;; First.\n;;; Second.\n(defn f [] nil)")
+		fn := nodes[0].(*ast.DefnDecl)
+		if fn.Doc != "Second." {
+			t.Errorf("Doc: got %q, want %q", fn.Doc, "Second.")
+		}
+	})
+
+	t.Run("not attached to next defn when separated by another form", func(t *testing.T) {
+		nodes := mustParse(t, ";;; Doc for f.\n(defn f [] nil)\n(defn g [] nil)")
+		g := nodes[1].(*ast.DefnDecl)
+		if g.Doc != "" {
+			t.Errorf("g.Doc: got %q, want empty", g.Doc)
+		}
+	})
+
+	t.Run("regular comments still ignored", func(t *testing.T) {
+		nodes := mustParse(t, "; single\n;; double\n(defn f [] nil)")
+		fn := nodes[0].(*ast.DefnDecl)
+		if fn.Doc != "" {
+			t.Errorf("Doc: got %q, want empty", fn.Doc)
+		}
+	})
+}
+
 func contains(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
 		func() bool {

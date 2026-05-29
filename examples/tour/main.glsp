@@ -8,6 +8,7 @@
 
 ; --- Control flow ---
 
+;;; Returns the letter grade for a numeric score (0-100).
 (defn ^string grade [^int score]
   (cond
     (>= score 90) "A"
@@ -18,6 +19,7 @@
 
 ; --- Tail-recursive loop ---
 
+;;; Returns the nth Fibonacci number using tail-recursive loop/recur.
 (defn ^int fib [^int n]
   (loop [i n a 0 b 1]
     (if (<= i 0) a (recur (- i 1) b (+ a b)))))
@@ -25,6 +27,7 @@
 ; --- Higher-order functions ---
 ; (str w) coerces any→string so (len (str w)) compiles on any-typed values.
 
+;;; Returns words longer than 3 characters, lowercased and sorted.
 (defn ^[]any long-words [^string text]
   (let [ws (split (lower-case (trim text)) " ")]
     (sort-by (fn [w] w)

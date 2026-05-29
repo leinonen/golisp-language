@@ -83,8 +83,11 @@ func (l *lexer) skipWhitespaceAndComments() {
 			l.advance()
 			continue
 		}
-		// line comment
+		// line comment — but ;;; is a doc comment token, handled by nextToken
 		if ch == ';' {
+			if l.peekAt(1) == ';' && l.peekAt(2) == ';' {
+				break
+			}
 			for l.pos < len(l.src) && l.peek() != '\n' {
 				l.advance()
 			}
@@ -145,6 +148,9 @@ func (l *lexer) nextToken() (Token, error) {
 
 	case ch == ':':
 		return l.readKeyword(line, col)
+
+	case ch == ';':
+		return l.readDocComment(line, col)
 
 	case ch == '-' && isDigit(l.peekAt(1)):
 		return l.readNumber(line, col)
@@ -312,6 +318,21 @@ func (l *lexer) readSymbol(line, col int) (Token, error) {
 		return Token{Type: TokenFalse, Text: text, Line: line, Column: col}, nil
 	}
 	return Token{Type: TokenSymbol, Text: text, Line: line, Column: col}, nil
+}
+
+func (l *lexer) readDocComment(line, col int) (Token, error) {
+	l.advance() // ;
+	l.advance() // ;
+	l.advance() // ;
+	// skip optional single space after ;;;
+	if l.pos < len(l.src) && l.peek() == ' ' {
+		l.advance()
+	}
+	var sb strings.Builder
+	for l.pos < len(l.src) && l.peek() != '\n' {
+		sb.WriteRune(l.advance())
+	}
+	return Token{Type: TokenDocComment, Text: strings.TrimRight(sb.String(), " \t"), Line: line, Column: col}, nil
 }
 
 func isDigit(ch rune) bool {

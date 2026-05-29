@@ -1,5 +1,6 @@
 // Package formatter pretty-prints glisp source from a parsed AST.
-// Comments are not preserved (they are stripped during lexing).
+// Regular ; and ;; comments are not preserved (stripped during lexing).
+// ;;; doc comments are preserved via DefnDecl.Doc / MethodDecl.Doc.
 package formatter
 
 import (
@@ -682,6 +683,9 @@ func formatDef(v *ast.DefDecl, indent int) string {
 
 func formatDefn(v *ast.DefnDecl, indent int) string {
 	var sb strings.Builder
+	if v.Doc != "" {
+		sb.WriteString(ind(indent) + ";;; " + v.Doc + "\n")
+	}
 	sb.WriteString(ind(indent) + "(defn")
 	if v.ReturnType != nil {
 		sb.WriteString(" ^" + v.ReturnType.Text)
@@ -750,6 +754,9 @@ func formatInterface(v *ast.InterfaceDecl, indent int) string {
 
 func formatMethod(v *ast.MethodDecl, indent int) string {
 	var sb strings.Builder
+	if v.Doc != "" {
+		sb.WriteString(ind(indent) + ";;; " + v.Doc + "\n")
+	}
 	sb.WriteString(ind(indent) + "(defmethod ^" + v.ReceiverType.Text + " " + v.Name)
 	allParams := append([]ast.Param{{Name: v.ReceiverName}}, v.Params...)
 	sb.WriteString(" " + inlineParams(allParams))

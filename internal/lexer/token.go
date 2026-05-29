@@ -26,8 +26,9 @@ const (
 	TokenSymbol   // any identifier
 
 	// Special
-	TokenTypeAnnot // ^T — raw Go type string following ^
-	TokenQuote     // '
+	TokenTypeAnnot  // ^T — raw Go type string following ^
+	TokenQuote      // '
+	TokenDocComment // ;;; doc comment
 
 	TokenEOF
 )
@@ -48,9 +49,10 @@ var tokenTypeNames = map[TokenType]string{
 	TokenString:    "string",
 	TokenKeyword:   "keyword",
 	TokenSymbol:    "symbol",
-	TokenTypeAnnot: "type-annot",
-	TokenQuote:     "'",
-	TokenEOF:       "EOF",
+	TokenTypeAnnot:  "type-annot",
+	TokenQuote:      "'",
+	TokenDocComment: "doc-comment",
+	TokenEOF:        "EOF",
 }
 
 func (t TokenType) String() string {

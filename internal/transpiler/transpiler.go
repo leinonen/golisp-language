@@ -173,9 +173,15 @@ func (e *Emitter) hasImport(path string) bool {
 
 func (e *Emitter) emitImports() error {
 	allImports := make([]ast.ImportSpec, 0, len(e.imports)+2)
-	// Add built-in imports that were actually needed during emission
+	// Add built-in imports that were actually needed during emission.
+	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
+	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
+	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true}
 	for _, pkg := range []string{"fmt", "errors", "strings", "sort", "testing", "encoding/json"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
+			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
+				continue
+			}
 			allImports = append(allImports, ast.ImportSpec{Path: pkg})
 		}
 	}

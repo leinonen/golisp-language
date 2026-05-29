@@ -1,47 +1,12 @@
-package transpiler
+package main
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+)
 
-// RuntimeSource returns a complete Go source file containing the runtime helpers
-// needed for the given set of built-in packages. Used by the multi-file compiler
-// to emit helpers into a single shared file instead of every generated file.
-func RuntimeSource(pkgName string, builtins map[string]bool) string {
-	var imports []string
-	if builtins["sort"] {
-		imports = append(imports, `"sort"`)
-	}
-	if builtins["strings"] {
-		imports = append(imports, `"strings"`)
-	}
-	if builtins["encoding/json"] {
-		imports = append(imports, `"encoding/json"`)
-		imports = append(imports, `"fmt"`)
-	}
-
-	s := fmt.Sprintf("package %s\n", pkgName)
-	if len(imports) > 0 {
-		s += "\nimport (\n"
-		for _, imp := range imports {
-			s += "\t" + imp + "\n"
-		}
-		s += ")\n"
-	}
-	s += glispRuntime
-	if builtins["sort"] {
-		s += glispSortRuntime
-	}
-	if builtins["strings"] {
-		s += glispStrRuntime
-	}
-	if builtins["encoding/json"] {
-		s += glispJsonRuntime
-	}
-	return s
-}
-
-// glispRuntime is emitted at the top of every generated Go file.
-// It provides the runtime helpers used by built-in functions.
-const glispRuntime = `
 // --- glisp runtime helpers (generated) ---
 
 func _glispGet(m any, key any) any {
@@ -312,11 +277,9 @@ func _glispDrop(n any, coll any) []any {
 	copy(result, s[k:])
 	return result
 }
-// --- end glisp runtime helpers ---
-`
 
-// glispSortRuntime is appended when sort-by is used (requires "sort" import).
-const glispSortRuntime = `
+// --- end glisp runtime helpers ---
+
 func _glispSortBy(f any, coll any) []any {
 	fn := f.(func(any) any)
 	s := _glispToSlice(coll)
@@ -347,10 +310,7 @@ func _glispSortBy(f any, coll any) []any {
 	})
 	return result
 }
-`
 
-// glispStrRuntime is appended when split/join are used (requires "strings" import).
-const glispStrRuntime = `
 func _glispSplit(s any, sep any) []any {
 	parts := strings.Split(s.(string), sep.(string))
 	result := make([]any, len(parts))
@@ -370,10 +330,7 @@ func _glispJoin(coll any, sep any) string {
 	}
 	return strings.Join(parts, sep.(string))
 }
-`
 
-// glispJsonRuntime is appended when json/encode or json/decode are used (requires "encoding/json" import).
-const glispJsonRuntime = `
 func _glispJsonEncode(v any) (string, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -390,4 +347,3 @@ func _glispJsonDecode(s any) (any, error) {
 	}
 	return result, nil
 }
-`

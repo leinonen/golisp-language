@@ -47,9 +47,10 @@ func ParseSource(tokens []lexer.Token, src string) ([]ast.Node, error) {
 }
 
 type parser struct {
-	tokens []lexer.Token
-	pos    int
-	src    string // original source text for error context; may be empty
+	tokens     []lexer.Token
+	pos        int
+	src        string // original source text for error context; may be empty
+	pendingDoc string // set by ;;; doc comment, consumed by parseDefn/parseDefmethod
 }
 
 func (p *parser) peek() lexer.Token {
@@ -111,10 +112,15 @@ func (p *parser) mkpos(tok lexer.Token) ast.Position {
 func (p *parser) parseAll() ([]ast.Node, error) {
 	var nodes []ast.Node
 	for p.peekType() != lexer.TokenEOF {
+		if p.peekType() == lexer.TokenDocComment {
+			p.pendingDoc = p.advance().Text
+			continue
+		}
 		node, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
+		p.pendingDoc = ""
 		nodes = append(nodes, node)
 	}
 	return nodes, nil
@@ -183,6 +189,9 @@ func (p *parser) parseExprInner() (ast.Node, error) {
 	case lexer.TokenSymbol:
 		tok := p.advance()
 		return ast.NewSymbol(p.mkpos(tok), tok.Text), nil
+	case lexer.TokenDocComment:
+		p.advance()
+		return p.parseExprInner()
 	case lexer.TokenEOF:
 		return nil, p.errorf("unexpected EOF")
 	default:
@@ -494,6 +503,9 @@ func (p *parser) parseDefn(pos ast.Position) (*ast.DefnDecl, error) {
 		return nil, err
 	}
 	doc, body := extractDoc(rawBody)
+	if p.pendingDoc != "" {
+		doc = p.pendingDoc
+	}
 	return ast.NewDefnDecl(pos, nameTok.Text, params, retType, doc, body), nil
 }
 
@@ -595,6 +607,9 @@ func (p *parser) parseDefmethod(pos ast.Position) (*ast.MethodDecl, error) {
 		return nil, err
 	}
 	doc, body := extractDoc(rawBody)
+	if p.pendingDoc != "" {
+		doc = p.pendingDoc
+	}
 	return ast.NewMethodDecl(pos, recvType, recvName, nameTok.Text, params, retType, doc, body), nil
 }
 

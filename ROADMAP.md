@@ -114,8 +114,8 @@ internal/lsp/
 - [x] Top-level `defn`/`def` names, built-in forms, stdlib names
 
 ### 5e. Docstrings
-- [ ] `;;; doc comment` preceding a `defn` stored in AST
-- [ ] Surfaced in hover text and completion detail
+- [x] `;;; doc comment` preceding a `defn` stored in AST
+- [x] Surfaced in hover text and completion detail
 
 ### 5f. Rename symbol
 - [ ] `textDocument/rename` — rename across all files in workspace
@@ -131,9 +131,9 @@ internal/lsp/
 ## Phase 6 — Language Power
 
 ### 6a. Threading macros
-- [ ] `->` — thread-first: `(-> x (f a) (g b))` → `(g (f x a) b)`
-- [ ] `->>` — thread-last: `(->> x (map f) (filter g))`
-- [ ] Implemented as an AST rewrite pass in the parser (no new emit logic)
+- [x] `->` — thread-first: `(-> x (f a) (g b))` → `(g (f x a) b)`
+- [x] `->>` — thread-last: `(->> x (map f) (filter g))`
+- [x] Implemented as AST rewrite in `emitCallExpr` (`emit_expr.go`)
 
 ### 6b. Destructuring
 - [x] Sequential: `(let [[a b c] coll] ...)` — bind by position (`_glispGet` index)
@@ -160,9 +160,9 @@ internal/lsp/
 
 | # | Item | Why |
 |---|---|---|
-| 1 | 6a threading macros | High DX value, low effort — parser rewrite pass |
-| 2 | 6b destructuring | Idiomatic Clojure patterns, unblocks cleaner programs |
-| 3 | 5e docstrings | Immediate LSP hover improvement, small AST touch |
+| 1 | ~~6a threading macros~~ | ✓ done |
+| 2 | ~~6b destructuring~~ | ✓ done |
+| 3 | ~~5e docstrings~~ | ✓ done |
 | 4 | 7a HTTP client | Enables full client-server programs in glisp |
 | 5 | 5f–5h LSP rename/refs/actions | Full IDE experience |
 | 6 | 4b REPL | Interactive development loop |

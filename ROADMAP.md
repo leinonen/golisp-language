@@ -92,6 +92,15 @@
 - [ ] Emit `// glsp:line:col` comments on generated lines
 - [ ] Map Go panic stack traces back to `.glsp` source locations
 
+### 4d. Release infrastructure
+Without this, "try glisp" means cloning the repo and running `go build`. Barrier too high for public release.
+
+- [ ] GitHub Actions release workflow — build binaries for linux/mac/windows on tag push
+- [ ] Publish binaries to GitHub Releases (amd64 + arm64 for each OS)
+- [ ] Install script — `curl -sSL https://get.glisp.dev | sh` (or equivalent)
+- [ ] Homebrew tap — `brew install glisp-lang/tap/glisp`
+- [ ] `glisp version` reports semver tag
+
 ---
 
 ## Phase 5 — LSP
@@ -252,20 +261,24 @@ Features that make the language enjoyable to use, not just functional.
 
 ## Order of Attack
 
+Items 1–9 are v1 blockers: a stranger can't write a real program or install glisp without them. Items 10+ are post-v1.
+
 | # | Item | Why |
 |---|------|-----|
 | 1 | ~~**6d: `panic` / `recover`**~~ ✓ | Blocks writing safe middleware; can't recover from third-party panics |
-| 2 | **6d: `switch` / `case`** | Essential Go form; eliminates awkward `cond` chains in interop code |
-| 3 | **7b: `get-in` / `assoc-in` / `update-in` / `update` / `select-keys`** | Needed in every real server — shaping request/response maps |
-| 4 | **7b: `group-by` / `into` / `concat` / `mapcat` / `take-while` / `drop-while`** | Data pipeline ops for transforms and aggregations |
-| 5 | **6d: `when-let` / `if-let`** | Extremely common pattern; straightforward to add |
-| 6 | **6d: `as->` / `doto` / `with-open`** | Ergonomics and Go builder-API interop |
-| 7 | **7c: `format` / `parse-int` / `parse-float`** | Needed in any real app; string formatting and parsing |
-| 8 | **7b: `empty?` / `second` / `last` / `zipmap` / `partition` / `frequencies`** | Fill remaining collection gaps |
-| 9 | **7d: Set support (`#{}`)** | AST node already exists; wire it up |
-| 10 | **4b: REPL improvements** | Developer experience — readline, def persistence |
-| 11 | **4c: Source maps** | Debug Go panics in `.glsp` terms |
-| 12 | **8: Database (postgres)** | Next major capability unlock for real applications |
-| 13 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
-| 14 | **5f–5h: LSP rename / find-refs / code actions** | IDE completeness — nice to have |
-| 15 | **6c: Macro system** | High complexity; defer until language is stable and use cases are clear |
+| 2 | **4d: Release infrastructure** | Can't publish without binaries and an install story |
+| 3 | **6d: `switch` / `case`** | Essential Go form; eliminates awkward `cond` chains in interop code |
+| 4 | **6d: `when-let` / `if-let`** | Extremely common nil-guard pattern; small effort, high payoff |
+| 5 | **7c: `format` / `parse-int` / `parse-float`** | Every real program needs string formatting and input parsing |
+| 6 | **7b: `empty?` / `not-empty` / `second` / `last`** | Embarrassing gaps; trivial to add |
+| 7 | **7b: `get-in` / `assoc-in` / `update-in` / `update` / `select-keys`** | Needed in every REST handler — shaping request/response maps |
+| 8 | **7b: `concat` / `into` / `mapcat` / `take-while` / `drop-while`** | Data pipeline ops for transforms and aggregations |
+| 9 | **4b: REPL readline / history** | First thing new users try; bare REPL with no editing is painful |
+| 10 | **7d: Set support (`#{}`)** | AST node already exists; wire it up |
+| 11 | **6d: `as->` / `doto` / `with-open`** | Ergonomics and Go builder-API interop |
+| 12 | **7b: `group-by` / `zipmap` / `partition` / `frequencies` / `rename-keys`** | Fill remaining collection gaps |
+| 13 | **4c: Source maps** | Debug Go panics in `.glsp` terms |
+| 14 | **8: Database (postgres)** | Next major capability unlock for real applications |
+| 15 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
+| 16 | **5f–5h: LSP rename / find-refs / code actions** | IDE completeness — nice to have |
+| 17 | **6c: Macro system** | High complexity; defer until language is stable and use cases are clear |

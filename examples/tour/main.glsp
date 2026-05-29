@@ -1,7 +1,7 @@
 ; glisp language tour
 ; Demonstrates: defn, type annotations, cond, loop/recur, map/filter/reduce,
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
-;               destructuring (map and sequential)
+;               destructuring (map and sequential), keyword lookup (:key m)
 
 (ns main
   (:import [fmt]))
@@ -45,9 +45,9 @@
   ; Analyze student classes concurrently.
   ; Map destructuring in fn params: {name :name scores :scores}
   (let [classes
-        [{"name" "Math"    "scores" [85 92 78 61 79 88 95]}
-         {"name" "English" "scores" [76 85 90 55 68 73 82]}
-         {"name" "Science" "scores" [91 94 87 98 79 85 92]}]]
+        [{:name "Math"    :scores [85 92 78 61 79 88 95]}
+         {:name "English" :scores [76 85 90 55 68 73 82]}
+         {:name "Science" :scores [91 94 87 98 79 85 92]}]]
 
     (let [ch (chan ^map[string]any (len classes))]
 
@@ -60,10 +60,10 @@
                 pass   (filter (fn [s] (>= (int s) 60)) scores)
                 pass-n (int (reduce (fn [k _] (+ (int k) 1)) 0 pass))]
             (go (send! ch
-                  {"name"    (str name)
-                   "avg"     avg
-                   "grade"   (grade avg)
-                   "passing" (str pass-n "/" n)}))
+                  {:name    (str name)
+                   :avg     avg
+                   :grade   (grade avg)
+                   :passing (str pass-n "/" n)}))
             nil))
         classes)
 
@@ -85,9 +85,10 @@
               nil))
           ranked)
 
-        (fmt/Println "\nbottom:" (get top "name")
-                     " mid:" (get second "name")
-                     " top:" (get third "name"))
+        ; keyword lookup: (:name m) extracts the :name key from a map
+        (fmt/Println "\nbottom:" (:name top)
+                     " mid:" (:name second)
+                     " top:" (:name third))
 
         ; JSON export via if-err
         (if-err [out err] (json/encode {"report" ranked})

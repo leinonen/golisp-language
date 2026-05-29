@@ -515,6 +515,31 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		}
 	}
 
+	// (:key coll) → _glispGet(coll, "key")
+	// (:key coll default) → _glispGetD(coll, "key", default)
+	if kw, ok := n.Head.(*ast.KeywordLit); ok {
+		if len(n.Args) < 1 || len(n.Args) > 2 {
+			return fmt.Errorf("keyword call requires 1 or 2 arguments")
+		}
+		fn := "_glispGet"
+		if len(n.Args) == 2 {
+			fn = "_glispGetD"
+		}
+		e.writef("%s(", fn)
+		if err := e.emitExpr(n.Args[0]); err != nil {
+			return err
+		}
+		e.writef(", %q", kw.Value)
+		if len(n.Args) == 2 {
+			e.write(", ")
+			if err := e.emitExpr(n.Args[1]); err != nil {
+				return err
+			}
+		}
+		e.write(")")
+		return nil
+	}
+
 	// General function call: f(args...)
 	if err := e.emitExpr(n.Head); err != nil {
 		return err

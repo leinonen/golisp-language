@@ -332,6 +332,16 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn greet [{name :name}] name)`,
 			wantSub: `_glispGet(_p`,
 		},
+		{
+			name:    "keyword as fn 1-arg",
+			src:     `(defn f [m] (:name m))`,
+			wantSub: `_glispGet(m, "name")`,
+		},
+		{
+			name:    "keyword as fn 2-arg default",
+			src:     `(defn f [m] (:age m 0))`,
+			wantSub: `_glispGetD(m, "age", 0)`,
+		},
 	}
 
 	for _, tt := range tests {

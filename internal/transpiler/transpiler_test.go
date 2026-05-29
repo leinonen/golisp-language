@@ -141,6 +141,16 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [] (defer (println "done")) (println "body"))`,
 			wantSub: "defer ",
 		},
+		{
+			name:    "panic",
+			src:     `(defn f [msg] (panic msg))`,
+			wantSub: "panic(msg)",
+		},
+		{
+			name:    "recover",
+			src:     `(defn f [] (defer (fn [] (let [r (recover)] (println r)))) nil)`,
+			wantSub: "recover()",
+		},
 		// 2a: collection operations
 		{
 			name:    "map",

@@ -1,0 +1,12 @@
+(ns main)
+
+(defn ^any safe-divide [^int a ^int b]
+  (defer (recover))
+  (when (= b 0)
+    (panic "division by zero"))
+  (/ a b))
+
+(defn validate [^string s]
+  (when (= s "")
+    (panic "empty string not allowed"))
+  s)

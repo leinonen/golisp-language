@@ -525,6 +525,22 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "join":
 			e.needImport("strings")
 			return e.emitRuntimeCall("_glispJoin", n.Args, 2)
+		case "panic":
+			if len(n.Args) != 1 {
+				return fmt.Errorf("panic: expected 1 argument, got %d at %s", len(n.Args), n.Pos())
+			}
+			e.write("panic(")
+			if err := e.emitExpr(n.Args[0]); err != nil {
+				return err
+			}
+			e.write(")")
+			return nil
+		case "recover":
+			if len(n.Args) != 0 {
+				return fmt.Errorf("recover: expected 0 arguments, got %d at %s", len(n.Args), n.Pos())
+			}
+			e.write("recover()")
+			return nil
 		case "json/encode":
 			e.needImport("encoding/json")
 			return e.emitRuntimeCall("_glispJsonEncode", n.Args, 1)

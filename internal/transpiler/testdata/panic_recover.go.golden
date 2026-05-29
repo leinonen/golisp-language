@@ -1,0 +1,358 @@
+package main
+
+func safeDivide(a int, b int) any {
+	defer recover()
+	if b == 0 {
+		panic("division by zero")
+	}
+	return (a / b)
+}
+
+func validate(s string) {
+	if s == "" {
+		panic("empty string not allowed")
+	}
+	s
+}
+
+// --- glisp runtime helpers (generated) ---
+
+func _glispGet(m any, key any) any {
+	switch mm := m.(type) {
+	case map[string]any:
+		switch k := key.(type) {
+		case string:
+			return mm[k]
+		}
+	case []any:
+		switch k := key.(type) {
+		case int:
+			return mm[k]
+		case int64:
+			return mm[int(k)]
+		}
+	}
+	return nil
+}
+
+func _glispGetD(m any, key any, def any) any {
+	v := _glispGet(m, key)
+	if v == nil {
+		return def
+	}
+	return v
+}
+
+func _glispAssoc(m any, kvs ...any) map[string]any {
+	result := map[string]any{}
+	if mm, ok := m.(map[string]any); ok {
+		for k, v := range mm {
+			result[k] = v
+		}
+	}
+	for i := 0; i+1 < len(kvs); i += 2 {
+		result[kvs[i].(string)] = kvs[i+1]
+	}
+	return result
+}
+
+func _glispDissoc(m any, keys ...any) map[string]any {
+	result := map[string]any{}
+	if mm, ok := m.(map[string]any); ok {
+		for k, v := range mm {
+			result[k] = v
+		}
+	}
+	for _, key := range keys {
+		delete(result, key.(string))
+	}
+	return result
+}
+
+func _glispKeys(m any) []any {
+	mm, ok := m.(map[string]any)
+	if !ok {
+		return nil
+	}
+	keys := make([]any, 0, len(mm))
+	for k := range mm {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func _glispVals(m any) []any {
+	mm, ok := m.(map[string]any)
+	if !ok {
+		return nil
+	}
+	vals := make([]any, 0, len(mm))
+	for _, v := range mm {
+		vals = append(vals, v)
+	}
+	return vals
+}
+
+func _glispMerge(maps ...any) map[string]any {
+	result := map[string]any{}
+	for _, m := range maps {
+		if mm, ok := m.(map[string]any); ok {
+			for k, v := range mm {
+				result[k] = v
+			}
+		}
+	}
+	return result
+}
+
+func _glispToSlice(v any) []any {
+	if s, ok := v.([]any); ok {
+		return s
+	}
+	return nil
+}
+
+func _glispToInt(v any) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	}
+	return 0
+}
+
+func _glispToString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+func _glispMap(f any, coll any) []any {
+	fn := f.(func(any) any)
+	s := _glispToSlice(coll)
+	result := make([]any, len(s))
+	for i, v := range s {
+		result[i] = fn(v)
+	}
+	return result
+}
+
+func _glispFilter(f any, coll any) []any {
+	fn := f.(func(any) any)
+	s := _glispToSlice(coll)
+	var result []any
+	for _, v := range s {
+		r := fn(v)
+		if r != nil && r != false {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+func _glispReduce(f any, init any, coll any) any {
+	fn := f.(func(any, any) any)
+	acc := init
+	for _, v := range _glispToSlice(coll) {
+		acc = fn(acc, v)
+	}
+	return acc
+}
+
+func _glispReverse(coll any) []any {
+	s := _glispToSlice(coll)
+	result := make([]any, len(s))
+	for i, v := range s {
+		result[len(s)-1-i] = v
+	}
+	return result
+}
+
+func _glispContains(coll any, val any) bool {
+	switch c := coll.(type) {
+	case map[string]any:
+		if k, ok := val.(string); ok {
+			_, exists := c[k]
+			return exists
+		}
+	case []any:
+		for _, v := range c {
+			if v == val {
+				return true
+			}
+		}
+	case string:
+		if sub, ok := val.(string); ok {
+			if len(sub) == 0 {
+				return true
+			}
+			if len(sub) > len(c) {
+				return false
+			}
+			for i := 0; i <= len(c)-len(sub); i++ {
+				if c[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func _glispSome(f any, coll any) any {
+	fn := f.(func(any) any)
+	for _, v := range _glispToSlice(coll) {
+		if r := fn(v); r != nil && r != false {
+			return r
+		}
+	}
+	return nil
+}
+
+func _glispEvery(f any, coll any) bool {
+	fn := f.(func(any) any)
+	for _, v := range _glispToSlice(coll) {
+		r := fn(v)
+		if r == nil || r == false {
+			return false
+		}
+	}
+	return true
+}
+
+func _glispFlatten(coll any) []any {
+	var result []any
+	for _, v := range _glispToSlice(coll) {
+		if inner, ok := v.([]any); ok {
+			result = append(result, _glispFlatten(inner)...)
+		} else {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+func _glispRange(args ...any) []any {
+	var start, end, step int
+	switch len(args) {
+	case 1:
+		start, end, step = 0, _glispToInt(args[0]), 1
+	case 2:
+		start, end, step = _glispToInt(args[0]), _glispToInt(args[1]), 1
+	case 3:
+		start, end, step = _glispToInt(args[0]), _glispToInt(args[1]), _glispToInt(args[2])
+	default:
+		return nil
+	}
+	if step == 0 {
+		return nil
+	}
+	var result []any
+	for i := start; (step > 0 && i < end) || (step < 0 && i > end); i += step {
+		result = append(result, i)
+	}
+	return result
+}
+
+func _glispTake(n any, coll any) []any {
+	s := _glispToSlice(coll)
+	k := _glispToInt(n)
+	if k < 0 {
+		k = 0
+	}
+	if k > len(s) {
+		k = len(s)
+	}
+	result := make([]any, k)
+	copy(result, s[:k])
+	return result
+}
+
+func _glispDrop(n any, coll any) []any {
+	s := _glispToSlice(coll)
+	k := _glispToInt(n)
+	if k < 0 {
+		k = 0
+	}
+	if k > len(s) {
+		k = len(s)
+	}
+	result := make([]any, len(s)-k)
+	copy(result, s[k:])
+	return result
+}
+
+func _glispComplement(pred any) any {
+	fn := pred.(func(any) any)
+	return func(x any) any {
+		r := fn(x)
+		return r == nil || r == false
+	}
+}
+
+func _glispConstantly(v any) any {
+	return func(_ any) any { return v }
+}
+
+func _glispApply(f any, args any) any {
+	s := _glispToSlice(args)
+	switch len(s) {
+	case 0:
+		return f.(func() any)()
+	case 1:
+		return f.(func(any) any)(s[0])
+	case 2:
+		return f.(func(any, any) any)(s[0], s[1])
+	case 3:
+		return f.(func(any, any, any) any)(s[0], s[1], s[2])
+	case 4:
+		return f.(func(any, any, any, any) any)(s[0], s[1], s[2], s[3])
+	case 5:
+		return f.(func(any, any, any, any, any) any)(s[0], s[1], s[2], s[3], s[4])
+	case 6:
+		return f.(func(any, any, any, any, any, any) any)(s[0], s[1], s[2], s[3], s[4], s[5])
+	default:
+		return f.(func(...any) any)(s...)
+	}
+}
+
+func _glispPartial(f any, fixedArgs ...any) any {
+	return func(x any) any {
+		allArgs := make([]any, len(fixedArgs)+1)
+		copy(allArgs, fixedArgs)
+		allArgs[len(fixedArgs)] = x
+		return _glispApply(f, allArgs)
+	}
+}
+
+func _glispComp(fns ...any) any {
+	if len(fns) == 0 {
+		return func(x any) any { return x }
+	}
+	if len(fns) == 1 {
+		return fns[0]
+	}
+	return func(x any) any {
+		v := fns[len(fns)-1].(func(any) any)(x)
+		for i := len(fns) - 2; i >= 0; i-- {
+			v = fns[i].(func(any) any)(v)
+		}
+		return v
+	}
+}
+
+func _glispJuxt(fns ...any) any {
+	return func(x any) any {
+		result := make([]any, len(fns))
+		for i, f := range fns {
+			result[i] = f.(func(any) any)(x)
+		}
+		return result
+	}
+}
+
+// --- end glisp runtime helpers ---

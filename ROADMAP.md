@@ -156,7 +156,7 @@ internal/lsp/
 - [ ] **Deferred** — high complexity, low return for server-app use case; built-in special forms cover most needs. See ADR-005.
 
 ### 6d. Missing Go interop forms
-- [ ] `panic` / `recover` — call `panic()` and use `recover()` inside `defer`; essential for middleware and wrapping third-party code
+- [x] `panic` / `recover` — call `panic()` and use `recover()` inside `defer`; essential for middleware and wrapping third-party code
 - [ ] `switch` / `case` — value switch and type switch; eliminates awkward `cond` workarounds for Go interop
 - [ ] `as->` — `(as-> x $ (assoc $ :k v) (dissoc $ :old))` — threading with named binding; useful when thread position varies
 - [ ] `when-let` / `if-let` — `(when-let [user (find-user id)] ...)` — nil-guarded binding; extremely common pattern
@@ -254,7 +254,7 @@ Features that make the language enjoyable to use, not just functional.
 
 | # | Item | Why |
 |---|------|-----|
-| 1 | **6d: `panic` / `recover`** | Blocks writing safe middleware; can't recover from third-party panics |
+| 1 | ~~**6d: `panic` / `recover`**~~ ✓ | Blocks writing safe middleware; can't recover from third-party panics |
 | 2 | **6d: `switch` / `case`** | Essential Go form; eliminates awkward `cond` chains in interop code |
 | 3 | **7b: `get-in` / `assoc-in` / `update-in` / `update` / `select-keys`** | Needed in every real server — shaping request/response maps |
 | 4 | **7b: `group-by` / `into` / `concat` / `mapcat` / `take-while` / `drop-while`** | Data pipeline ops for transforms and aggregations |

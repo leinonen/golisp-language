@@ -1,7 +1,8 @@
 ; glisp language tour
 ; Demonstrates: defn, type annotations, cond, loop/recur, map/filter/reduce,
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
-;               destructuring (map and sequential), keyword lookup (:key m)
+;               destructuring (map and sequential), keyword lookup (:key m),
+;               panic/recover
 
 (ns main
   (:import [fmt]))
@@ -16,6 +17,23 @@
     (>= score 70) "C"
     (>= score 60) "D"
     :else         "F"))
+
+; --- Panic and recover ---
+
+; recover must be called from a deferred function to catch panics.
+; Defer a named handler so recover() runs in the right stack frame.
+
+(defn catch-panic []
+  (let [r (recover)]
+    (when (not= r nil)
+      (fmt/Println "caught panic:" r))))
+
+;;; Returns a/b, or 0 if b is zero (panic caught by deferred handler).
+(defn ^int safe-divide [^int a ^int b]
+  (defer (catch-panic))
+  (when (= b 0)
+    (panic "divide by zero"))
+  (/ a b))
 
 ; --- Tail-recursive loop ---
 
@@ -36,6 +54,10 @@
 ; --- Concurrent class analysis ---
 
 (defn main []
+
+  ; Panic and recover
+  (fmt/Println "10/2 =" (safe-divide 10 2))
+  (safe-divide 5 0)
 
   ; Fibonacci via loop/recur
   (let [fibs (map (fn [n] (fib (int n))) (range 10))]

@@ -6,10 +6,10 @@
    {"id" "3" "title" "Go for a run" "done" false "priority" "medium"}
    {"id" "4" "title" "Read a book" "done" false "priority" "low"}])
 
-(defn ^map[string]any health [^map[string]any req]
+(defn ^stdlib/Response health [^stdlib/Request req]
   (stdlib/JsonResponse 200 {"status" "ok" "tasks" (len tasks)}))
 
-(defn ^map[string]any list-tasks [^map[string]any req]
+(defn ^stdlib/Response list-tasks [^stdlib/Request req]
   (let [done-param (stdlib/QueryParam req "done")]
     (cond
       (= done-param "true")
@@ -20,26 +20,26 @@
           (filter (fn [t] (= (get t "done") false)) tasks))
       :else (stdlib/JsonResponse 200 tasks))))
 
-(defn ^map[string]any get-task [^map[string]any req]
+(defn ^stdlib/Response get-task [^stdlib/Request req]
   (let [id (stdlib/PathParam req "id")
         matches (filter (fn [t] (= (get t "id") id)) tasks)]
     (if (> (len matches) 0)
       (stdlib/JsonResponse 200 (get matches 0))
       (stdlib/JsonResponse 404 {"error" (str "task " id " not found")}))))
 
-(defn ^map[string]any create-task [^map[string]any req]
+(defn ^stdlib/Response create-task [^stdlib/Request req]
   (let [body (stdlib/BodyMap req)]
     (if (= body nil)
       (stdlib/JsonResponse 400 {"error" "invalid or missing JSON body"})
       (stdlib/JsonResponse 201 (assoc body "id" "new")))))
 
-(defn ^map[string]any delete-task [^map[string]any req]
+(defn ^stdlib/Response delete-task [^stdlib/Request req]
   (let [id (stdlib/PathParam req "id")]
     (stdlib/JsonResponse 200
       {"deleted" id
        "note"    "demo only — no persistence"})))
 
-(defn ^map[string]any export-tasks [^map[string]any req]
+(defn ^stdlib/Response export-tasks [^stdlib/Request req]
   (stdlib/JsonResponse 200
     {"tasks"       tasks
      "count"       (len tasks)

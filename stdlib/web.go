@@ -1,5 +1,5 @@
 // Package stdlib provides Ring-style web server helpers for glisp programs.
-// A Ring handler is a function of type func(map[string]any) map[string]any.
+// A Ring handler is a function of type func(Request) Response.
 // Request and response maps follow the Ring convention:
 //
 //	Request: {"method": "GET", "path": "/", "headers": {...}, "body": "..."}
@@ -21,8 +21,14 @@ import (
 	"time"
 )
 
+// Request is a Ring-style request map: {"method", "path", "query", "headers", "body"}.
+type Request = map[string]any
+
+// Response is a Ring-style response map: {"status", "headers", "body"}.
+type Response = map[string]any
+
 // Handler is the type of a Ring-style handler function.
-type Handler func(req map[string]any) map[string]any
+type Handler func(req Request) Response
 
 // Middleware wraps a handler to produce a new handler.
 type Middleware func(Handler) Handler
@@ -36,7 +42,7 @@ func RingToHTTP(h Handler) http.Handler {
 	})
 }
 
-func buildRequest(r *http.Request) map[string]any {
+func buildRequest(r *http.Request) Request {
 	body := ""
 	if r.Body != nil {
 		b, _ := io.ReadAll(r.Body)
@@ -55,7 +61,7 @@ func buildRequest(r *http.Request) map[string]any {
 	}
 }
 
-func writeResponse(w http.ResponseWriter, resp map[string]any) {
+func writeResponse(w http.ResponseWriter, resp Response) {
 	if resp == nil {
 		w.WriteHeader(500)
 		return
@@ -93,7 +99,7 @@ func writeResponse(w http.ResponseWriter, resp map[string]any) {
 
 // WrapLogging adds simple request logging to a handler.
 func WrapLogging(h Handler) Handler {
-	return func(req map[string]any) map[string]any {
+	return func(req Request) Response {
 		method := req["method"]
 		path := req["path"]
 		resp := h(req)
@@ -108,7 +114,7 @@ func WrapLogging(h Handler) Handler {
 
 // WrapRecover catches panics and returns a 500 response.
 func WrapRecover(h Handler) Handler {
-	return func(req map[string]any) (resp map[string]any) {
+	return func(req Request) (resp Response) {
 		defer func() {
 			if r := recover(); r != nil {
 				resp = map[string]any{
@@ -122,7 +128,7 @@ func WrapRecover(h Handler) Handler {
 }
 
 // JsonResponse creates a Ring-style response with a JSON-encoded body.
-func JsonResponse(status int, body any) map[string]any {
+func JsonResponse(status int, body any) Response {
 	b, _ := json.Marshal(body)
 	return map[string]any{
 		"status":  status,
@@ -162,7 +168,7 @@ func PATCH(pattern string, h Handler) Route { return Route{"PATCH", pattern, h} 
 // order; the first matching method+pattern wins. Path params (e.g. :id) are
 // extracted and stored in req["params"]. Returns 404 if no route matches.
 func Routes(rs ...Route) Handler {
-	return func(req map[string]any) map[string]any {
+	return func(req Request) Response {
 		method, _ := req["method"].(string)
 		path, _ := req["path"].(string)
 		for _, r := range rs {
@@ -183,7 +189,7 @@ func Routes(rs ...Route) Handler {
 // WrapJson parses the request body as JSON and stores the result in req["json-body"].
 // The original string body remains in req["body"]. Passes through on parse failure.
 func WrapJson(h Handler) Handler {
-	return func(req map[string]any) map[string]any {
+	return func(req Request) Response {
 		if body, ok := req["body"].(string); ok && body != "" {
 			var v any
 			if err := json.Unmarshal([]byte(body), &v); err == nil {
@@ -196,7 +202,7 @@ func WrapJson(h Handler) Handler {
 
 // WrapCors adds permissive CORS headers to every response.
 func WrapCors(h Handler) Handler {
-	return func(req map[string]any) map[string]any {
+	return func(req Request) Response {
 		resp := h(req)
 		if resp == nil {
 			resp = map[string]any{"status": 200}
@@ -216,7 +222,7 @@ func WrapCors(h Handler) Handler {
 // WrapAuth extracts a Bearer token from the Authorization header and stores it
 // in req["identity"]. Returns 401 if the header is absent or not a Bearer token.
 func WrapAuth(h Handler) Handler {
-	return func(req map[string]any) map[string]any {
+	return func(req Request) Response {
 		headers, _ := req["headers"].(map[string]any)
 		auth, _ := headers["Authorization"].(string)
 		if !strings.HasPrefix(auth, "Bearer ") {
@@ -232,8 +238,8 @@ func WrapAuth(h Handler) Handler {
 func WrapTimeout(seconds int) Middleware {
 	d := time.Duration(seconds) * time.Second
 	return func(h Handler) Handler {
-		return func(req map[string]any) map[string]any {
-			ch := make(chan map[string]any, 1)
+		return func(req Request) Response {
+			ch := make(chan Response, 1)
 			go func() { ch <- h(req) }()
 			select {
 			case resp := <-ch:
@@ -262,14 +268,14 @@ func Wrap(h Handler, mws ...Middleware) Handler {
 }
 
 // QueryParam returns the named query parameter from req["query"].
-func QueryParam(req map[string]any, name string) string {
+func QueryParam(req Request, name string) string {
 	q, _ := req["query"].(string)
 	vals, _ := url.ParseQuery(q)
 	return vals.Get(name)
 }
 
 // PathParam returns the named path parameter from req["params"].
-func PathParam(req map[string]any, name string) string {
+func PathParam(req Request, name string) string {
 	params, _ := req["params"].(map[string]any)
 	v, _ := params[name].(string)
 	return v
@@ -277,7 +283,7 @@ func PathParam(req map[string]any, name string) string {
 
 // BodyMap returns the JSON-decoded body as a map. Checks req["json-body"] first
 // (set by WrapJson), then falls back to decoding req["body"].
-func BodyMap(req map[string]any) map[string]any {
+func BodyMap(req Request) map[string]any {
 	if v, ok := req["json-body"].(map[string]any); ok {
 		return v
 	}
@@ -288,7 +294,7 @@ func BodyMap(req map[string]any) map[string]any {
 }
 
 // Header returns the named request header from req["headers"].
-func Header(req map[string]any, name string) string {
+func Header(req Request, name string) string {
 	headers, _ := req["headers"].(map[string]any)
 	v, _ := headers[name].(string)
 	return v
@@ -297,7 +303,7 @@ func Header(req map[string]any, name string) string {
 // ServeFiles returns a Handler that serves static files from dir under prefix.
 func ServeFiles(prefix, dir string) Handler {
 	fs := http.StripPrefix(prefix, http.FileServer(http.Dir(dir)))
-	return func(req map[string]any) map[string]any {
+	return func(req Request) Response {
 		path, _ := req["path"].(string)
 		r := httptest.NewRequest("GET", path, nil)
 		w := httptest.NewRecorder()

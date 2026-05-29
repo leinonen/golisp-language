@@ -206,6 +206,11 @@ var builtinDocs = map[string]BuiltinDoc{
 	// io
 	"io/EOF": {Sig: "io/EOF  →  error", Doc: "Sentinel error returned by readers when there is no more input."},
 
+	// stdlib/web.go (golisp/stdlib) — types
+	"stdlib/Request":  {Sig: "type Request = map[string]any", Doc: "Ring-style request map. Keys: \"method\", \"path\", \"query\", \"headers\", \"body\"."},
+	"stdlib/Response": {Sig: "type Response = map[string]any", Doc: "Ring-style response map. Keys: \"status\", \"headers\", \"body\"."},
+	"stdlib/Handler":  {Sig: "type Handler func(req Request) Response", Doc: "Ring-style handler: takes a request map and returns a response map."},
+
 	// stdlib/web.go (golisp/stdlib)
 	"stdlib/Routes":        {Sig: "(stdlib/Routes & routes)                     →  Handler", Doc: "Combine route definitions into a single HTTP handler."},
 	"stdlib/GET":           {Sig: "(stdlib/GET pattern handler)                 →  Route", Doc: "Define a GET route matching pattern, handled by handler."},
@@ -221,10 +226,10 @@ var builtinDocs = map[string]BuiltinDoc{
 	"stdlib/WrapLogging":   {Sig: "(stdlib/WrapLogging handler)                 →  Handler", Doc: "Log each request method, path, and status code."},
 	"stdlib/WrapRecover":   {Sig: "(stdlib/WrapRecover handler)                 →  Handler", Doc: "Recover from panics and return a 500 response."},
 	"stdlib/WrapTimeout":   {Sig: "(stdlib/WrapTimeout seconds)                 →  Middleware", Doc: "Abort the request with 503 if the handler takes longer than seconds."},
-	"stdlib/JsonResponse":  {Sig: "(stdlib/JsonResponse status body)            →  map[string]any", Doc: "Build a Ring-style response map with the given HTTP status and JSON body."},
+	"stdlib/JsonResponse":  {Sig: "(stdlib/JsonResponse status body)            →  Response", Doc: "Build a Ring-style response map with the given HTTP status and JSON body."},
 	"stdlib/QueryParam":    {Sig: "(stdlib/QueryParam req name)                 →  string", Doc: "Return the value of URL query parameter name from the request."},
 	"stdlib/PathParam":     {Sig: "(stdlib/PathParam req name)                  →  string", Doc: "Return the value of URL path parameter name from the request."},
-	"stdlib/BodyMap":       {Sig: "(stdlib/BodyMap req)                         →  map[string]any", Doc: "Return the pre-parsed JSON body map stored by WrapJson."},
+	"stdlib/BodyMap":       {Sig: "(stdlib/BodyMap req)                         →  map[string]any", Doc: "Return the JSON-decoded body as a plain map (not a Response — the body content itself)."},
 	"stdlib/Header":        {Sig: "(stdlib/Header req name)                     →  string", Doc: "Return the value of HTTP header name from the request."},
 	"stdlib/ServeFiles":    {Sig: "(stdlib/ServeFiles prefix dir)               →  Handler", Doc: "Serve static files from dir under the URL prefix."},
 	"stdlib/Serve":         {Sig: "(stdlib/Serve addr handler)                  →  error", Doc: "Start an HTTP server on addr with handler. Blocks until an error occurs."},

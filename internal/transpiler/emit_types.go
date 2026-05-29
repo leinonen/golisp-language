@@ -86,24 +86,51 @@ func cleanIdentPart(s string) string {
 
 // typeExprToGo converts a TypeExpr text to a Go type string.
 // Input examples:
-//   "int"             → "int"
-//   "(chan int)"       → "chan int"       (strip outer parens)
-//   "[string error]"  → "(string, error)" (multi-return, strip brackets)
-//   "*http.Request"   → "*http.Request"  (unchanged)
-//   "[]string"        → "[]string"       (unchanged)
+//   "int"              → "int"
+//   "(chan int)"        → "chan int"        (strip outer parens)
+//   "[string error]"   → "(string, error)"  (multi-return, strip brackets)
+//   "*http.Request"    → "*http.Request"   (unchanged)
+//   "[]string"         → "[]string"        (unchanged)
+//   "stdlib/Request"   → "stdlib.Request"  (slash→dot for qualified types)
+//   "(chan stdlib/Response)" → "chan stdlib.Response"
 func typeExprToGo(text string) string {
 	text = strings.TrimSpace(text)
 	// Multi-return: [T1 T2 ...]
 	if strings.HasPrefix(text, "[") && strings.HasSuffix(text, "]") {
 		inner := strings.TrimSpace(text[1 : len(text)-1])
 		parts := splitTypeList(inner)
-		return "(" + strings.Join(parts, ", ") + ")"
+		converted := make([]string, len(parts))
+		for i, p := range parts {
+			converted[i] = typeExprToGo(p)
+		}
+		return "(" + strings.Join(converted, ", ") + ")"
 	}
 	// Channel type wrapped in parens: (chan T)
 	if strings.HasPrefix(text, "(") && strings.HasSuffix(text, ")") {
-		return strings.TrimSpace(text[1 : len(text)-1])
+		return qualifiedTypeToGo(strings.TrimSpace(text[1 : len(text)-1]))
 	}
-	return text
+	return qualifiedTypeToGo(text)
+}
+
+// qualifiedTypeToGo converts pkg/Type notation to pkg.Type within a Go type string.
+// Any '/' immediately preceded by an alphanumeric character is treated as a package
+// separator and replaced with '.'.  Division never appears in type expressions, so
+// this substitution is always safe.
+func qualifiedTypeToGo(s string) string {
+	if !strings.Contains(s, "/") {
+		return s
+	}
+	b := []byte(s)
+	for i := 1; i < len(b); i++ {
+		if b[i] == '/' && isAlphaNumByte(b[i-1]) {
+			b[i] = '.'
+		}
+	}
+	return string(b)
+}
+
+func isAlphaNumByte(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
 }
 
 // splitTypeList splits a space-separated list of Go type tokens,

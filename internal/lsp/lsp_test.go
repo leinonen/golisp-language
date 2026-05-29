@@ -231,6 +231,33 @@ func TestHover_builtin_json(t *testing.T) {
 	}
 }
 
+func TestHover_stdlibTypes(t *testing.T) {
+	// (defn ^stdlib/Response health [^stdlib/Request req]
+	// col:  0    5 7              22     30 32
+	//                col 7: 's' of stdlib/Response (right after ^)
+	//                                          col 32: 's' of stdlib/Request (right after ^)
+	src := "(defn ^stdlib/Response health [^stdlib/Request req])"
+	for _, tc := range []struct {
+		col  int
+		want string
+	}{
+		{7, "stdlib/Response"}, // cursor on 's' of stdlib/Response (after ^)
+		{32, "stdlib/Request"}, // cursor on 's' of stdlib/Request (after ^)
+	} {
+		name := symbolAtPosition(src, 0, tc.col)
+		if name != tc.want {
+			t.Errorf("col %d: symbolAtPosition want %q, got %q", tc.col, tc.want, name)
+		}
+		result := FindHover(src, 0, tc.col)
+		if result == nil {
+			t.Fatalf("col %d: expected hover for %q", tc.col, tc.want)
+		}
+		if result.Sig == "" {
+			t.Errorf("col %d: expected non-empty sig for %q", tc.col, tc.want)
+		}
+	}
+}
+
 func TestHover_userDefn_overrides_builtin(t *testing.T) {
 	// A user-defined 'map' should shadow the built-in entry.
 	src := "(defn map [f xs] nil)"

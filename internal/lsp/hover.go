@@ -61,7 +61,7 @@ func symbolAtPosition(source string, line, col int) string {
 
 func isSymbolRune(r rune) bool {
 	switch r {
-	case '(', ')', '[', ']', '{', '}', ' ', '\t', '\n', '"', ';', ',':
+	case '(', ')', '[', ']', '{', '}', ' ', '\t', '\n', '"', ';', ',', '^':
 		return false
 	}
 	return true

@@ -1,0 +1,26 @@
+(ns http-demo)
+
+(defn fetch-users []
+  (if-err [resp err] (http/get "https://api.example.com/users")
+    nil
+    resp))
+
+(defn fetch-with-auth [^string token]
+  (if-err [resp err] (http/get "https://api.example.com/data" {"Authorization" (str "Bearer " token)})
+    nil
+    resp))
+
+(defn post-user [^string body]
+  (if-err [resp err] (http/post "https://api.example.com/users" body {"Content-Type" "application/json"})
+    nil
+    resp))
+
+(defn delete-user [^string id]
+  (if-err [resp err] (http/delete (str "https://api.example.com/users/" id))
+    nil
+    resp))
+
+(defn custom-request [^string method ^string url ^string body]
+  (if-err [resp err] (http/request {"method" method "url" url "body" body "headers" {"Content-Type" "application/json"}})
+    nil
+    resp))

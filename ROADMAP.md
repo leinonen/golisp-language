@@ -155,9 +155,11 @@ internal/lsp/
 ## Phase 7 — Standard Library
 
 ### 7a. HTTP client
-- [ ] `http/get`, `http/post`, `http/put`, `http/delete`, `http/request`
-- [ ] Returns `[response error]` for use with `if-err`
-- [ ] Plain Go in `stdlib/http.go`, mirroring the `web.go` pattern
+- [x] `http/get`, `http/post`, `http/put`, `http/delete`, `http/request`
+- [x] Returns `[response error]` for use with `if-err`
+- [x] Response map: `{"status" <int> "headers" {...} "body" <string>}`
+- [x] Optional headers map on `http/get`, `http/post`, `http/put`
+- [x] `http/request` accepts opts map with `"method"`, `"url"`, `"body"`, `"headers"` keys
 
 ---
 
@@ -168,7 +170,7 @@ internal/lsp/
 | 1 | ~~6a threading macros~~ | ✓ done |
 | 2 | ~~6b destructuring~~ | ✓ done |
 | 3 | ~~5e docstrings~~ | ✓ done |
-| 4 | 7a HTTP client | Enables full client-server programs in glisp |
+| 4 | ~~7a HTTP client~~ | ✓ done |
 | 5 | 5f–5h LSP rename/refs/actions | Full IDE experience |
 | 6 | ~~4b REPL~~ | ✓ done |
 | 7 | 4c source maps | Debug Go panics in .glsp terms |

@@ -86,6 +86,14 @@ var builtinDocs = map[string]BuiltinDoc{
 	"json/encode": {Sig: "(json/encode x)  →  [string error]", Doc: "Encode x as a JSON string. Use with if-err to handle errors."},
 	"json/decode": {Sig: "(json/decode s)  →  [any error]", Doc: "Decode JSON string s into a value. Use with if-err to handle errors."},
 
+	// HTTP client — all return [response error] for use with if-err.
+	// Response map: {"status" <int> "headers" {...} "body" <string>}
+	"http/get":     {Sig: "(http/get url)  →  [response error]\n(http/get url headers)", Doc: "HTTP GET request. Optional headers map. Returns response map with \"status\", \"headers\", \"body\" keys."},
+	"http/post":    {Sig: "(http/post url body)  →  [response error]\n(http/post url body headers)", Doc: "HTTP POST request. body is a string. Optional headers map."},
+	"http/put":     {Sig: "(http/put url body)  →  [response error]\n(http/put url body headers)", Doc: "HTTP PUT request. body is a string. Optional headers map."},
+	"http/delete":  {Sig: "(http/delete url)  →  [response error]", Doc: "HTTP DELETE request."},
+	"http/request": {Sig: "(http/request opts)  →  [response error]", Doc: "HTTP request with full control. opts map keys: \"method\", \"url\", \"body\", \"headers\"."},
+
 	// Special forms
 	"def":    {Sig: "(def ^T name value)", Doc: "Define a top-level variable. Optional ^T annotation declares the Go type."},
 	"defn":   {Sig: "(defn ^ReturnType name [params...] body...)", Doc: "Define a named function. Optional ^ReturnType annotation. A leading string literal in the body is treated as a doc string."},

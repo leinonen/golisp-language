@@ -3,112 +3,90 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"io"
+	"net/http"
 	"strings"
 )
 
-func grade(score int) string {
-	if score >= 90 {
-		return "A"
-	} else if score >= 80 {
-		return "B"
-	} else if score >= 70 {
-		return "C"
-	} else if score >= 60 {
-		return "D"
-	} else {
-		return "F"
+func fetch(url string) any {
+	resp, err := _glispHttpGet(url)
+	if err != nil {
+		fmt.Println("GET failed:", err.Error())
+		return nil
 	}
+	body, err2 := _glispJsonDecode(_glispGet(resp, "body"))
+	if err2 != nil {
+		fmt.Println("decode failed:", err2.Error())
+		return nil
+	}
+	return body
 }
 
-func fib(n int) int {
-	i := n
-	a := 0
-	b := 1
-	for {
-		if i <= 0 {
-			return a
-		} else {
-			_r0 := (i - 1)
-			_r1 := b
-			_r2 := (a + b)
-			i = _r0
-			a = _r1
-			b = _r2
-			continue
-		}
+func postJson(url string, payload map[string]any) any {
+	encoded, err := _glispJsonEncode(payload)
+	if err != nil {
+		fmt.Println("encode failed:", err.Error())
+		return nil
 	}
-}
-
-func longWords(text string) []any {
-	ws := _glispSplit(strings.ToLower(_glispToString(strings.TrimSpace(_glispToString(text)))), " ")
-	return _glispSortBy(func(w any) any {
-		return w
-	}, _glispFilter(func(w any) any {
-		return (len((fmt.Sprintf("%v", w))) > 3)
-	}, ws))
+	resp, err2 := _glispHttpPostH(url, encoded, map[string]any{"Content-Type": "application/json"})
+	if err2 != nil {
+		fmt.Println("POST failed:", err2.Error())
+		return nil
+	}
+	body, err3 := _glispJsonDecode(_glispGet(resp, "body"))
+	if err3 != nil {
+		fmt.Println("decode failed:", err3.Error())
+		return nil
+	}
+	return body
 }
 
 func main() {
-	fibs := _glispMap(func(n any) any {
-		return fib(_glispToInt(n))
-	}, _glispRange(10))
-	fmt.Println("fib(0..9):", _glispJoin(_glispMap(func(n any) any {
-		return (fmt.Sprintf("%v", n))
-	}, fibs), " "))
-	words := longWords("the quick brown fox jumps over the lazy dog")
-	fmt.Println("long words:", _glispJoin(words, ", "))
-	classes := []any{map[string]any{"name": "Math", "scores": []any{85, 92, 78, 61, 79, 88, 95}}, map[string]any{"name": "English", "scores": []any{76, 85, 90, 55, 68, 73, 82}}, map[string]any{"name": "Science", "scores": []any{91, 94, 87, 98, 79, 85, 92}}}
-	ch := make(chan map[string]any, len(classes))
-	_glispMap(func(_p1 any) any {
-		name := _glispGet(_p1, "name")
-		scores := _glispGet(_p1, "scores")
-		total := _glispReduce(func(acc any, s any) any {
-			return (_glispToInt(acc) + _glispToInt(s))
-		}, 0, scores)
-		n := _glispToInt(_glispReduce(func(k any, _ any) any {
-			return (_glispToInt(k) + 1)
-		}, 0, scores))
-		avg := (_glispToInt(total) / n)
-		pass := _glispFilter(func(s any) any {
-			return (_glispToInt(s) >= 60)
-		}, scores)
-		passN := _glispToInt(_glispReduce(func(k any, _ any) any {
-			return (_glispToInt(k) + 1)
-		}, 0, pass))
-		go func() {
-			ch <- map[string]any{"name": (fmt.Sprintf("%v", name)), "avg": avg, "grade": grade(avg), "passing": (fmt.Sprintf("%v", passN) + fmt.Sprintf("%v", "/") + fmt.Sprintf("%v", n))}
-		}()
-		return nil
-	}, classes)
-	results := _glispMap(func(_ any) any {
-		return <-ch
-	}, classes)
-	ranked := _glispSortBy(func(_p2 any) any {
-		avg := _glispGet(_p2, "avg")
-		return avg
-	}, results)
-	_v3 := ranked
-	top := _glispGet(_v3, int64(0))
-	second := _glispGet(_v3, int64(1))
-	third := _glispGet(_v3, int64(2))
-	fmt.Println("\n=== Class Report ===")
-	_glispMap(func(_p4 any) any {
-		name := _glispGet(_p4, "name")
-		avg := _glispGet(_p4, "avg")
-		grade := _glispGet(_p4, "grade")
-		passing := _glispGet(_p4, "passing")
-		fmt.Println(" ", name, "| avg:", avg, "| grade:", grade, "| passing:", passing)
-		return nil
-	}, ranked)
-	fmt.Println("\nbottom:", _glispGet(top, "name"), " mid:", _glispGet(second, "name"), " top:", _glispGet(third, "name"))
+	fmt.Println("=== GET /get ===")
+	getBody := fetch("https://httpbin.org/get")
+	if getBody != nil {
+		fmt.Println("url:", _glispGet(getBody, "url"))
+	}
+	fmt.Println("\n=== GET /get?foo=bar ===")
+	qbody := fetch("https://httpbin.org/get?foo=bar")
+	if qbody != nil {
+		fmt.Println("foo=", _glispGet(_glispGet(qbody, "args"), "foo"))
+	}
+	fmt.Println("\n=== GET /bearer ===")
 	func() any {
-		out, err := _glispJsonEncode(map[string]any{"report": ranked})
-		if err != nil {
-			fmt.Println("encode error:", err)
+		bresp, berr := _glispHttpGetH("https://httpbin.org/bearer", map[string]any{"Authorization": "Bearer secret-token"})
+		if berr != nil {
+			fmt.Println("failed:", berr.Error())
 			return nil
 		}
-		fmt.Println("\nJSON:", out)
+		fmt.Println("status:", _glispGet(bresp, "status"))
+		return nil
+	}()
+	fmt.Println("\n=== POST /post ===")
+	postBody := postJson("https://httpbin.org/post", map[string]any{"name": "alice", "score": 42})
+	if postBody != nil {
+		echoed := _glispGet(postBody, "json")
+		fmt.Println("echoed name: ", _glispGet(echoed, "name"))
+		fmt.Println("echoed score:", _glispGet(echoed, "score"))
+	}
+	fmt.Println("\n=== PUT /put ===")
+	func() any {
+		presp, perr := _glispHttpPutH("https://httpbin.org/put", "{\"updated\":true}", map[string]any{"Content-Type": "application/json"})
+		if perr != nil {
+			fmt.Println("PUT failed:", perr.Error())
+			return nil
+		}
+		fmt.Println("status:", _glispGet(presp, "status"))
+		return nil
+	}()
+	fmt.Println("\n=== DELETE /delete ===")
+	func() any {
+		dresp, derr := _glispHttpRequest(map[string]any{"method": "DELETE", "url": "https://httpbin.org/delete"})
+		if derr != nil {
+			fmt.Println("DELETE failed:", derr.Error())
+			return nil
+		}
+		fmt.Println("status:", _glispGet(dresp, "status"))
 		return nil
 	}()
 }
@@ -386,37 +364,6 @@ func _glispDrop(n any, coll any) []any {
 
 // --- end glisp runtime helpers ---
 
-func _glispSortBy(f any, coll any) []any {
-	fn := f.(func(any) any)
-	s := _glispToSlice(coll)
-	result := make([]any, len(s))
-	copy(result, s)
-	sort.SliceStable(result, func(i, j int) bool {
-		ki := fn(result[i])
-		kj := fn(result[j])
-		switch a := ki.(type) {
-		case int:
-			if b, ok := kj.(int); ok {
-				return a < b
-			}
-		case int64:
-			if b, ok := kj.(int64); ok {
-				return a < b
-			}
-		case float64:
-			if b, ok := kj.(float64); ok {
-				return a < b
-			}
-		case string:
-			if b, ok := kj.(string); ok {
-				return a < b
-			}
-		}
-		return false
-	})
-	return result
-}
-
 func _glispSplit(s any, sep any) []any {
 	parts := strings.Split(s.(string), sep.(string))
 	result := make([]any, len(parts))
@@ -452,4 +399,92 @@ func _glispJsonDecode(s any) (any, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+func _glispHttpDo(method, url, body, headers any) (map[string]any, error) {
+	var reqBody io.Reader
+	if body != nil {
+		reqBody = strings.NewReader(fmt.Sprintf("%v", body))
+	}
+	req, err := http.NewRequest(fmt.Sprintf("%v", method), fmt.Sprintf("%v", url), reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if headers != nil {
+		if hdrs, ok := headers.(map[string]any); ok {
+			for k, v := range hdrs {
+				req.Header.Set(k, fmt.Sprintf("%v", v))
+			}
+		}
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	respHeaders := make(map[string]any)
+	for k := range resp.Header {
+		respHeaders[k] = resp.Header.Get(k)
+	}
+	return map[string]any{
+		"status":  int64(resp.StatusCode),
+		"headers": respHeaders,
+		"body":    string(bodyBytes),
+	}, nil
+}
+
+func _glispHttpGet(url any) (map[string]any, error) {
+	return _glispHttpDo("GET", url, nil, nil)
+}
+
+func _glispHttpGetH(url, headers any) (map[string]any, error) {
+	return _glispHttpDo("GET", url, nil, headers)
+}
+
+func _glispHttpPost(url, body any) (map[string]any, error) {
+	return _glispHttpDo("POST", url, body, nil)
+}
+
+func _glispHttpPostH(url, body, headers any) (map[string]any, error) {
+	return _glispHttpDo("POST", url, body, headers)
+}
+
+func _glispHttpPut(url, body any) (map[string]any, error) {
+	return _glispHttpDo("PUT", url, body, nil)
+}
+
+func _glispHttpPutH(url, body, headers any) (map[string]any, error) {
+	return _glispHttpDo("PUT", url, body, headers)
+}
+
+func _glispHttpDelete(url any) (map[string]any, error) {
+	return _glispHttpDo("DELETE", url, nil, nil)
+}
+
+func _glispHttpRequest(opts any) (map[string]any, error) {
+	m, ok := opts.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("http/request: opts must be a map")
+	}
+	method := "GET"
+	if v, ok := m["method"]; ok && v != nil {
+		method = fmt.Sprintf("%v", v)
+	}
+	url := ""
+	if v, ok := m["url"]; ok && v != nil {
+		url = fmt.Sprintf("%v", v)
+	}
+	var body any
+	if v, ok := m["body"]; ok {
+		body = v
+	}
+	var headers any
+	if v, ok := m["headers"]; ok {
+		headers = v
+	}
+	return _glispHttpDo(method, url, body, headers)
 }

@@ -1,65 +1,62 @@
-package main
+package http-demo
 
 import (
 	"fmt"
-	"math"
+	"strings"
+	"net/http"
+	"io"
 )
 
-type Shape interface {
-	Area() float64
-	Describe() string
+func fetchUsers() {
+	func() any {
+		resp, err := _glispHttpGet("https://api.example.com/users")
+		if err != nil {
+			return nil
+		}
+		return resp
+	}()
 }
 
-type Circle struct {
-	Radius float64
+func fetchWithAuth(token string) {
+	func() any {
+		resp, err := _glispHttpGetH("https://api.example.com/data", map[string]any{"Authorization": (fmt.Sprintf("%v", "Bearer ") + fmt.Sprintf("%v", token))})
+		if err != nil {
+			return nil
+		}
+		return resp
+	}()
 }
 
-func (c Circle) Area() float64 {
-	return (math.Pi * c.Radius * c.Radius)
+func postUser(body string) {
+	func() any {
+		resp, err := _glispHttpPostH("https://api.example.com/users", body, map[string]any{"Content-Type": "application/json"})
+		if err != nil {
+			return nil
+		}
+		return resp
+	}()
 }
 
-func (c Circle) Describe() string {
-	return fmt.Sprintf("circle(r=%.2f)", c.Radius)
+func deleteUser(id string) {
+	func() any {
+		resp, err := _glispHttpDelete((fmt.Sprintf("%v", "https://api.example.com/users/") + fmt.Sprintf("%v", id)))
+		if err != nil {
+			return nil
+		}
+		return resp
+	}()
 }
 
-type Rect struct {
-	Width  float64
-	Height float64
+func customRequest(method string, url string, body string) {
+	func() any {
+		resp, err := _glispHttpRequest(map[string]any{"method": method, "url": url, "body": body, "headers": map[string]any{"Content-Type": "application/json"}})
+		if err != nil {
+			return nil
+		}
+		return resp
+	}()
 }
 
-func (r Rect) Area() float64 {
-	return (r.Width * r.Height)
-}
-
-func (r Rect) Describe() string {
-	return fmt.Sprintf("rect(%.2f x %.2f)", r.Width, r.Height)
-}
-
-type Triangle struct {
-	A float64
-	B float64
-	C float64
-}
-
-func (t Triangle) Area() float64 {
-	s := (0.5 * (t.A + t.B + t.C))
-	return math.Sqrt((s * (s - t.A) * (s - t.B) * (s - t.C)))
-}
-
-func (t Triangle) Describe() string {
-	return fmt.Sprintf("triangle(%.2f, %.2f, %.2f)", t.A, t.B, t.C)
-}
-
-func printShape(s Shape) {
-	fmt.Printf("  %-28s  area = %.4f\n", s.Describe(), s.Area())
-}
-
-func main() {
-	fmt.Println("Shapes:")
-	printShape(Circle{Radius: 5})
-	printShape(Rect{Width: 4, Height: 6})
-	printShape(Triangle{A: 3, B: 4, C: 5})
-}
 
 // --- glisp runtime helpers (generated) ---
 
@@ -331,5 +328,112 @@ func _glispDrop(n any, coll any) []any {
 	copy(result, s[k:])
 	return result
 }
-
 // --- end glisp runtime helpers ---
+
+func _glispSplit(s any, sep any) []any {
+	parts := strings.Split(s.(string), sep.(string))
+	result := make([]any, len(parts))
+	for i, p := range parts {
+		result[i] = p
+	}
+	return result
+}
+
+func _glispJoin(coll any, sep any) string {
+	s := _glispToSlice(coll)
+	parts := make([]string, len(s))
+	for i, v := range s {
+		if str, ok := v.(string); ok {
+			parts[i] = str
+		}
+	}
+	return strings.Join(parts, sep.(string))
+}
+
+func _glispHttpDo(method, url, body, headers any) (map[string]any, error) {
+	var reqBody io.Reader
+	if body != nil {
+		reqBody = strings.NewReader(fmt.Sprintf("%v", body))
+	}
+	req, err := http.NewRequest(fmt.Sprintf("%v", method), fmt.Sprintf("%v", url), reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if headers != nil {
+		if hdrs, ok := headers.(map[string]any); ok {
+			for k, v := range hdrs {
+				req.Header.Set(k, fmt.Sprintf("%v", v))
+			}
+		}
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	respHeaders := make(map[string]any)
+	for k := range resp.Header {
+		respHeaders[k] = resp.Header.Get(k)
+	}
+	return map[string]any{
+		"status":  int64(resp.StatusCode),
+		"headers": respHeaders,
+		"body":    string(bodyBytes),
+	}, nil
+}
+
+func _glispHttpGet(url any) (map[string]any, error) {
+	return _glispHttpDo("GET", url, nil, nil)
+}
+
+func _glispHttpGetH(url, headers any) (map[string]any, error) {
+	return _glispHttpDo("GET", url, nil, headers)
+}
+
+func _glispHttpPost(url, body any) (map[string]any, error) {
+	return _glispHttpDo("POST", url, body, nil)
+}
+
+func _glispHttpPostH(url, body, headers any) (map[string]any, error) {
+	return _glispHttpDo("POST", url, body, headers)
+}
+
+func _glispHttpPut(url, body any) (map[string]any, error) {
+	return _glispHttpDo("PUT", url, body, nil)
+}
+
+func _glispHttpPutH(url, body, headers any) (map[string]any, error) {
+	return _glispHttpDo("PUT", url, body, headers)
+}
+
+func _glispHttpDelete(url any) (map[string]any, error) {
+	return _glispHttpDo("DELETE", url, nil, nil)
+}
+
+func _glispHttpRequest(opts any) (map[string]any, error) {
+	m, ok := opts.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("http/request: opts must be a map")
+	}
+	method := "GET"
+	if v, ok := m["method"]; ok && v != nil {
+		method = fmt.Sprintf("%v", v)
+	}
+	url := ""
+	if v, ok := m["url"]; ok && v != nil {
+		url = fmt.Sprintf("%v", v)
+	}
+	var body any
+	if v, ok := m["body"]; ok {
+		body = v
+	}
+	var headers any
+	if v, ok := m["headers"]; ok {
+		headers = v
+	}
+	return _glispHttpDo(method, url, body, headers)
+}

@@ -6,16 +6,28 @@ import "fmt"
 // needed for the given set of built-in packages. Used by the multi-file compiler
 // to emit helpers into a single shared file instead of every generated file.
 func RuntimeSource(pkgName string, builtins map[string]bool) string {
+	seen := map[string]bool{}
 	var imports []string
-	if builtins["sort"] {
-		imports = append(imports, `"sort"`)
+	addImport := func(pkg string) {
+		if !seen[pkg] {
+			seen[pkg] = true
+			imports = append(imports, `"`+pkg+`"`)
+		}
 	}
-	if builtins["strings"] {
-		imports = append(imports, `"strings"`)
+	if builtins["sort"] {
+		addImport("sort")
+	}
+	if builtins["strings"] || builtins["net/http"] {
+		addImport("strings")
 	}
 	if builtins["encoding/json"] {
-		imports = append(imports, `"encoding/json"`)
-		imports = append(imports, `"fmt"`)
+		addImport("encoding/json")
+		addImport("fmt")
+	}
+	if builtins["net/http"] {
+		addImport("fmt")
+		addImport("io")
+		addImport("net/http")
 	}
 
 	s := fmt.Sprintf("package %s\n", pkgName)
@@ -35,6 +47,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["encoding/json"] {
 		s += glispJsonRuntime
+	}
+	if builtins["net/http"] {
+		s += glispHttpRuntime
 	}
 	return s
 }
@@ -389,5 +404,96 @@ func _glispJsonDecode(s any) (any, error) {
 		return nil, err
 	}
 	return result, nil
+}
+`
+
+// glispHttpRuntime is appended when http/* built-ins are used (requires "net/http", "io", "strings" imports).
+const glispHttpRuntime = `
+func _glispHttpDo(method, url, body, headers any) (map[string]any, error) {
+	var reqBody io.Reader
+	if body != nil {
+		reqBody = strings.NewReader(fmt.Sprintf("%v", body))
+	}
+	req, err := http.NewRequest(fmt.Sprintf("%v", method), fmt.Sprintf("%v", url), reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if headers != nil {
+		if hdrs, ok := headers.(map[string]any); ok {
+			for k, v := range hdrs {
+				req.Header.Set(k, fmt.Sprintf("%v", v))
+			}
+		}
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	respHeaders := make(map[string]any)
+	for k := range resp.Header {
+		respHeaders[k] = resp.Header.Get(k)
+	}
+	return map[string]any{
+		"status":  int64(resp.StatusCode),
+		"headers": respHeaders,
+		"body":    string(bodyBytes),
+	}, nil
+}
+
+func _glispHttpGet(url any) (map[string]any, error) {
+	return _glispHttpDo("GET", url, nil, nil)
+}
+
+func _glispHttpGetH(url, headers any) (map[string]any, error) {
+	return _glispHttpDo("GET", url, nil, headers)
+}
+
+func _glispHttpPost(url, body any) (map[string]any, error) {
+	return _glispHttpDo("POST", url, body, nil)
+}
+
+func _glispHttpPostH(url, body, headers any) (map[string]any, error) {
+	return _glispHttpDo("POST", url, body, headers)
+}
+
+func _glispHttpPut(url, body any) (map[string]any, error) {
+	return _glispHttpDo("PUT", url, body, nil)
+}
+
+func _glispHttpPutH(url, body, headers any) (map[string]any, error) {
+	return _glispHttpDo("PUT", url, body, headers)
+}
+
+func _glispHttpDelete(url any) (map[string]any, error) {
+	return _glispHttpDo("DELETE", url, nil, nil)
+}
+
+func _glispHttpRequest(opts any) (map[string]any, error) {
+	m, ok := opts.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("http/request: opts must be a map")
+	}
+	method := "GET"
+	if v, ok := m["method"]; ok && v != nil {
+		method = fmt.Sprintf("%v", v)
+	}
+	url := ""
+	if v, ok := m["url"]; ok && v != nil {
+		url = fmt.Sprintf("%v", v)
+	}
+	var body any
+	if v, ok := m["body"]; ok {
+		body = v
+	}
+	var headers any
+	if v, ok := m["headers"]; ok {
+		headers = v
+	}
+	return _glispHttpDo(method, url, body, headers)
 }
 `

@@ -510,6 +510,55 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "json/decode":
 			e.needImport("encoding/json")
 			return e.emitRuntimeCall("_glispJsonDecode", n.Args, 1)
+		case "http/get":
+			e.needImport("net/http")
+			if e.emitRuntime {
+				e.needImport("io")
+				e.needImport("strings")
+				e.needImport("fmt")
+			}
+			if len(n.Args) == 1 {
+				return e.emitRuntimeCall("_glispHttpGet", n.Args, 1)
+			}
+			return e.emitRuntimeCall("_glispHttpGetH", n.Args, 2)
+		case "http/post":
+			e.needImport("net/http")
+			if e.emitRuntime {
+				e.needImport("io")
+				e.needImport("strings")
+				e.needImport("fmt")
+			}
+			if len(n.Args) == 2 {
+				return e.emitRuntimeCall("_glispHttpPost", n.Args, 2)
+			}
+			return e.emitRuntimeCall("_glispHttpPostH", n.Args, 3)
+		case "http/put":
+			e.needImport("net/http")
+			if e.emitRuntime {
+				e.needImport("io")
+				e.needImport("strings")
+				e.needImport("fmt")
+			}
+			if len(n.Args) == 2 {
+				return e.emitRuntimeCall("_glispHttpPut", n.Args, 2)
+			}
+			return e.emitRuntimeCall("_glispHttpPutH", n.Args, 3)
+		case "http/delete":
+			e.needImport("net/http")
+			if e.emitRuntime {
+				e.needImport("io")
+				e.needImport("strings")
+				e.needImport("fmt")
+			}
+			return e.emitRuntimeCall("_glispHttpDelete", n.Args, 1)
+		case "http/request":
+			e.needImport("net/http")
+			if e.emitRuntime {
+				e.needImport("io")
+				e.needImport("strings")
+				e.needImport("fmt")
+			}
+			return e.emitRuntimeCall("_glispHttpRequest", n.Args, 1)
 		case "subs":
 			return e.emitSubs(n.Args)
 		}

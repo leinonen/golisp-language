@@ -1,0 +1,48 @@
+; HTTP client example
+; Demonstrates: http/get, http/post, http/put, http/delete, http/request, if-err, json/decode
+; Uses httpbin.org — a free HTTP echo service for testing.
+(ns main (:import [fmt]))
+
+;;; Fetch a URL and return the JSON-decoded body map, or nil on error.
+(defn ^any fetch [^string url]
+  (if-err [resp err] (http/get url)
+    (do (fmt/Println "GET failed:" (.Error err)) nil)
+    (if-err [body err2] (json/decode (get resp "body"))
+      (do (fmt/Println "decode failed:" (.Error err2)) nil)
+      body)))
+
+;;; POST a JSON payload to url. Returns the JSON-decoded response body, or nil.
+(defn ^any post-json [^string url ^map[string]any payload]
+  (if-err [encoded err] (json/encode payload)
+    (do (fmt/Println "encode failed:" (.Error err)) nil)
+    (if-err [resp err2] (http/post url encoded {"Content-Type" "application/json"})
+      (do (fmt/Println "POST failed:" (.Error err2)) nil)
+      (if-err [body err3] (json/decode (get resp "body"))
+        (do (fmt/Println "decode failed:" (.Error err3)) nil)
+        body))))
+
+(defn main []
+  (fmt/Println "=== GET /get ===")
+  (let [get-body (fetch "https://httpbin.org/get")]
+    (when (not= get-body nil) (fmt/Println "url:" (get get-body "url"))))
+  (fmt/Println "\n=== GET /get?foo=bar ===")
+  (let [qbody (fetch "https://httpbin.org/get?foo=bar")]
+    (when (not= qbody nil) (fmt/Println "foo=" (get (get qbody "args") "foo"))))
+  (fmt/Println "\n=== GET /bearer ===")
+  (if-err [bresp berr] (http/get "https://httpbin.org/bearer" {"Authorization" "Bearer secret-token"})
+    (do (fmt/Println "failed:" (.Error berr)) nil)
+    (do (fmt/Println "status:" (get bresp "status")) nil))
+  (fmt/Println "\n=== POST /post ===")
+  (let [post-body (post-json "https://httpbin.org/post" {"name" "alice" "score" 42})]
+    (when (not= post-body nil)
+      (let [echoed (get post-body "json")]
+        (fmt/Println "echoed name: " (get echoed "name"))
+        (fmt/Println "echoed score:" (get echoed "score")))))
+  (fmt/Println "\n=== PUT /put ===")
+  (if-err [presp perr] (http/put "https://httpbin.org/put" "{\"updated\":true}" {"Content-Type" "application/json"})
+    (do (fmt/Println "PUT failed:" (.Error perr)) nil)
+    (do (fmt/Println "status:" (get presp "status")) nil))
+  (fmt/Println "\n=== DELETE /delete ===")
+  (if-err [dresp derr] (http/request {"method" "DELETE" "url" "https://httpbin.org/delete"})
+    (do (fmt/Println "DELETE failed:" (.Error derr)) nil)
+    (do (fmt/Println "status:" (get dresp "status")) nil)))

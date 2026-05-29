@@ -1,5 +1,9 @@
 # glisp Roadmap
 
+**Goal**: a Lisp-syntax language that transpiles to Go, suited for professional server applications, data transformation, and concurrent systems. Clojure-inspired, not Clojure-compatible. See `docs/adr/` for design decisions.
+
+---
+
 ## Phase 2 — Language Completeness
 
 ### 2a. Core collection operations
@@ -149,6 +153,15 @@ internal/lsp/
 - [ ] `defmacro name [args] body` — define a compile-time transformation
 - [ ] `macroexpand` — expand a macro call for debugging
 - [ ] Requires an evaluation pass before transpilation
+- [ ] **Deferred** — high complexity, low return for server-app use case; built-in special forms cover most needs. See ADR-005.
+
+### 6d. Missing Go interop forms
+- [ ] `panic` / `recover` — call `panic()` and use `recover()` inside `defer`; essential for middleware and wrapping third-party code
+- [ ] `switch` / `case` — value switch and type switch; eliminates awkward `cond` workarounds for Go interop
+- [ ] `as->` — `(as-> x $ (assoc $ :k v) (dissoc $ :old))` — threading with named binding; useful when thread position varies
+- [ ] `when-let` / `if-let` — `(when-let [user (find-user id)] ...)` — nil-guarded binding; extremely common pattern
+- [ ] `doto` — `(doto obj (.SetHeader "Content-Type" "application/json") (.Write body))` — fluent/builder-style Go APIs
+- [ ] `with-open` — `(with-open [f (os/Open path)] body)` — emits `defer f.Close()`; resource cleanup
 
 ---
 
@@ -161,17 +174,98 @@ internal/lsp/
 - [x] Optional headers map on `http/get`, `http/post`, `http/put`
 - [x] `http/request` accepts opts map with `"method"`, `"url"`, `"body"`, `"headers"` keys
 
+### 7b. Data transformation
+Core ops needed in every real server — transforming API payloads, shaping DB results, building responses.
+
+- [ ] `get-in` — `(get-in m [:a :b :c])` — nested map/slice access
+- [ ] `assoc-in` — `(assoc-in m [:a :b] v)` — nested map update
+- [ ] `update-in` — `(update-in m [:a :b] f)` — nested map update via function
+- [ ] `update` — `(update m :key f)` — update a single key via function
+- [ ] `select-keys` — `(select-keys m [:id :name])` — map projection
+- [ ] `rename-keys` — `(rename-keys m {:old :new})` — rename map keys
+- [ ] `group-by` — `(group-by :status users)` → `{"active" [...] "inactive" [...]}`
+- [ ] `frequencies` — `(frequencies [:a :b :a])` → `{:a 2 :b 1}`
+- [ ] `into` — `(into {} pairs)` — build map from seq of pairs; `(into [] coll)` — collect to vector
+- [ ] `concat` — `(concat coll1 coll2 ...)` — join sequences
+- [ ] `mapcat` — `(mapcat f coll)` — map then flatten one level
+- [ ] `take-while` / `drop-while` — predicate-based slicing
+- [ ] `empty?` / `not-empty` — nil/empty check
+- [ ] `second` / `last` — common positional accessors
+- [ ] `zipmap` — `(zipmap keys vals)` — build map from two sequences
+- [ ] `partition` — `(partition n coll)` — split into chunks of size n
+- [ ] `partition-by` — `(partition-by f coll)` — split on predicate changes
+
+### 7c. String & number utilities
+- [ ] `format` — `(format "Hello, %s! You are %d years old." name age)` — wraps `fmt.Sprintf`
+- [ ] `parse-int` — `(parse-int s)` → `[int error]` — wraps `strconv.Atoi`
+- [ ] `parse-float` — `(parse-float s)` → `[float64 error]` — wraps `strconv.ParseFloat`
+- [ ] `repeat` — `(repeat n val)` → slice of n copies of val
+- [ ] `interpose` — `(interpose sep coll)` → new seq with sep between each element
+
+### 7d. Set support
+The AST node `SetLit` exists; needs transpiler wiring and runtime helpers.
+
+- [ ] `#{}` set literals — `#{1 2 3}` → `map[any]struct{}`
+- [ ] `conj` on sets — add element
+- [ ] `contains?` on sets — O(1) membership test
+- [ ] `union` / `intersection` / `difference` — set algebra
+
 ---
 
-## Order of attack
+## Phase 8 — Database
+
+Postgres-first. Rows returned as `[]map[string]any`, natural fit for glisp's map-centric data model. See ADR-009.
+
+### 8a. Connection & basic ops
+- [ ] `db/connect` — `(db/connect url)` → connection pool via `pgx`; returns `[conn error]`
+- [ ] `db/query` — `(db/query conn sql args)` → `[rows error]` where rows is `[]map[string]any`
+- [ ] `db/query-one` — `(db/query-one conn sql args)` → `[row error]` — single row or error
+- [ ] `db/exec` — `(db/exec conn sql args)` → `[result error]`
+- [ ] `db/transaction` — `(db/transaction conn (fn [tx] ...))` — auto-rollback on error/panic
+
+### 8b. Query builder (HoneySQL-inspired)
+Map-based query construction; compiles to parameterized SQL.
+
+- [ ] `(db/select [:id :name] :from :users :where [:= :id id])` — SELECT
+- [ ] `(db/insert :users {:name "Alice" :email "a@b.com"})` — INSERT
+- [ ] `(db/update :users {:name "Bob"} [:= :id id])` — UPDATE
+- [ ] `(db/delete :users [:= :id id])` — DELETE
+
+### 8c. Migrations
+- [ ] `glisp migrate up` / `glisp migrate down` — wraps `goose` or `golang-migrate`
+- [ ] Migration files as plain SQL in `migrations/`
+
+---
+
+## Phase 9 — Fun & Power Features
+
+Features that make the language enjoyable to use, not just functional.
+
+- [ ] `time-it` — `(time-it expr)` — prints elapsed time, returns value; great for debugging hot paths
+- [ ] `pp` — `(pp val)` — pretty-print any value with indentation; better than `println` for maps/slices
+- [ ] `tap->` / `tap->>` — like `->` / `->>` but `pp` each intermediate value; debug pipelines without restructuring code
+- [ ] Named `fn` — `(fn self [n] (if (= n 0) 1 (* n (self (- n 1)))))` — self-reference in anonymous functions without `defn`
+- [ ] `assert` — `(assert condition "message")` — runtime guard; panics with message if condition is false
+- [ ] `case` — `(case x :a "alpha" :b "beta" "other")` — value-equality switch; simpler than `cond` for dispatch on known values
+
+---
+
+## Order of Attack
 
 | # | Item | Why |
-|---|---|---|
-| 1 | ~~6a threading macros~~ | ✓ done |
-| 2 | ~~6b destructuring~~ | ✓ done |
-| 3 | ~~5e docstrings~~ | ✓ done |
-| 4 | ~~7a HTTP client~~ | ✓ done |
-| 5 | 5f–5h LSP rename/refs/actions | Full IDE experience |
-| 6 | ~~4b REPL~~ | ✓ done |
-| 7 | 4c source maps | Debug Go panics in .glsp terms |
-| 8 | 6c macro system | Most complex; enables DSL authoring |
+|---|------|-----|
+| 1 | **6d: `panic` / `recover`** | Blocks writing safe middleware; can't recover from third-party panics |
+| 2 | **6d: `switch` / `case`** | Essential Go form; eliminates awkward `cond` chains in interop code |
+| 3 | **7b: `get-in` / `assoc-in` / `update-in` / `update` / `select-keys`** | Needed in every real server — shaping request/response maps |
+| 4 | **7b: `group-by` / `into` / `concat` / `mapcat` / `take-while` / `drop-while`** | Data pipeline ops for transforms and aggregations |
+| 5 | **6d: `when-let` / `if-let`** | Extremely common pattern; straightforward to add |
+| 6 | **6d: `as->` / `doto` / `with-open`** | Ergonomics and Go builder-API interop |
+| 7 | **7c: `format` / `parse-int` / `parse-float`** | Needed in any real app; string formatting and parsing |
+| 8 | **7b: `empty?` / `second` / `last` / `zipmap` / `partition` / `frequencies`** | Fill remaining collection gaps |
+| 9 | **7d: Set support (`#{}`)** | AST node already exists; wire it up |
+| 10 | **4b: REPL improvements** | Developer experience — readline, def persistence |
+| 11 | **4c: Source maps** | Debug Go panics in `.glsp` terms |
+| 12 | **8: Database (postgres)** | Next major capability unlock for real applications |
+| 13 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
+| 14 | **5f–5h: LSP rename / find-refs / code actions** | IDE completeness — nice to have |
+| 15 | **6c: Macro system** | High complexity; defer until language is stable and use cases are clear |

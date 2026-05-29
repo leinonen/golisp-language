@@ -34,6 +34,7 @@ glisp test    file.glsp         # run deftest cases
 ; Type annotations
 (defn ^int add [^int a ^int b] (+ a b))
 (defn ^[string error] parse [^string s] (values s nil))  ; multi-return
+(defn ^stdlib/Response handler [^stdlib/Request req] ...)  ; package-qualified
 
 ; Control flow
 (if cond then else)
@@ -55,12 +56,12 @@ glisp test    file.glsp         # run deftest cases
 
 ## Web servers
 
-Handlers are `map[string]any → map[string]any`.
+Handlers are `Request → Response` (both aliases for `map[string]any`).
 
 ```clojure
 (ns main (:import [fmt golisp/stdlib]))
 
-(defn ^map[string]any handler [^map[string]any req]
+(defn ^stdlib/Response handler [^stdlib/Request req]
   (stdlib/JsonResponse 200 {"message" "hello"}))
 
 (defn main []
@@ -151,7 +152,7 @@ special forms) plus glisp-specific rules (type annotations, `defstruct`, `if-err
 
 ## LSP (Neovim 0.12+)
 
-`glisp-lsp` is a Language Server that provides diagnostics (parse errors highlighted inline) and hover (show `defn`/`def` signatures).
+`glisp-lsp` is a Language Server that provides diagnostics (parse errors highlighted inline), hover (show `defn`/`def` signatures and stdlib type definitions like `stdlib/Request`), jump-to-definition, and completions.
 
 ### Install
 

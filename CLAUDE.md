@@ -20,7 +20,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/transpiler/emit_expr.go` | `fn`, `let`, `if`, `cond`, `do`, built-ins |
 | `internal/transpiler/emit_concurrency.go` | `go`, `defer`, `chan`, `send!`, `recv!`, `select!`, `if-err`, method/field/struct interop |
 | `internal/transpiler/emit_loop.go` | `loop`/`recur` → `for` |
-| `internal/transpiler/emit_types.go` | `identToGo`, `typeExprToGo`, `zeroValueFor` |
+| `internal/transpiler/emit_types.go` | `identToGo`, `typeExprToGo`, `qualifiedTypeToGo`, `zeroValueFor` |
 | `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime` (conditional) |
 | `internal/formatter/formatter.go` | AST → formatted glisp source; `Format(src)` public API |
 | `internal/compiler/compiler.go` | Orchestrates pipeline: `Compile`, `CompileAndBuild`, `CompileDir`, `CompileTest` |
@@ -32,7 +32,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/lsp/definition.go` | Jump-to-definition provider |
 | `internal/lsp/completion.go` | Completion provider + `prefixAtPosition` |
 | `internal/lsp/diagnostics.go` | Parse error → LSP diagnostic push |
-| `internal/lsp/builtins.go` | 221-entry doc map for built-in hover + completion detail |
+| `internal/lsp/builtins.go` | Doc map for built-in hover + completion detail (includes `stdlib/Request`, `stdlib/Response`, `stdlib/Handler` type entries) |
 
 ## Important design decisions
 
@@ -46,13 +46,13 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 **`->` in identifiers**: `ring->handler` → `ringToHandler`. Pre-processed with `strings.ReplaceAll(s, "->", "-To-")` before camelCase conversion in `identToGo`.
 
-**Type annotations**: `^(chan int)` needs parens because `chan` followed by space would confuse the lexer. `^[string error]` uses brackets to denote multi-return `(string, error)`.
+**Type annotations**: `^(chan int)` needs parens because `chan` followed by space would confuse the lexer. `^[string error]` uses brackets to denote multi-return `(string, error)`. `^stdlib/Request` uses slash notation for package-qualified types — `typeExprToGo` converts `pkg/Type` → `pkg.Type` via `qualifiedTypeToGo`.
 
 **Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link. Conditional blocks (`glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`) are appended only when the corresponding built-ins are used, gated by `builtinImports` keys (`"sort"`, `"strings"`, `"encoding/json"`). For multi-file builds (`glisp build dir/`), helpers are instead written once to `glisp_runtime.go` in the same directory via `transpiler.RuntimeSource`; individual files use `TranspileNoRuntime` which sets `emitRuntime=false`.
 
 **`json/encode` / `json/decode`**: built-in forms (no AST node needed — dispatched by symbol name in `emitCallExpr`). Both return multi-value `(value, error)` and are designed for use with `if-err`. `json/decode` returns `any` so it handles both JSON objects and arrays.
 
-**stdlib web API**: all web functionality lives in `stdlib/web.go` as plain Go — no special transpiler forms. Middleware signature is `func(Handler) Handler`. `Wrap(h Handler, mws ...Middleware)` applies middlewares outermost-first. `WrapJson` stores parsed body in `req["json-body"]`; `WrapAuth` stores the Bearer token in `req["identity"]`. `ServeFiles` bridges Ring ↔ `http.FileServer` via `httptest.ResponseRecorder`. `ServeGraceful` traps SIGINT/SIGTERM and shuts down with a 5 s context deadline.
+**stdlib web API**: all web functionality lives in `stdlib/web.go` as plain Go — no special transpiler forms. `Request` and `Response` are type aliases for `map[string]any` (use `^stdlib/Request` / `^stdlib/Response` in glisp annotations). `Handler` is `func(Request) Response`. Middleware signature is `func(Handler) Handler`. `Wrap(h Handler, mws ...Middleware)` applies middlewares outermost-first. `WrapJson` stores parsed body in `req["json-body"]`; `WrapAuth` stores the Bearer token in `req["identity"]`. `ServeFiles` bridges Ring ↔ `http.FileServer` via `httptest.ResponseRecorder`. `ServeGraceful` traps SIGINT/SIGTERM and shuts down with a 5 s context deadline.
 
 **`defmethod` — receiver methods**: `(defmethod ^*ReceiverType name [self params...] ^RetType body)` emits `func (self *ReceiverType) Name(params) RetType { body }`. The `^` annotation before the method name is the receiver type (`^T` value receiver, `^*T` pointer receiver). The first element of the params vector is the receiver variable name; remaining params are regular params. Together with `definterface` and `defstruct`, this is the full Go interface/struct/method triad.
 

@@ -102,7 +102,11 @@ func formatMethodSig(n *ast.MethodDecl) string {
 			sb.WriteString(p.TypeAnnot.Text)
 			sb.WriteString(" ")
 		}
-		sb.WriteString(p.Name)
+		if p.Pattern != nil {
+			sb.WriteString(formatPatternSig(p.Pattern))
+		} else {
+			sb.WriteString(p.Name)
+		}
 	}
 	sb.WriteString("]")
 	if n.ReturnType != nil {
@@ -135,10 +139,39 @@ func formatDefnSig(n *ast.DefnDecl) string {
 		if p.IsRest {
 			sb.WriteString("& ")
 		}
-		sb.WriteString(p.Name)
+		if p.Pattern != nil {
+			sb.WriteString(formatPatternSig(p.Pattern))
+		} else {
+			sb.WriteString(p.Name)
+		}
 	}
 	sb.WriteString("])")
 	return sb.String()
+}
+
+// formatPatternSig renders a destructure pattern as glisp source for hover display.
+func formatPatternSig(pattern ast.Node) string {
+	switch pat := pattern.(type) {
+	case *ast.VectorLit:
+		parts := make([]string, len(pat.Elements))
+		for i, el := range pat.Elements {
+			if sym, ok := el.(*ast.Symbol); ok {
+				parts[i] = sym.Name
+			}
+		}
+		return "[" + strings.Join(parts, " ") + "]"
+	case *ast.MapLit:
+		parts := make([]string, len(pat.Pairs))
+		for i, pair := range pat.Pairs {
+			sym, _ := pair.Key.(*ast.Symbol)
+			kw, _ := pair.Value.(*ast.KeywordLit)
+			if sym != nil && kw != nil {
+				parts[i] = sym.Name + " :" + kw.Value
+			}
+		}
+		return "{" + strings.Join(parts, " ") + "}"
+	}
+	return "_"
 }
 
 func formatDefSig(n *ast.DefDecl) string {

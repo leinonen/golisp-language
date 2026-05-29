@@ -60,9 +60,9 @@ func main() {
 	fmt.Println("long words:", _glispJoin(words, ", "))
 	classes := []any{map[string]any{"name": "Math", "scores": []any{85, 92, 78, 61, 79, 88, 95}}, map[string]any{"name": "English", "scores": []any{76, 85, 90, 55, 68, 73, 82}}, map[string]any{"name": "Science", "scores": []any{91, 94, 87, 98, 79, 85, 92}}}
 	ch := make(chan map[string]any, len(classes))
-	_glispMap(func(c any) any {
-		name := _glispGet(c, "name")
-		scores := _glispGet(c, "scores")
+	_glispMap(func(_p1 any) any {
+		name := _glispGet(_p1, "name")
+		scores := _glispGet(_p1, "scores")
 		total := _glispReduce(func(acc any, s any) any {
 			return (_glispToInt(acc) + _glispToInt(s))
 		}, 0, scores)
@@ -84,14 +84,24 @@ func main() {
 	results := _glispMap(func(_ any) any {
 		return <-ch
 	}, classes)
-	ranked := _glispSortBy(func(r any) any {
-		return _glispGet(r, "avg")
+	ranked := _glispSortBy(func(_p2 any) any {
+		avg := _glispGet(_p2, "avg")
+		return avg
 	}, results)
+	_v3 := ranked
+	top := _glispGet(_v3, int64(0))
+	second := _glispGet(_v3, int64(1))
+	third := _glispGet(_v3, int64(2))
 	fmt.Println("\n=== Class Report ===")
-	_glispMap(func(r any) any {
-		fmt.Println(" ", _glispGet(r, "name"), "| avg:", _glispGet(r, "avg"), "| grade:", _glispGet(r, "grade"), "| passing:", _glispGet(r, "passing"))
+	_glispMap(func(_p4 any) any {
+		name := _glispGet(_p4, "name")
+		avg := _glispGet(_p4, "avg")
+		grade := _glispGet(_p4, "grade")
+		passing := _glispGet(_p4, "passing")
+		fmt.Println(" ", name, "| avg:", avg, "| grade:", grade, "| passing:", passing)
 		return nil
 	}, ranked)
+	fmt.Println("\nbottom:", _glispGet(top, "name"), " mid:", _glispGet(second, "name"), " top:", _glispGet(third, "name"))
 	func() any {
 		out, err := _glispJsonEncode(map[string]any{"report": ranked})
 		if err != nil {

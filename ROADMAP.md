@@ -136,9 +136,9 @@ internal/lsp/
 - [ ] Implemented as an AST rewrite pass in the parser (no new emit logic)
 
 ### 6b. Destructuring
-- [ ] Sequential: `(let [[a b c] coll] ...)` — bind by position
-- [ ] Map: `(let [{k :key} m] ...)` — bind by key
-- [ ] In `fn` param vectors: `(fn [[x y]] ...)`
+- [x] Sequential: `(let [[a b c] coll] ...)` — bind by position (`_glispGet` index)
+- [x] Map: `(let [{k :key} m] ...)` — bind by key (`_glispGet` string key)
+- [x] In `fn`/`defn`/`defmethod` param vectors: `(fn [[x y]] ...)`, `(fn [{k :key}] ...)`
 
 ### 6c. Macro system
 - [ ] `defmacro name [args] body` — define a compile-time transformation

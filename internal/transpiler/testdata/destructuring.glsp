@@ -1,0 +1,17 @@
+(ns main)
+
+(defn first-two [v]
+  (let [[a b] v]
+    (str a b)))
+
+(defn get-name [{name :name}]
+  name)
+
+(defn apply-fn [v]
+  (let [f (fn [[x y]] (+ x y))]
+    f))
+
+(defn multi-destruct [m v]
+  (let [{k :key} m
+        [a b] v]
+    (str k a b)))

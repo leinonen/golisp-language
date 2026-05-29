@@ -37,10 +37,12 @@ func NewTypeExpr(pos Position, text string) *TypeExpr {
 }
 
 // Param is a function parameter with optional type annotation.
+// When Pattern is non-nil, Name is empty and Pattern is *VectorLit or *MapLit.
 type Param struct {
 	Name      string
 	TypeAnnot *TypeExpr
-	IsRest    bool // true for & variadic params
+	IsRest    bool    // true for & variadic params
+	Pattern   Node    // non-nil for destructured params
 }
 
 // MapPair is a key-value pair inside a map literal.
@@ -50,7 +52,7 @@ type MapPair struct {
 }
 
 // LetBinding is one name=value binding inside a let form.
-// Pattern is either a *Symbol or *VectorLit (for multi-value destructure).
+// Pattern is *Symbol, *VectorLit (sequential destructure), or *MapLit (map destructure).
 type LetBinding struct {
 	Pattern   Node
 	TypeAnnot *TypeExpr

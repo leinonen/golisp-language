@@ -638,6 +638,12 @@ func (p *parser) parseLet(pos ast.Position) (*ast.LetExpr, error) {
 				return nil, err
 			}
 			pattern = v
+		} else if p.peekType() == lexer.TokenLBrace {
+			m, err := p.parseMap()
+			if err != nil {
+				return nil, err
+			}
+			pattern = m
 		} else {
 			symTok, err := p.expect(lexer.TokenSymbol)
 			if err != nil {
@@ -1098,6 +1104,22 @@ func (p *parser) parseParamList() ([]ast.Param, error) {
 		if p.peekType() == lexer.TokenTypeAnnot {
 			tok := p.advance()
 			annot = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
+		}
+		if p.peekType() == lexer.TokenLBracket {
+			v, err := p.parseVector()
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, ast.Param{Pattern: v, TypeAnnot: annot})
+			continue
+		}
+		if p.peekType() == lexer.TokenLBrace {
+			m, err := p.parseMap()
+			if err != nil {
+				return nil, err
+			}
+			params = append(params, ast.Param{Pattern: m, TypeAnnot: annot})
+			continue
 		}
 		symTok, err := p.expect(lexer.TokenSymbol)
 		if err != nil {

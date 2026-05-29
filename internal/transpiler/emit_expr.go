@@ -60,7 +60,7 @@ func (e *Emitter) emitMapLit(n *ast.MapLit) error {
 // fn always returns any by default — every glisp expression has a value.
 // Use ^void annotation to suppress the return type (for side-effect-only fns).
 func (e *Emitter) emitFnExpr(n *ast.FnExpr) error {
-	params, err := e.formatParams(n.Params)
+	sigParts, destructs, err := e.buildParamSig(n.Params)
 	if err != nil {
 		return err
 	}
@@ -71,19 +71,100 @@ func (e *Emitter) emitFnExpr(n *ast.FnExpr) error {
 	} else if retStr == "" {
 		retStr = "any"
 	}
+	sig := strings.Join(sigParts, ", ")
 	if retStr != "" {
-		e.writef("func(%s) %s {", params, retStr)
+		e.writef("func(%s) %s {", sig, retStr)
 	} else {
-		e.writef("func(%s) {", params)
+		e.writef("func(%s) {", sig)
 	}
 	e.nl()
 	e.push()
+	if err := e.emitParamDestructs(destructs); err != nil {
+		return err
+	}
 	if err := e.emitBody(n.Body, !isVoid); err != nil {
 		return err
 	}
 	e.pop()
 	e.writeIndent()
 	e.write("}")
+	return nil
+}
+
+// paramDestruct holds a generated temp name and its destructuring pattern.
+type paramDestruct struct {
+	name    string
+	pattern ast.Node
+}
+
+// buildParamSig builds Go signature parts for a param list.
+// Returns signature strings and any destructured params needing body prologues.
+func (e *Emitter) buildParamSig(params []ast.Param) ([]string, []paramDestruct, error) {
+	parts := make([]string, 0, len(params))
+	var destructs []paramDestruct
+	for _, p := range params {
+		typeStr := "any"
+		if p.TypeAnnot != nil {
+			typeStr = typeExprToGo(p.TypeAnnot.Text)
+		}
+		if p.Pattern != nil {
+			name := e.fresh("p")
+			if p.IsRest {
+				parts = append(parts, name+" ..."+typeStr)
+			} else {
+				parts = append(parts, name+" "+typeStr)
+			}
+			destructs = append(destructs, paramDestruct{name, p.Pattern})
+		} else {
+			goName := identToGo(p.Name)
+			if p.IsRest {
+				parts = append(parts, goName+" ..."+typeStr)
+			} else {
+				parts = append(parts, goName+" "+typeStr)
+			}
+		}
+	}
+	return parts, destructs, nil
+}
+
+// emitParamDestructs emits destructuring bindings for fn/defn params.
+func (e *Emitter) emitParamDestructs(destructs []paramDestruct) error {
+	for _, d := range destructs {
+		if err := e.emitDestructureBindings(d.name, d.pattern); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// emitDestructureBindings emits variable bindings from a VectorLit or MapLit pattern.
+func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
+	switch pat := pattern.(type) {
+	case *ast.VectorLit:
+		for i, el := range pat.Elements {
+			sym, ok := el.(*ast.Symbol)
+			if !ok {
+				return fmt.Errorf("sequential destructure elements must be symbols, got %T", el)
+			}
+			e.writeIndent()
+			e.writef("%s := _glispGet(%s, int64(%d))\n", identToGo(sym.Name), src, i)
+		}
+	case *ast.MapLit:
+		for _, pair := range pat.Pairs {
+			sym, ok := pair.Key.(*ast.Symbol)
+			if !ok {
+				return fmt.Errorf("map destructure keys must be symbols, got %T", pair.Key)
+			}
+			kw, ok := pair.Value.(*ast.KeywordLit)
+			if !ok {
+				return fmt.Errorf("map destructure values must be keywords, got %T", pair.Value)
+			}
+			e.writeIndent()
+			e.writef("%s := _glispGet(%s, \"%s\")\n", identToGo(sym.Name), src, kw.Value)
+		}
+	default:
+		return fmt.Errorf("unsupported destructure pattern: %T", pattern)
+	}
 	return nil
 }
 
@@ -142,21 +223,29 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 			}
 			e.nl()
 		case *ast.VectorLit:
-			// Multi-value destructure: [[a b] expr] → a, b := expr
-			names := make([]string, len(pat.Elements))
-			for i, el := range pat.Elements {
-				sym, ok := el.(*ast.Symbol)
-				if !ok {
-					return fmt.Errorf("multi-value destructure pattern must be symbols, got %T", el)
-				}
-				names[i] = identToGo(sym.Name)
-			}
+			// Sequential destructure: [[a b c] coll] → positional _glispGet indexing
+			tmp := e.fresh("v")
 			e.writeIndent()
-			e.writef("%s := ", strings.Join(names, ", "))
+			e.writef("%s := ", tmp)
 			if err := e.emitExpr(b.Value); err != nil {
 				return err
 			}
 			e.nl()
+			if err := e.emitDestructureBindings(tmp, pat); err != nil {
+				return err
+			}
+		case *ast.MapLit:
+			// Map destructure: [{k :key} m] → _glispGet by string key
+			tmp := e.fresh("m")
+			e.writeIndent()
+			e.writef("%s := ", tmp)
+			if err := e.emitExpr(b.Value); err != nil {
+				return err
+			}
+			e.nl()
+			if err := e.emitDestructureBindings(tmp, pat); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupported let pattern: %T", b.Pattern)
 		}

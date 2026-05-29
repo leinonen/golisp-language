@@ -31,7 +31,7 @@ func (e *Emitter) emitDefDecl(n *ast.DefDecl) error {
 // emitDefnDecl emits a function declaration.
 func (e *Emitter) emitDefnDecl(n *ast.DefnDecl) error {
 	goName := identToGo(n.Name)
-	params, err := e.formatParams(n.Params)
+	sigParts, destructs, err := e.buildParamSig(n.Params)
 	if err != nil {
 		return err
 	}
@@ -39,12 +39,15 @@ func (e *Emitter) emitDefnDecl(n *ast.DefnDecl) error {
 
 	e.writeIndent()
 	if retStr != "" {
-		e.writef("func %s(%s) %s {", goName, params, retStr)
+		e.writef("func %s(%s) %s {", goName, strings.Join(sigParts, ", "), retStr)
 	} else {
-		e.writef("func %s(%s) {", goName, params)
+		e.writef("func %s(%s) {", goName, strings.Join(sigParts, ", "))
 	}
 	e.nl()
 	e.push()
+	if err := e.emitParamDestructs(destructs); err != nil {
+		return err
+	}
 	if err := e.emitBody(n.Body, retStr != ""); err != nil {
 		return err
 	}
@@ -103,19 +106,22 @@ func (e *Emitter) emitInterfaceDecl(n *ast.InterfaceDecl) error {
 func (e *Emitter) emitMethodDecl(n *ast.MethodDecl) error {
 	receiverType := typeExprToGo(n.ReceiverType.Text)
 	goName := identToGo(n.Name)
-	params, err := e.formatParams(n.Params)
+	sigParts, destructs, err := e.buildParamSig(n.Params)
 	if err != nil {
 		return err
 	}
 	retStr := e.formatReturnType(n.ReturnType)
 	e.writeIndent()
 	if retStr != "" {
-		e.writef("func (%s %s) %s(%s) %s {", n.ReceiverName, receiverType, goName, params, retStr)
+		e.writef("func (%s %s) %s(%s) %s {", n.ReceiverName, receiverType, goName, strings.Join(sigParts, ", "), retStr)
 	} else {
-		e.writef("func (%s %s) %s(%s) {", n.ReceiverName, receiverType, goName, params)
+		e.writef("func (%s %s) %s(%s) {", n.ReceiverName, receiverType, goName, strings.Join(sigParts, ", "))
 	}
 	e.nl()
 	e.push()
+	if err := e.emitParamDestructs(destructs); err != nil {
+		return err
+	}
 	if err := e.emitBody(n.Body, retStr != ""); err != nil {
 		return err
 	}

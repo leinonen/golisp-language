@@ -370,7 +370,9 @@ func inlineParams(params []ast.Param) string {
 		if p.TypeAnnot != nil {
 			s = "^" + p.TypeAnnot.Text + " "
 		}
-		if p.IsRest {
+		if p.Pattern != nil {
+			s += inline(p.Pattern)
+		} else if p.IsRest {
 			s += "& " + p.Name
 		} else {
 			s += p.Name

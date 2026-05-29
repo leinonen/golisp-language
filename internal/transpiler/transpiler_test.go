@@ -296,6 +296,42 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [^string s] (json/decode s))`,
 			wantSub: "_glispJsonDecode(",
 		},
+		// 6b: Destructuring
+		{
+			name:    "let sequential destructure uses _glispGet",
+			src:     `(defn f [v] (let [[a b] v] a))`,
+			wantSub: "_glispGet(_v",
+		},
+		{
+			name:    "let sequential destructure index 0",
+			src:     `(defn f [v] (let [[a b] v] a))`,
+			wantSub: "int64(0)",
+		},
+		{
+			name:    "let map destructure uses _glispGet with string key",
+			src:     `(defn f [m] (let [{x :x} m] x))`,
+			wantSub: `_glispGet(_m`,
+		},
+		{
+			name:    "let map destructure key name",
+			src:     `(defn f [m] (let [{x :x} m] x))`,
+			wantSub: `"x"`,
+		},
+		{
+			name:    "fn vector param destructure",
+			src:     `(defn f [] (fn [[a b]] a))`,
+			wantSub: "_glispGet(_p",
+		},
+		{
+			name:    "fn map param destructure",
+			src:     `(defn f [] (fn [{n :name}] n))`,
+			wantSub: `"name"`,
+		},
+		{
+			name:    "defn with destructured param",
+			src:     `(defn greet [{name :name}] name)`,
+			wantSub: `_glispGet(_p`,
+		},
 	}
 
 	for _, tt := range tests {

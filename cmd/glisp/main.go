@@ -15,6 +15,7 @@ import (
 
 	"golisp/internal/compiler"
 	"golisp/internal/formatter"
+	"golisp/internal/repl"
 	"golisp/internal/transpiler"
 )
 
@@ -35,6 +36,8 @@ func main() {
 		testCmd(os.Args[2:])
 	case "fmt":
 		fmtCmd(os.Args[2:])
+	case "repl":
+		repl.Run(os.Stdin, os.Stdout)
 	case "version":
 		fmt.Println("glisp 0.1.0")
 	default:
@@ -161,5 +164,6 @@ Usage:
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
   glisp fmt     [--check]      <file.glsp>   format source in-place
+  glisp repl                                 start interactive REPL
   glisp version                              print version`)
 }

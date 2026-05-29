@@ -246,8 +246,10 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		e.writef("%q", v.Value)
 	case *ast.Symbol:
 		goName := identToGo(v.Name)
-		// If this is a package-qualified call like fmt/Println, mark fmt as needed
-		// (only for packages not already in user imports)
+		// Auto-import well-known stdlib packages used via qualified names (fmt/Println etc.)
+		if idx := strings.Index(v.Name, "/"); idx > 0 {
+			e.needImport(v.Name[:idx])
+		}
 		e.write(goName)
 	case *ast.VectorLit:
 		return e.emitVectorLit(v)

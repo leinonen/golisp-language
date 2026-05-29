@@ -77,7 +77,11 @@
 - [x] Pretty-print over existing AST: consistent indentation, aligned map pairs
 
 ### 4b. REPL
-- [ ] `glisp repl` — read form, transpile, run via `go run`, print result
+- [x] `glisp repl` — read form, transpile, run via `go run`, print result
+- [ ] Readline history and editing (up-arrow, ctrl-a/e, etc.)
+- [ ] Side-effect-free def persistence — snapshot accumulated state as values, not source, so `def` side effects don't re-run on each subsequent eval
+- [ ] Multi-value expression support — expressions returning `(values a b)` or Go multi-return should print all values instead of failing to compile
+- [ ] String-aware paren balancing — current depth counter is confused by `(` / `)` inside string literals
 
 ### 4c. Source maps
 - [ ] Emit `// glsp:line:col` comments on generated lines
@@ -165,6 +169,6 @@ internal/lsp/
 | 3 | ~~5e docstrings~~ | ✓ done |
 | 4 | 7a HTTP client | Enables full client-server programs in glisp |
 | 5 | 5f–5h LSP rename/refs/actions | Full IDE experience |
-| 6 | 4b REPL | Interactive development loop |
+| 6 | ~~4b REPL~~ | ✓ done |
 | 7 | 4c source maps | Debug Go panics in .glsp terms |
 | 8 | 6c macro system | Most complex; enables DSL authoring |

@@ -83,15 +83,9 @@ func (l *lexer) skipWhitespaceAndComments() {
 			l.advance()
 			continue
 		}
-		// line comment — but ;;; is a doc comment token, handled by nextToken
+		// any semicolon — let nextToken emit the appropriate token type
 		if ch == ';' {
-			if l.peekAt(1) == ';' && l.peekAt(2) == ';' {
-				break
-			}
-			for l.pos < len(l.src) && l.peek() != '\n' {
-				l.advance()
-			}
-			continue
+			break
 		}
 		// comma is whitespace in Lisp
 		if ch == ',' {
@@ -150,7 +144,10 @@ func (l *lexer) nextToken() (Token, error) {
 		return l.readKeyword(line, col)
 
 	case ch == ';':
-		return l.readDocComment(line, col)
+		if l.peekAt(1) == ';' && l.peekAt(2) == ';' {
+			return l.readDocComment(line, col)
+		}
+		return l.readComment(line, col)
 
 	case ch == '-' && isDigit(l.peekAt(1)):
 		return l.readNumber(line, col)
@@ -318,6 +315,18 @@ func (l *lexer) readSymbol(line, col int) (Token, error) {
 		return Token{Type: TokenFalse, Text: text, Line: line, Column: col}, nil
 	}
 	return Token{Type: TokenSymbol, Text: text, Line: line, Column: col}, nil
+}
+
+func (l *lexer) readComment(line, col int) (Token, error) {
+	var buf strings.Builder
+	buf.WriteRune(l.advance()) // first ;
+	if l.pos < len(l.src) && l.peek() == ';' {
+		buf.WriteRune(l.advance()) // optional second ;
+	}
+	for l.pos < len(l.src) && l.peek() != '\n' {
+		buf.WriteRune(l.advance())
+	}
+	return Token{Type: TokenComment, Text: strings.TrimRight(buf.String(), " \t"), Line: line, Column: col}, nil
 }
 
 func (l *lexer) readDocComment(line, col int) (Token, error) {

@@ -75,6 +75,7 @@
 - [x] `glisp fmt --check` — exit non-zero if unformatted
 - [x] `make fmt-glsp` Makefile target
 - [x] Pretty-print over existing AST: consistent indentation, aligned map pairs
+- [x] Comment preservation — `;` and `;;` leading comments survive `glisp fmt`
 
 ### 4b. REPL
 - [x] `glisp repl` — read form, transpile, run via `go run`, print result

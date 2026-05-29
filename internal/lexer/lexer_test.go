@@ -122,8 +122,37 @@ func TestTokenizeComment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if toks[0].Type != TokenInt {
-		t.Errorf("expected int token, got %v", toks[0])
+	if toks[0].Type != TokenComment {
+		t.Errorf("expected comment token, got %v", toks[0])
+	}
+	if toks[0].Text != "; this is a comment" {
+		t.Errorf("comment text: got %q, want %q", toks[0].Text, "; this is a comment")
+	}
+	if toks[1].Type != TokenInt {
+		t.Errorf("expected int token at [1], got %v", toks[1])
+	}
+}
+
+func TestTokenizeCommentDoubleColon(t *testing.T) {
+	toks, err := Tokenize(";; double semi\n(def x 1)")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if toks[0].Type != TokenComment {
+		t.Errorf("expected comment token, got %v", toks[0])
+	}
+	if toks[0].Text != ";; double semi" {
+		t.Errorf("comment text: got %q, want %q", toks[0].Text, ";; double semi")
+	}
+}
+
+func TestTokenizeDocCommentUnchanged(t *testing.T) {
+	toks, err := Tokenize(";;; docstring\n(defn foo [] nil)")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if toks[0].Type != TokenDocComment {
+		t.Errorf("expected doc-comment token, got %v", toks[0])
 	}
 }
 

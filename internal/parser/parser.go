@@ -24,6 +24,40 @@ var didYouMean = map[string]string{
 	"apply":    "(just call the function directly)",
 }
 
+// CommentMap maps 1-based source line numbers to the comment on that line.
+type CommentMap map[int]string
+
+// ParseResult is returned by ParseWithComments.
+type ParseResult struct {
+	Nodes    []ast.Node
+	Comments CommentMap
+}
+
+// ParseWithComments tokenizes src and returns both the AST nodes and a
+// CommentMap capturing all ; and ;; comment lines by source line number.
+// Intended for the formatter; other callers use ParseString/ParseSource.
+func ParseWithComments(src string) (ParseResult, error) {
+	tokens, err := lexer.Tokenize(src)
+	if err != nil {
+		return ParseResult{}, err
+	}
+	comments := make(CommentMap)
+	filtered := make([]lexer.Token, 0, len(tokens))
+	for _, tok := range tokens {
+		if tok.Type == lexer.TokenComment {
+			comments[tok.Line] = tok.Text
+		} else {
+			filtered = append(filtered, tok)
+		}
+	}
+	p := &parser{tokens: filtered, src: src}
+	nodes, err := p.parseAll()
+	if err != nil {
+		return ParseResult{}, err
+	}
+	return ParseResult{Nodes: nodes, Comments: comments}, nil
+}
+
 // Parse converts a token stream into a slice of top-level AST nodes.
 func Parse(tokens []lexer.Token) ([]ast.Node, error) {
 	p := &parser{tokens: tokens}
@@ -116,6 +150,10 @@ func (p *parser) parseAll() ([]ast.Node, error) {
 			p.pendingDoc = p.advance().Text
 			continue
 		}
+		if p.peekType() == lexer.TokenComment {
+			p.advance()
+			continue
+		}
 		node, err := p.parseExpr()
 		if err != nil {
 			return nil, err
@@ -190,6 +228,9 @@ func (p *parser) parseExprInner() (ast.Node, error) {
 		tok := p.advance()
 		return ast.NewSymbol(p.mkpos(tok), tok.Text), nil
 	case lexer.TokenDocComment:
+		p.advance()
+		return p.parseExprInner()
+	case lexer.TokenComment:
 		p.advance()
 		return p.parseExprInner()
 	case lexer.TokenEOF:

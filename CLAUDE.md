@@ -68,7 +68,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 ## Formatter
 
-`glisp fmt` pretty-prints `.glsp` source from the parsed AST. **Comments are not preserved** (stripped by the lexer). Algorithm: try inline rendering first; use it if `indent*2 + len <= 80`, else multi-line. Map literals with >1 pair are always multi-line with value-column alignment. `defn`/`defstruct`/`definterface`/`defmethod`/`deftest`/`cond` are always multi-line.
+`glisp fmt` pretty-prints `.glsp` source from the parsed AST. **Leading `;` and `;;` comments are preserved** (attached to the form they precede; blank lines between the comment and the form are normalized away). Trailing inline comments (after code on the same line) are not preserved. `;;;` docstrings are preserved via `DefnDecl.Doc`. Algorithm: try inline rendering first; use it if `indent*2 + len <= 80`, else multi-line. Map literals with >1 pair are always multi-line with value-column alignment. `defn`/`defstruct`/`definterface`/`defmethod`/`deftest`/`cond` are always multi-line.
 
 ```
 glisp fmt file.glsp          # format in-place

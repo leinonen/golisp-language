@@ -1,10 +1,13 @@
 // Package formatter pretty-prints glisp source from a parsed AST.
-// Regular ; and ;; comments are not preserved (stripped during lexing).
 // ;;; doc comments are preserved via DefnDecl.Doc / MethodDecl.Doc.
+// ; and ;; leading comments are preserved via a CommentMap from the parser.
+// Trailing inline comments (after code on the same line) are not preserved.
 package formatter
 
 import (
 	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -16,19 +19,59 @@ const maxLine = 80
 
 // Format parses src and returns the canonically formatted glisp source.
 func Format(src string) (string, error) {
-	nodes, err := parser.ParseString(src)
+	result, err := parser.ParseWithComments(src)
 	if err != nil {
 		return "", err
 	}
-	return formatFile(nodes), nil
+	return formatFile(result.Nodes, result.Comments), nil
 }
 
-func formatFile(nodes []ast.Node) string {
-	var parts []string
-	for _, n := range nodes {
-		parts = append(parts, format(n, 0))
+func formatFile(nodes []ast.Node, comments parser.CommentMap) string {
+	if len(nodes) == 0 {
+		var sb strings.Builder
+		for _, l := range sortedCommentLines(comments, 1, math.MaxInt) {
+			sb.WriteString(comments[l] + "\n")
+		}
+		return sb.String()
 	}
-	return strings.Join(parts, "\n\n") + "\n"
+	var sb strings.Builder
+	for i, n := range nodes {
+		lo := 1
+		if i > 0 {
+			lo = nodes[i-1].Pos().Line + 1
+		}
+		block := sortedCommentLines(comments, lo, n.Pos().Line-1)
+		if i > 0 {
+			sb.WriteString("\n\n")
+		}
+		for _, l := range block {
+			sb.WriteString(comments[l] + "\n")
+		}
+		sb.WriteString(format(n, 0))
+	}
+	// trailing comments after last node
+	lo := nodes[len(nodes)-1].Pos().Line + 1
+	trailing := sortedCommentLines(comments, lo, math.MaxInt)
+	if len(trailing) > 0 {
+		sb.WriteString("\n\n")
+		for _, l := range trailing {
+			sb.WriteString(comments[l] + "\n")
+		}
+		return sb.String()
+	}
+	sb.WriteString("\n")
+	return sb.String()
+}
+
+func sortedCommentLines(cm parser.CommentMap, lo, hi int) []int {
+	var lines []int
+	for l := range cm {
+		if l >= lo && l <= hi {
+			lines = append(lines, l)
+		}
+	}
+	sort.Ints(lines)
+	return lines
 }
 
 func ind(n int) string {

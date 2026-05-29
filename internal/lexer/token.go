@@ -29,6 +29,7 @@ const (
 	TokenTypeAnnot  // ^T — raw Go type string following ^
 	TokenQuote      // '
 	TokenDocComment // ;;; doc comment
+	TokenComment    // ; or ;; regular comment
 
 	TokenEOF
 )
@@ -52,6 +53,7 @@ var tokenTypeNames = map[TokenType]string{
 	TokenTypeAnnot:  "type-annot",
 	TokenQuote:      "'",
 	TokenDocComment: "doc-comment",
+	TokenComment:    "comment",
 	TokenEOF:        "EOF",
 }
 

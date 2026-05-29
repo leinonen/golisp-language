@@ -247,12 +247,68 @@ func TestFormat(t *testing.T) {
 	}
 }
 
+func TestCommentPreservation(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "single comment before def",
+			input: "; set x\n(def x 42)",
+			want:  "; set x\n(def x 42)\n",
+		},
+		{
+			name:  "double-semi comment before def",
+			input: ";; important note\n(def x 42)",
+			want:  ";; important note\n(def x 42)\n",
+		},
+		{
+			name:  "comment between two defs",
+			input: "(def a 1)\n;; b follows\n(def b 2)",
+			want:  "(def a 1)\n\n;; b follows\n(def b 2)\n",
+		},
+		{
+			name:  "multi-line comment block before form",
+			input: "; line1\n; line2\n(def x 1)",
+			want:  "; line1\n; line2\n(def x 1)\n",
+		},
+		{
+			name:  "trailing comment after last form",
+			input: "(def x 1)\n; trailing",
+			want:  "(def x 1)\n\n; trailing\n",
+		},
+		{
+			name:  "doc comment not duplicated",
+			input: ";;; Docs\n(defn foo [] nil)",
+			want:  ";;; Docs\n(defn foo []\n  nil)\n",
+		},
+		{
+			name:  "comment only file",
+			input: "; just a comment",
+			want:  "; just a comment\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := formatter.Format(tt.input)
+			if err != nil {
+				t.Fatalf("Format(%q) error: %v", tt.input, err)
+			}
+			if got != tt.want {
+				t.Errorf("Format(%q)\ngot:  %q\nwant: %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIdempotent(t *testing.T) {
 	inputs := []string{
 		"(defn ^int add [^int a ^int b]\n  (+ a b))\n",
 		"(let [a 1\n      b 2]\n  (+ a b))\n",
 		"(cond\n  (= x 1) :one\n  (= x 2) :two\n  :else :other)\n",
 		"(defstruct Point\n  ^int x\n  ^int y)\n",
+		"; section header\n(def x 1)\n\n;; another note\n(def y 2)\n",
 	}
 	for _, src := range inputs {
 		once, err := formatter.Format(src)

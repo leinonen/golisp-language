@@ -485,6 +485,27 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return e.emitRuntimeCall("_glispTake", n.Args, 2)
 		case "drop":
 			return e.emitRuntimeCall("_glispDrop", n.Args, 2)
+		// 2c: higher-order utilities
+		case "complement":
+			return e.emitRuntimeCall("_glispComplement", n.Args, 1)
+		case "identity":
+			if len(n.Args) != 1 {
+				return fmt.Errorf("identity requires exactly 1 argument")
+			}
+			return e.emitExpr(n.Args[0])
+		case "constantly":
+			return e.emitRuntimeCall("_glispConstantly", n.Args, 1)
+		case "comp":
+			return e.emitVariadicRuntimeCall("_glispComp", n.Args)
+		case "juxt":
+			return e.emitVariadicRuntimeCall("_glispJuxt", n.Args)
+		case "apply":
+			return e.emitRuntimeCall("_glispApply", n.Args, 2)
+		case "partial":
+			if len(n.Args) < 1 {
+				return fmt.Errorf("partial requires at least 1 argument")
+			}
+			return e.emitVariadicRuntimeCall("_glispPartial", n.Args)
 		// 2b: string operations
 		case "upper-case":
 			return e.emitStrOp("strings.ToUpper", n.Args, 1)

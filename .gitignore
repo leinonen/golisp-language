@@ -1,14 +1,4 @@
 glisp
 glisp-lsp
-examples/tour/tour
-examples/api/api
-examples/shapes/shapes
-examples/multifile/multifile
-examples/httpclient/httpclient
-examples/multifile/main.go
-examples/multifile/helpers.go
-examples/multifile/glisp_runtime.go
-examples/hello/hello
-examples/webserver/webserver
-examples/collections/collections
-examples/strings-demo/strings-demo
+examples/*/*
+!examples/**/*.glsp

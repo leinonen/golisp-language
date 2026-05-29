@@ -285,4 +285,73 @@ func _glispDrop(n any, coll any) []any {
 	return result
 }
 
+func _glispComplement(pred any) any {
+	fn := pred.(func(any) any)
+	return func(x any) any {
+		r := fn(x)
+		return r == nil || r == false
+	}
+}
+
+func _glispConstantly(v any) any {
+	return func(_ any) any { return v }
+}
+
+func _glispApply(f any, args any) any {
+	s := _glispToSlice(args)
+	switch len(s) {
+	case 0:
+		return f.(func() any)()
+	case 1:
+		return f.(func(any) any)(s[0])
+	case 2:
+		return f.(func(any, any) any)(s[0], s[1])
+	case 3:
+		return f.(func(any, any, any) any)(s[0], s[1], s[2])
+	case 4:
+		return f.(func(any, any, any, any) any)(s[0], s[1], s[2], s[3])
+	case 5:
+		return f.(func(any, any, any, any, any) any)(s[0], s[1], s[2], s[3], s[4])
+	case 6:
+		return f.(func(any, any, any, any, any, any) any)(s[0], s[1], s[2], s[3], s[4], s[5])
+	default:
+		return f.(func(...any) any)(s...)
+	}
+}
+
+func _glispPartial(f any, fixedArgs ...any) any {
+	return func(x any) any {
+		allArgs := make([]any, len(fixedArgs)+1)
+		copy(allArgs, fixedArgs)
+		allArgs[len(fixedArgs)] = x
+		return _glispApply(f, allArgs)
+	}
+}
+
+func _glispComp(fns ...any) any {
+	if len(fns) == 0 {
+		return func(x any) any { return x }
+	}
+	if len(fns) == 1 {
+		return fns[0]
+	}
+	return func(x any) any {
+		v := fns[len(fns)-1].(func(any) any)(x)
+		for i := len(fns) - 2; i >= 0; i-- {
+			v = fns[i].(func(any) any)(v)
+		}
+		return v
+	}
+}
+
+func _glispJuxt(fns ...any) any {
+	return func(x any) any {
+		result := make([]any, len(fns))
+		for i, f := range fns {
+			result[i] = f.(func(any) any)(x)
+		}
+		return result
+	}
+}
+
 // --- end glisp runtime helpers ---

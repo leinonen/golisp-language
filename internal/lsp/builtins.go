@@ -55,6 +55,15 @@ var builtinDocs = map[string]BuiltinDoc{
 	"take":      {Sig: "(take n coll)         →  []any", Doc: "Return the first n elements of coll."},
 	"drop":      {Sig: "(drop n coll)         →  []any", Doc: "Return coll with the first n elements removed."},
 
+	// Higher-order utilities
+	"complement": {Sig: "(complement pred)          →  fn", Doc: "Return a function that is the logical negation of pred."},
+	"identity":   {Sig: "(identity x)               →  x", Doc: "Return x unchanged. Useful as a no-op placeholder function."},
+	"constantly": {Sig: "(constantly v)             →  fn", Doc: "Return a function that always returns v regardless of its argument."},
+	"comp":       {Sig: "(comp f g h ...)           →  fn", Doc: "Right-to-left function composition. Each fn must be unary."},
+	"juxt":       {Sig: "(juxt f g h ...)           →  fn", Doc: "Return a function that applies each fn to its arg, returning a slice of results."},
+	"apply":      {Sig: "(apply f args-coll)         →  any", Doc: "Call f with elements of args-coll as arguments. Supports arities 0–6. Works with fn/defn functions, not built-in operators."},
+	"partial":    {Sig: "(partial f fixed-args ...)  →  fn", Doc: "Partial application: returns a unary fn with fixed-args pre-applied. Works with fn/defn functions, not built-in operators."},
+
 	// Strings
 	"str":          {Sig: "(str & args)              →  string", Doc: "Concatenate all args as strings."},
 	"string":       {Sig: "(string x)                →  string", Doc: "Convert x to its string representation."},

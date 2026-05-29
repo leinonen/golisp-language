@@ -21,7 +21,6 @@ var didYouMean = map[string]string{
 	"setq":     "def",
 	"progn":    "do",
 	"funcall":  "(just call the function directly)",
-	"apply":    "(just call the function directly)",
 }
 
 // CommentMap maps 1-based source line numbers to the comment on that line.

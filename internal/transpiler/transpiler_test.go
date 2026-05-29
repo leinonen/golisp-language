@@ -167,6 +167,13 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [coll] (drop 2 coll))`,
 			wantSub: "_glispDrop(",
 		},
+		{name: "complement", src: `(defn f [pred] (complement pred))`, wantSub: "_glispComplement("},
+		{name: "identity", src: `(defn f [x] (identity x))`, wantSub: "return x"},
+		{name: "constantly", src: `(defn f [v] (constantly v))`, wantSub: "_glispConstantly("},
+		{name: "comp", src: `(defn f [g h] (comp g h))`, wantSub: "_glispComp("},
+		{name: "juxt", src: `(defn f [g h] (juxt g h))`, wantSub: "_glispJuxt("},
+		{name: "apply", src: `(defn f [fn args] (apply fn args))`, wantSub: "_glispApply("},
+		{name: "partial", src: `(defn f [fn x] (partial fn x))`, wantSub: "_glispPartial("},
 		{
 			name:    "reverse",
 			src:     `(defn f [coll] (reverse coll))`,

@@ -386,6 +386,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseIfLet(pos)
 		case "when-let":
 			return p.parseWhenLet(pos)
+		case "switch":
+			return p.parseSwitch(pos)
 		case "as":
 			return p.parseTypeAssert(pos)
 		case "deftest":
@@ -791,6 +793,35 @@ func (p *parser) parseCond(pos ast.Position) (*ast.CondExpr, error) {
 		return nil, err
 	}
 	return ast.NewCondExpr(pos, clauses, def), nil
+}
+
+func (p *parser) parseSwitch(pos ast.Position) (*ast.SwitchExpr, error) {
+	p.advance() // "switch"
+	expr, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	var cases []ast.SwitchCase
+	var def ast.Node
+	for p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF {
+		val, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		body, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		if kw, ok := val.(*ast.KeywordLit); ok && kw.Value == "default" {
+			def = body
+			continue
+		}
+		cases = append(cases, ast.SwitchCase{Value: val, Body: body})
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewSwitchExpr(pos, expr, cases, def), nil
 }
 
 func (p *parser) parseDo(pos ast.Position) (*ast.DoExpr, error) {

@@ -111,6 +111,7 @@ var builtinDocs = map[string]BuiltinDoc{
 	"if":     {Sig: "(if cond then else?)", Doc: "Evaluate then when cond is true, else (or nil) otherwise."},
 	"when":   {Sig: "(when cond body...)", Doc: "Evaluate body forms when cond is true. Returns nil otherwise."},
 	"cond":   {Sig: "(cond test1 val1 ... :else default)", Doc: "Return the value paired with the first truthy test. Use :else as the final fallthrough."},
+	"switch": {Sig: "(switch expr val1 body1 ... :default body)", Doc: "Dispatch on the value of expr; evaluate the body paired with the matching val. Use :default for the fallthrough case."},
 	"do":     {Sig: "(do body...)", Doc: "Evaluate multiple expressions in order; return the last value."},
 	"loop":   {Sig: "(loop [name init ...] body...)", Doc: "Establish a loop with bindings. Use recur to jump back to the top."},
 	"recur":  {Sig: "(recur args...)", Doc: "Jump to the nearest enclosing loop or defn with new argument values."},

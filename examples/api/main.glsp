@@ -11,14 +11,12 @@
 
 (defn ^web/Response list-tasks [^web/Request req]
   (let [done-param (web/QueryParam req "done")]
-    (cond
-      (= done-param "true")
-        (web/JsonResponse 200
-          (filter (fn [t] (= (get t "done") true)) tasks))
-      (= done-param "false")
-        (web/JsonResponse 200
-          (filter (fn [t] (= (get t "done") false)) tasks))
-      :else (web/JsonResponse 200 tasks))))
+    (switch done-param
+      "true"  (web/JsonResponse 200
+                (filter (fn [t] (= (get t "done") true)) tasks))
+      "false" (web/JsonResponse 200
+                (filter (fn [t] (= (get t "done") false)) tasks))
+      :default (web/JsonResponse 200 tasks))))
 
 (defn ^web/Response get-task [^web/Request req]
   (let [id (web/PathParam req "id")]

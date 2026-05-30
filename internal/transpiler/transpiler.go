@@ -270,6 +270,8 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitWhenExpr(v)
 	case *ast.CondExpr:
 		return e.emitCondExpr(v)
+	case *ast.SwitchExpr:
+		return e.emitSwitchExpr(v)
 	case *ast.DoExpr:
 		return e.emitDoExpr(v)
 	case *ast.GoStmt:
@@ -327,6 +329,8 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 		return e.emitWhenStmt(v)
 	case *ast.CondExpr:
 		return e.emitCondStmt(v)
+	case *ast.SwitchExpr:
+		return e.emitSwitchStmt(v)
 	case *ast.IfLetExpr:
 		return e.emitIfLetStmt(v)
 	case *ast.WhenLetExpr:
@@ -531,6 +535,8 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 		return e.emitIfExprReturn(v)
 	case *ast.CondExpr:
 		return e.emitCondExprReturn(v)
+	case *ast.SwitchExpr:
+		return e.emitSwitchExprReturn(v)
 	case *ast.DoExpr:
 		return e.emitDoExprReturn(v)
 	case *ast.LetExpr:

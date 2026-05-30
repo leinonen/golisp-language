@@ -357,6 +357,25 @@ func NewCondExpr(pos Position, clauses []CondClause, def Node) *CondExpr {
 	return &CondExpr{Pos_: pos, Clauses: clauses, Default: def}
 }
 
+// SwitchExpr: (switch expr val1 body1 ... :default body)
+type SwitchCase struct {
+	Value Node
+	Body  Node
+}
+
+type SwitchExpr struct {
+	Pos_    Position
+	Expr    Node
+	Cases   []SwitchCase
+	Default Node
+}
+
+func (n *SwitchExpr) nodeMarker()   {}
+func (n *SwitchExpr) Pos() Position { return n.Pos_ }
+func NewSwitchExpr(pos Position, expr Node, cases []SwitchCase, def Node) *SwitchExpr {
+	return &SwitchExpr{Pos_: pos, Expr: expr, Cases: cases, Default: def}
+}
+
 // DoExpr: (do body...)
 type DoExpr struct {
 	Pos_  Position

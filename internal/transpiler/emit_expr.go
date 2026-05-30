@@ -544,6 +544,93 @@ func (e *Emitter) emitCondExprReturn(n *ast.CondExpr) error {
 	return nil
 }
 
+// emitSwitchExpr emits a switch expression (IIFE wrapper for expression position).
+func (e *Emitter) emitSwitchExpr(n *ast.SwitchExpr) error {
+	e.write("func() any {")
+	e.nl()
+	e.push()
+	if err := e.emitSwitchExprReturn(n); err != nil {
+		return err
+	}
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// emitSwitchExprReturn emits a switch in return position (no IIFE).
+func (e *Emitter) emitSwitchExprReturn(n *ast.SwitchExpr) error {
+	e.writeIndent()
+	e.write("switch ")
+	if err := e.emitExpr(n.Expr); err != nil {
+		return err
+	}
+	e.write(" {")
+	e.nl()
+	for _, sc := range n.Cases {
+		e.writeIndent()
+		e.write("case ")
+		if err := e.emitExpr(sc.Value); err != nil {
+			return err
+		}
+		e.write(":")
+		e.nl()
+		e.push()
+		if err := e.emitReturnNode(sc.Body); err != nil {
+			return err
+		}
+		e.pop()
+	}
+	if n.Default != nil {
+		e.line("default:")
+		e.push()
+		if err := e.emitReturnNode(n.Default); err != nil {
+			return err
+		}
+		e.pop()
+	}
+	e.line("}")
+	if n.Default == nil {
+		e.line("return nil")
+	}
+	return nil
+}
+
+// emitSwitchStmt emits a switch in statement position (no IIFE, no return).
+func (e *Emitter) emitSwitchStmt(n *ast.SwitchExpr) error {
+	e.writeIndent()
+	e.write("switch ")
+	if err := e.emitExpr(n.Expr); err != nil {
+		return err
+	}
+	e.write(" {")
+	e.nl()
+	for _, sc := range n.Cases {
+		e.writeIndent()
+		e.write("case ")
+		if err := e.emitExpr(sc.Value); err != nil {
+			return err
+		}
+		e.write(":")
+		e.nl()
+		e.push()
+		if err := e.emitStmtNode(sc.Body); err != nil {
+			return err
+		}
+		e.pop()
+	}
+	if n.Default != nil {
+		e.line("default:")
+		e.push()
+		if err := e.emitStmtNode(n.Default); err != nil {
+			return err
+		}
+		e.pop()
+	}
+	e.line("}")
+	return nil
+}
+
 // emitDoExpr emits a do block.
 func (e *Emitter) emitDoExpr(n *ast.DoExpr) error {
 	e.write("func() any {")

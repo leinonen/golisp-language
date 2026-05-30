@@ -1,5 +1,5 @@
 ; glisp language tour
-; Demonstrates: defn, type annotations, cond, loop/recur, map/filter/reduce,
+; Demonstrates: defn, type annotations, cond, switch, loop/recur, map/filter/reduce,
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
 ;               destructuring (map and sequential), keyword lookup (:key m),
 ;               panic/recover
@@ -17,6 +17,18 @@
     (>= score 70) "C"
     (>= score 60) "D"
     :else         "F"))
+
+;;; Returns a human-readable HTTP status description.
+(defn ^string http-status [^int code]
+  (switch code
+    200 "OK"
+    201 "Created"
+    400 "Bad Request"
+    401 "Unauthorized"
+    403 "Forbidden"
+    404 "Not Found"
+    500 "Internal Server Error"
+    :default "Unknown"))
 
 ; --- Panic and recover ---
 

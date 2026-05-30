@@ -109,6 +109,8 @@ func format(n ast.Node, indent int) string {
 		return formatWhen(v, indent)
 	case *ast.CondExpr:
 		return formatCond(v, indent)
+	case *ast.SwitchExpr:
+		return formatSwitch(v, indent)
 	case *ast.DoExpr:
 		return formatDo(v, indent)
 	case *ast.QuoteExpr:
@@ -295,6 +297,15 @@ func inline(n ast.Node) string {
 		}
 		if v.Default != nil {
 			parts = append(parts, ":else", inline(v.Default))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
+	case *ast.SwitchExpr:
+		parts := []string{"switch", inline(v.Expr)}
+		for _, sc := range v.Cases {
+			parts = append(parts, inline(sc.Value), inline(sc.Body))
+		}
+		if v.Default != nil {
+			parts = append(parts, ":default", inline(v.Default))
 		}
 		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.DoExpr:
@@ -717,6 +728,34 @@ func formatCond(v *ast.CondExpr, indent int) string {
 		defStr := inline(v.Default)
 		combined := ind(indent+1) + ":else " + defStr
 		sb.WriteString("\n" + ind(indent+1) + ":else")
+		if len(combined) <= maxLine {
+			sb.WriteString(" " + defStr)
+		} else {
+			sb.WriteString("\n" + format(v.Default, indent+2))
+		}
+	}
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func formatSwitch(v *ast.SwitchExpr, indent int) string {
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(switch " + inline(v.Expr))
+	for _, sc := range v.Cases {
+		valStr := inline(sc.Value)
+		bodyStr := inline(sc.Body)
+		sb.WriteString("\n" + ind(indent+1) + valStr)
+		combined := ind(indent+1) + valStr + " " + bodyStr
+		if len(combined) <= maxLine {
+			sb.WriteString(" " + bodyStr)
+		} else {
+			sb.WriteString("\n" + format(sc.Body, indent+2))
+		}
+	}
+	if v.Default != nil {
+		defStr := inline(v.Default)
+		combined := ind(indent+1) + ":default " + defStr
+		sb.WriteString("\n" + ind(indent+1) + ":default")
 		if len(combined) <= maxLine {
 			sb.WriteString(" " + defStr)
 		} else {

@@ -3,6 +3,9 @@ package lsp
 import (
 	"encoding/json"
 	"log"
+	"strings"
+
+	"golisp/internal/formatter"
 )
 
 // Server holds document state and handles JSON-RPC messages.
@@ -40,6 +43,8 @@ func (s *Server) Handle(req *Request) (*Response, []*Notification) {
 		return s.handleDefinition(req), nil
 	case "textDocument/completion":
 		return s.handleCompletion(req), nil
+	case "textDocument/formatting":
+		return s.handleFormatting(req), nil
 	default:
 		if !req.IsNotification() {
 			return s.methodNotFound(req), nil
@@ -54,7 +59,8 @@ func (s *Server) handleInitialize(req *Request) *Response {
 			TextDocumentSync:   TextDocumentSyncFull,
 			HoverProvider:      true,
 			DefinitionProvider: true,
-			CompletionProvider: &CompletionOptions{},
+			CompletionProvider:         &CompletionOptions{},
+			DocumentFormattingProvider: true,
 		},
 		ServerInfo: ServerInfo{Name: "glisp-lsp", Version: "0.1.0"},
 	})
@@ -145,6 +151,35 @@ func (s *Server) handleCompletion(req *Request) *Response {
 		items = []CompletionItem{}
 	}
 	return s.ok(req, items)
+}
+
+func (s *Server) handleFormatting(req *Request) *Response {
+	var p DocumentFormattingParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.invalidParams(req, err.Error())
+	}
+	source, ok := s.docs[p.TextDocument.URI]
+	if !ok {
+		return s.ok(req, []TextEdit{})
+	}
+	out, err := formatter.Format(source)
+	if err != nil {
+		// Don't surface a hard error on an unparseable buffer; just no-op.
+		return s.ok(req, []TextEdit{})
+	}
+	if out == source {
+		return s.ok(req, []TextEdit{})
+	}
+	// Replace the whole document. End position is one past the last line.
+	lines := strings.Count(source, "\n")
+	edit := TextEdit{
+		Range: Range{
+			Start: Position{Line: 0, Character: 0},
+			End:   Position{Line: lines + 1, Character: 0},
+		},
+		NewText: out,
+	}
+	return s.ok(req, []TextEdit{edit})
 }
 
 func (s *Server) diagNotif(uri, source string) *Notification {

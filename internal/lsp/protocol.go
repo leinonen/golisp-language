@@ -79,13 +79,25 @@ type InitializeResult struct {
 }
 
 type ServerCapabilities struct {
-	TextDocumentSync   int                `json:"textDocumentSync"`
-	HoverProvider      bool               `json:"hoverProvider"`
-	DefinitionProvider bool               `json:"definitionProvider,omitempty"`
-	CompletionProvider *CompletionOptions `json:"completionProvider,omitempty"`
+	TextDocumentSync           int                `json:"textDocumentSync"`
+	HoverProvider              bool               `json:"hoverProvider"`
+	DefinitionProvider         bool               `json:"definitionProvider,omitempty"`
+	CompletionProvider         *CompletionOptions `json:"completionProvider,omitempty"`
+	DocumentFormattingProvider bool               `json:"documentFormattingProvider,omitempty"`
 }
 
 type CompletionOptions struct{}
+
+// Formatting
+
+type TextEdit struct {
+	Range   Range  `json:"range"`
+	NewText string `json:"newText"`
+}
+
+type DocumentFormattingParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+}
 
 // Definition
 

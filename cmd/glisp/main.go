@@ -11,6 +11,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
 	"golisp/internal/compiler"
@@ -127,6 +128,27 @@ func fmtCmd(args []string) {
 	}
 	exitCode := 0
 	for _, path := range fs.Args() {
+		// "-" reads from stdin and writes the result to stdout (for editor integration).
+		if path == "-" {
+			src, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			out, err := formatter.Format(string(src))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "<stdin>: %v\n", err)
+				os.Exit(1)
+			}
+			if *check {
+				if out != string(src) {
+					exitCode = 1
+				}
+			} else {
+				fmt.Print(out)
+			}
+			continue
+		}
 		src, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -163,7 +185,7 @@ Usage:
   glisp build   [-o binary]    <dir/>        compile all .glsp in dir
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
-  glisp fmt     [--check]      <file.glsp>   format source in-place
+  glisp fmt     [--check]      <file.glsp>   format source in-place (- = stdin→stdout)
   glisp repl                                 start interactive REPL
   glisp version                              print version`)
 }

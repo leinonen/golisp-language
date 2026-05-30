@@ -158,13 +158,7 @@ internal/lsp/
 - [x] Map: `(let [{k :key} m] ...)` — bind by key (`_glispGet` string key)
 - [x] In `fn`/`defn`/`defmethod` param vectors: `(fn [[x y]] ...)`, `(fn [{k :key}] ...)`
 
-### 6c. Macro system
-- [ ] `defmacro name [args] body` — define a compile-time transformation
-- [ ] `macroexpand` — expand a macro call for debugging
-- [ ] Requires an evaluation pass before transpilation
-- [ ] **Deferred** — high complexity, low return for server-app use case; built-in special forms cover most needs. See ADR-005.
-
-### 6d. Missing Go interop forms
+### 6c. Missing Go interop forms
 - [x] `panic` / `recover` — call `panic()` and use `recover()` inside `defer`; essential for middleware and wrapping third-party code
 - [x] `switch` / `case` — value switch and type switch; eliminates awkward `cond` workarounds for Go interop
 - [ ] `as->` — `(as-> x $ (assoc $ :k v) (dissoc $ :old))` — threading with named binding; useful when thread position varies
@@ -281,4 +275,3 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 14 | **8: Database (postgres)** | Next major capability unlock for real applications |
 | 15 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
 | 16 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |
-| 17 | **6c: Macro system** | High complexity; defer until language is stable and use cases are clear |

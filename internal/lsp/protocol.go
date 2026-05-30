@@ -84,6 +84,7 @@ type ServerCapabilities struct {
 	DefinitionProvider         bool               `json:"definitionProvider,omitempty"`
 	CompletionProvider         *CompletionOptions `json:"completionProvider,omitempty"`
 	DocumentFormattingProvider bool               `json:"documentFormattingProvider,omitempty"`
+	RenameProvider             bool               `json:"renameProvider,omitempty"`
 }
 
 type CompletionOptions struct{}
@@ -173,4 +174,16 @@ type HoverParams struct {
 type PublishDiagnosticsParams struct {
 	URI         string       `json:"uri"`
 	Diagnostics []Diagnostic `json:"diagnostics"`
+}
+
+// Rename
+
+type RenameParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Position     Position               `json:"position"`
+	NewName      string                 `json:"newName"`
+}
+
+type WorkspaceEdit struct {
+	Changes map[string][]TextEdit `json:"changes"`
 }

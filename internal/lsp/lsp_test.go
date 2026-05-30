@@ -465,6 +465,58 @@ func TestCompletions_sorted(t *testing.T) {
 	}
 }
 
+// ── Rename ────────────────────────────────────────────────────────────────────
+
+func TestRename_basic(t *testing.T) {
+	src := "(defn add [a b] (+ a b))\n(add 1 2)"
+	// cursor on "add" at line 0, col 6
+	edits := FindRenameEdits(src, 0, 6, "sum")
+	if len(edits) != 2 {
+		t.Fatalf("expected 2 edits, got %d", len(edits))
+	}
+	// first edit: "add" in defn line
+	if edits[0].Range.Start.Line != 0 || edits[0].Range.Start.Character != 6 {
+		t.Errorf("edit[0] start: want {0,6}, got {%d,%d}", edits[0].Range.Start.Line, edits[0].Range.Start.Character)
+	}
+	if edits[0].NewText != "sum" {
+		t.Errorf("edit[0] newText: want %q, got %q", "sum", edits[0].NewText)
+	}
+	// second edit: "add" in call line
+	if edits[1].Range.Start.Line != 1 || edits[1].Range.Start.Character != 1 {
+		t.Errorf("edit[1] start: want {1,1}, got {%d,%d}", edits[1].Range.Start.Line, edits[1].Range.Start.Character)
+	}
+}
+
+func TestRename_noSymbol(t *testing.T) {
+	src := "(defn foo [] nil)"
+	// cursor on '(' — not a symbol
+	edits := FindRenameEdits(src, 0, 0, "bar")
+	if edits != nil {
+		t.Errorf("expected nil edits for non-symbol position, got %v", edits)
+	}
+}
+
+func TestRename_noPartialMatch(t *testing.T) {
+	// "add" should not match "addTwo"
+	src := "(defn add [] nil)\n(defn addTwo [] nil)\n(add 1)"
+	edits := FindRenameEdits(src, 0, 6, "sum")
+	if len(edits) != 2 {
+		t.Fatalf("expected 2 edits (add, not addTwo), got %d", len(edits))
+	}
+}
+
+func TestRename_rangeEnd(t *testing.T) {
+	src := "(defn foo [] nil)"
+	edits := FindRenameEdits(src, 0, 6, "bar")
+	if len(edits) != 1 {
+		t.Fatalf("expected 1 edit, got %d", len(edits))
+	}
+	// "foo" is at cols 6-8, end should be 9
+	if edits[0].Range.End.Character != 9 {
+		t.Errorf("edit end char: want 9, got %d", edits[0].Range.End.Character)
+	}
+}
+
 func TestCompletions_detail(t *testing.T) {
 	src := "(defn add [^int a ^int b] (+ a b))"
 	items := FindCompletions(src, 0, 0)

@@ -45,6 +45,8 @@ func (s *Server) Handle(req *Request) (*Response, []*Notification) {
 		return s.handleCompletion(req), nil
 	case "textDocument/formatting":
 		return s.handleFormatting(req), nil
+	case "textDocument/rename":
+		return s.handleRename(req), nil
 	default:
 		if !req.IsNotification() {
 			return s.methodNotFound(req), nil
@@ -56,11 +58,12 @@ func (s *Server) Handle(req *Request) (*Response, []*Notification) {
 func (s *Server) handleInitialize(req *Request) *Response {
 	return s.ok(req, InitializeResult{
 		Capabilities: ServerCapabilities{
-			TextDocumentSync:   TextDocumentSyncFull,
-			HoverProvider:      true,
-			DefinitionProvider: true,
+			TextDocumentSync:           TextDocumentSyncFull,
+			HoverProvider:              true,
+			DefinitionProvider:         true,
 			CompletionProvider:         &CompletionOptions{},
 			DocumentFormattingProvider: true,
+			RenameProvider:             true,
 		},
 		ServerInfo: ServerInfo{Name: "glisp-lsp", Version: "0.1.0"},
 	})
@@ -180,6 +183,24 @@ func (s *Server) handleFormatting(req *Request) *Response {
 		NewText: out,
 	}
 	return s.ok(req, []TextEdit{edit})
+}
+
+func (s *Server) handleRename(req *Request) *Response {
+	var p RenameParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.invalidParams(req, err.Error())
+	}
+	source, ok := s.docs[p.TextDocument.URI]
+	if !ok {
+		return s.ok(req, nil)
+	}
+	edits := FindRenameEdits(source, p.Position.Line, p.Position.Character, p.NewName)
+	if edits == nil {
+		return s.ok(req, nil)
+	}
+	return s.ok(req, WorkspaceEdit{
+		Changes: map[string][]TextEdit{p.TextDocument.URI: edits},
+	})
 }
 
 func (s *Server) diagNotif(uri, source string) *Notification {

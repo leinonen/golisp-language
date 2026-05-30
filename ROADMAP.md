@@ -136,7 +136,7 @@ internal/lsp/
 - [x] Surfaced in hover text and completion detail
 
 ### 5f. Rename symbol
-- [ ] `textDocument/rename` — rename across all files in workspace
+- [x] `textDocument/rename` — rename all occurrences in the current document
 
 ### 5g. Find references
 - [ ] `textDocument/references` — list all call sites of a symbol
@@ -280,5 +280,5 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 13 | **4c: Source maps** | Debug Go panics in `.glsp` terms |
 | 14 | **8: Database (postgres)** | Next major capability unlock for real applications |
 | 15 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
-| 16 | **5f–5h: LSP rename / find-refs / code actions** | IDE completeness — nice to have |
+| 16 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |
 | 17 | **6c: Macro system** | High complexity; defer until language is stable and use cases are clear |

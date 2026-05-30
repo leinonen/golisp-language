@@ -428,23 +428,32 @@ func (p *parser) parseNS(pos ast.Position) (*ast.NSDecl, error) {
 	name := nameTok.Text
 
 	var imports []ast.ImportSpec
+	var requires []ast.RequireSpec
 	for p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF {
 		if p.peekType() != lexer.TokenLParen {
-			return nil, p.errorf("expected import clause in ns")
+			return nil, p.errorf("expected :import or :require clause in ns")
 		}
 		p.advance() // (
 		kwTok, err := p.expect(lexer.TokenKeyword)
 		if err != nil {
 			return nil, err
 		}
-		if kwTok.Text != "import" {
-			return nil, fmt.Errorf("%d:%d: expected :import, got :%s", kwTok.Line, kwTok.Column, kwTok.Text)
+		switch kwTok.Text {
+		case "import":
+			specs, err := p.parseImportList()
+			if err != nil {
+				return nil, err
+			}
+			imports = append(imports, specs...)
+		case "require":
+			specs, err := p.parseRequireList()
+			if err != nil {
+				return nil, err
+			}
+			requires = append(requires, specs...)
+		default:
+			return nil, fmt.Errorf("%d:%d: expected :import or :require, got :%s", kwTok.Line, kwTok.Column, kwTok.Text)
 		}
-		specs, err := p.parseImportList()
-		if err != nil {
-			return nil, err
-		}
-		imports = append(imports, specs...)
 		if _, err := p.expect(lexer.TokenRParen); err != nil {
 			return nil, err
 		}
@@ -452,7 +461,7 @@ func (p *parser) parseNS(pos ast.Position) (*ast.NSDecl, error) {
 	if _, err := p.expect(lexer.TokenRParen); err != nil {
 		return nil, err
 	}
-	return ast.NewNSDecl(pos, name, imports), nil
+	return ast.NewNSDecl(pos, name, imports, requires), nil
 }
 
 func (p *parser) parseImportList() ([]ast.ImportSpec, error) {
@@ -486,6 +495,45 @@ func (p *parser) parseImportList() ([]ast.ImportSpec, error) {
 				return nil, err
 			}
 			specs = append(specs, ast.ImportSpec{Path: pathTok.Text})
+		}
+	}
+	if _, err := p.expect(lexer.TokenRBracket); err != nil {
+		return nil, err
+	}
+	return specs, nil
+}
+
+func (p *parser) parseRequireList() ([]ast.RequireSpec, error) {
+	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+		return nil, err
+	}
+	var specs []ast.RequireSpec
+	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
+		if p.peekType() == lexer.TokenLBracket {
+			p.advance()
+			pathTok, err := p.expect(lexer.TokenSymbol)
+			if err != nil {
+				return nil, err
+			}
+			spec := ast.RequireSpec{Path: pathTok.Text}
+			if p.peekType() == lexer.TokenKeyword && p.peek().Text == "as" {
+				p.advance()
+				aliasTok, err := p.expect(lexer.TokenSymbol)
+				if err != nil {
+					return nil, err
+				}
+				spec.Alias = aliasTok.Text
+			}
+			if _, err := p.expect(lexer.TokenRBracket); err != nil {
+				return nil, err
+			}
+			specs = append(specs, spec)
+		} else {
+			pathTok, err := p.expect(lexer.TokenSymbol)
+			if err != nil {
+				return nil, err
+			}
+			specs = append(specs, ast.RequireSpec{Path: pathTok.Text})
 		}
 	}
 	if _, err := p.expect(lexer.TokenRBracket); err != nil {

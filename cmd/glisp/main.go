@@ -13,9 +13,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"golisp/internal/compiler"
 	"golisp/internal/formatter"
+	"golisp/internal/module"
 	"golisp/internal/repl"
 	"golisp/internal/transpiler"
 )
@@ -39,6 +41,10 @@ func main() {
 		fmtCmd(os.Args[2:])
 	case "repl":
 		repl.Run(os.Stdin, os.Stdout)
+	case "get":
+		getCmd(os.Args[2:])
+	case "mod":
+		modCmd(os.Args[2:])
 	case "version":
 		fmt.Println("glisp 0.1.0")
 	default:
@@ -176,6 +182,71 @@ func fmtCmd(args []string) {
 	}
 }
 
+func getCmd(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "get: requires <module>[@version]")
+		os.Exit(1)
+	}
+	spec := args[0]
+	modulePath, version, _ := strings.Cut(spec, "@")
+	if version == "" {
+		version = "latest"
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := compiler.GetModule(cwd, modulePath, version); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	// Update glisp.mod
+	mf, err := module.ReadModFile(cwd)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	mf.AddRequire(modulePath, version)
+	if err := module.WriteModFile(cwd, mf); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stdout, "added %s %s\n", modulePath, version)
+}
+
+func modCmd(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "mod: requires subcommand (init)")
+		os.Exit(1)
+	}
+	switch args[0] {
+	case "init":
+		modInitCmd(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "mod: unknown subcommand %q\n", args[0])
+		os.Exit(1)
+	}
+}
+
+func modInitCmd(args []string) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	modulePath := ""
+	if len(args) > 0 {
+		modulePath = args[0]
+	}
+	if err := module.InitModFile(cwd, modulePath); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Fprintln(os.Stdout, "created glisp.mod")
+}
+
 func usage() {
 	fmt.Fprintln(os.Stderr, `glisp — Clojure-inspired language that transpiles to Go
 
@@ -186,6 +257,8 @@ Usage:
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
   glisp fmt     [--check]      <file.glsp>   format source in-place (- = stdin→stdout)
+  glisp get     <module>[@version]           download + register a glisp module
+  glisp mod     init [module-path]           create glisp.mod for a new module/app
   glisp repl                                 start interactive REPL
   glisp version                              print version`)
 }

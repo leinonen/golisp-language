@@ -23,8 +23,10 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/transpiler/emit_types.go` | `identToGo`, `typeExprToGo`, `qualifiedTypeToGo`, `zeroValueFor` |
 | `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`, `glispEnvRuntime` (conditional) |
 | `internal/formatter/formatter.go` | AST → formatted glisp source; `Format(src)` public API |
-| `internal/compiler/compiler.go` | Orchestrates pipeline: `Compile`, `CompileAndBuild`, `CompileDir`, `CompileTest` |
-| `cmd/glisp/main.go` | CLI: `print`, `compile`, `build`, `test`, `fmt` subcommands |
+| `internal/compiler/compiler.go` | Orchestrates pipeline: `Compile`, `CompileAndBuild`, `CompileDir`, `CompileTest`, `TranspileDir`, `GetModule`, `ResolveDeps` |
+| `internal/module/modfile.go` | `glisp.mod` parsing/writing: `ReadModFile`, `WriteModFile`, `InitModFile` |
+| `internal/module/resolver.go` | Module download (GitHub tar.gz), go.mod wiring: `Download`, `EnsureGoMod`, `RegisterInGoMod`, `IsCached` |
+| `cmd/glisp/main.go` | CLI: `print`, `compile`, `build`, `test`, `fmt`, `get`, `mod` subcommands |
 | `web/web.go` | Ring adapter, routing, middleware, request helpers, static files, graceful shutdown — plain Go, not glisp |
 | `cmd/glisp-lsp/main.go` | LSP server entry point — JSON-RPC 2.0 over stdio |
 | `internal/lsp/server.go` | JSON-RPC dispatch, doc state, handler wiring |
@@ -101,6 +103,52 @@ Golden files live in `internal/transpiler/testdata/`. Each `.glsp` has a matchin
 5. If it can appear in statement position, also wire into `emitStmtNode`
 6. Add a snippet test in `transpiler_test.go` and/or a golden file
 
-## Module
+## Module system
 
-Module name: `golisp`. Go version in `go.mod`.
+glisp modules are GitHub repos (or local directories) containing `.glsp` files + a `glisp.mod`. The module path is also the Go import path.
+
+**`glisp.mod`** — plain-text dependency file at project root:
+```
+module github.com/myuser/myapp
+
+require (
+  github.com/user/mathlib v1.0.0
+)
+```
+
+**ns syntax** — `:require` for glisp modules (alongside existing `:import` for Go stdlib):
+```clojure
+(ns main
+  (:import [fmt])
+  (:require [github.com/user/mathlib]))
+```
+The qualifier in glisp code is the last path segment: `(mathlib/add 3 4)`.
+
+**Export convention** — library modules must use PascalCase names for exported functions:
+```clojure
+; in the library (github.com/user/mathlib):
+(defn ^int Add [^int a ^int b] (+ a b))
+
+; consumer writes lowercase — fnToGo converts add → Add:
+(mathlib/add 3 4)  ; → mathlib.Add(3, 4)
+```
+Private (unexported) helpers use kebab-case as normal: `(defn helper [...] ...)`.
+
+**CLI commands**:
+```
+glisp mod init [module-path]         create glisp.mod for a new module/app
+glisp get <module>[@version]         download + transpile + register a dependency
+glisp build <dir/>                   auto-fetches missing deps from glisp.mod before building
+```
+
+**How deps are wired**: `glisp get` downloads the GitHub archive to `~/.glisp/pkg/mod/<path>@<version>/`, transpiles `.glsp` → `.go` there, writes a `go.mod` for the module, then runs `go mod edit -require` and `-replace` in the project's `go.mod` so standard `go build` can find it.
+
+**Writing a module**:
+1. Create a repo with `.glsp` files and `glisp.mod` (`(module github.com/you/lib)`)
+2. Use PascalCase for all exported function/type names
+3. Tag a release (`v1.0.0`) on GitHub
+4. Consumers run `glisp get github.com/you/lib@v1.0.0`
+
+## Go module
+
+Go module name: `golisp`. Go version in `go.mod`.

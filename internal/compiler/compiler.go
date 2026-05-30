@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golisp/internal/module"
 	"golisp/internal/transpiler"
 )
 
@@ -91,11 +92,74 @@ func CompileAndBuild(srcPath string, outBin string) error {
 	return nil
 }
 
+// TranspileDir transpiles all .glsp files in srcDir to Go source without building.
+// Use this when compiling a dependency module that will be imported by another package.
+func TranspileDir(srcDir string) error {
+	return compileDir(srcDir, "", false)
+}
+
+// GetModule downloads, transpiles, and registers a glisp module in projectDir.
+// modulePath is like "github.com/user/lib" or "./local/path"; version like "v1.0.0".
+func GetModule(projectDir, modulePath, version string) error {
+	moduleDir, err := module.Download(projectDir, modulePath, version)
+	if err != nil {
+		return err
+	}
+
+	// Resolve canonical module path for local modules
+	if module.IsLocalPath(modulePath) {
+		modulePath = module.ResolveModulePath(moduleDir, filepath.Base(moduleDir))
+	}
+
+	if err := module.EnsureGoMod(moduleDir, modulePath); err != nil {
+		return fmt.Errorf("ensure go.mod for %s: %w", modulePath, err)
+	}
+
+	if err := TranspileDir(moduleDir); err != nil {
+		return fmt.Errorf("transpile %s: %w", modulePath, err)
+	}
+
+	if err := module.RegisterInGoMod(projectDir, modulePath, version, moduleDir); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ResolveDeps ensures all requires declared in glisp.mod are downloaded and registered.
+func ResolveDeps(projectDir string) error {
+	mf, err := module.ReadModFile(projectDir)
+	if err != nil {
+		return err
+	}
+	for _, req := range mf.Requires {
+		if module.IsCached(req.Path, req.Version) {
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "glisp: fetching %s %s\n", req.Path, req.Version)
+		if err := GetModule(projectDir, req.Path, req.Version); err != nil {
+			return fmt.Errorf("get %s: %w", req.Path, err)
+		}
+	}
+	return nil
+}
+
 // CompileDir compiles all .glsp files in srcDir into a single Go package and
 // builds a binary. All files must share the same package name (ns last segment).
 // Each .glsp produces a .go file in the same directory; a shared glisp_runtime.go
 // is written with the union of runtime helpers needed across all files.
 func CompileDir(srcDir string, outBin string) error {
+	return compileDir(srcDir, outBin, true)
+}
+
+func compileDir(srcDir string, outBin string, build bool) error {
+	// Resolve glisp module dependencies before transpiling
+	if _, err := os.Stat(module.ModFilePath(srcDir)); err == nil {
+		if err := ResolveDeps(srcDir); err != nil {
+			return fmt.Errorf("resolve deps: %w", err)
+		}
+	}
+
 	globs, err := filepath.Glob(filepath.Join(srcDir, "*.glsp"))
 	if err != nil {
 		return fmt.Errorf("glob %s: %w", srcDir, err)
@@ -177,6 +241,10 @@ func CompileDir(srcDir string, outBin string) error {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			fmt.Fprintf(os.Stderr, "gofmt warning: %v\n%s\n", err, out)
 		}
+	}
+
+	if !build {
+		return nil
 	}
 
 	// Build the package directory (absolute path so go build resolves it correctly)

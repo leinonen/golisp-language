@@ -88,6 +88,16 @@ func TestFormat(t *testing.T) {
 			want:  "(ns main (:import [fmt golisp/web]))\n",
 		},
 		{
+			name:  "ns with require",
+			input: "(ns main (:require [github.com/user/mathlib]))",
+			want:  "(ns main (:require [github.com/user/mathlib]))\n",
+		},
+		{
+			name:  "ns with import and require",
+			input: "(ns main (:import [fmt]) (:require [github.com/user/mathlib]))",
+			want:  "(ns main (:import [fmt]) (:require [github.com/user/mathlib]))\n",
+		},
+		{
 			name:  "def simple",
 			input: "(def x 42)",
 			want:  "(def x 42)\n",

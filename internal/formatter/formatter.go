@@ -474,18 +474,33 @@ func inlineBindingForm(keyword string, bindings []ast.LetBinding, body []ast.Nod
 }
 
 func inlineNS(v *ast.NSDecl) string {
-	if len(v.Imports) == 0 {
+	if len(v.Imports) == 0 && len(v.Requires) == 0 {
 		return "(ns " + v.Name + ")"
 	}
-	parts := make([]string, len(v.Imports))
-	for i, imp := range v.Imports {
-		if imp.Alias != "" {
-			parts[i] = "[" + imp.Path + " :as " + imp.Alias + "]"
-		} else {
-			parts[i] = imp.Path
+	var clauses []string
+	if len(v.Imports) > 0 {
+		parts := make([]string, len(v.Imports))
+		for i, imp := range v.Imports {
+			if imp.Alias != "" {
+				parts[i] = "[" + imp.Path + " :as " + imp.Alias + "]"
+			} else {
+				parts[i] = imp.Path
+			}
 		}
+		clauses = append(clauses, "(:import ["+strings.Join(parts, " ")+"])")
 	}
-	return "(ns " + v.Name + " (:import [" + strings.Join(parts, " ") + "]))"
+	if len(v.Requires) > 0 {
+		parts := make([]string, len(v.Requires))
+		for i, req := range v.Requires {
+			if req.Alias != "" {
+				parts[i] = "[" + req.Path + " :as " + req.Alias + "]"
+			} else {
+				parts[i] = req.Path
+			}
+		}
+		clauses = append(clauses, "(:require ["+strings.Join(parts, " ")+"])")
+	}
+	return "(ns " + v.Name + " " + strings.Join(clauses, " ") + ")"
 }
 
 // formatRawArgs renders (parts[0] parts[1] ...) with continuation indented under head.
@@ -823,10 +838,20 @@ func formatNS(v *ast.NSDecl, indent int) string {
 				parts[i] = imp.Path
 			}
 		}
-		sb.WriteString("\n" + ind(indent+1) + "(:import [" + strings.Join(parts, " ") + "]))")
-	} else {
-		sb.WriteString(")")
+		sb.WriteString("\n" + ind(indent+1) + "(:import [" + strings.Join(parts, " ") + "])")
 	}
+	if len(v.Requires) > 0 {
+		parts := make([]string, len(v.Requires))
+		for i, req := range v.Requires {
+			if req.Alias != "" {
+				parts[i] = "[" + req.Path + " :as " + req.Alias + "]"
+			} else {
+				parts[i] = req.Path
+			}
+		}
+		sb.WriteString("\n" + ind(indent+1) + "(:require [" + strings.Join(parts, " ") + "])")
+	}
+	sb.WriteString(")")
 	return sb.String()
 }
 

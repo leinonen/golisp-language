@@ -71,6 +71,12 @@ type ImportSpec struct {
 	Path  string // e.g. "net/http"
 }
 
+// RequireSpec is one entry in an ns require list (glisp modules).
+type RequireSpec struct {
+	Path  string // e.g. "github.com/user/mathlib"
+	Alias string // optional :as alias
+}
+
 // SelectCase is one case inside a select! form.
 type SelectCase struct {
 	IsDefault bool
@@ -186,17 +192,18 @@ func NewMapLit(pos Position, pairs []MapPair) *MapLit {
 
 // ---------- Top-level declarations ----------
 
-// NSDecl: (ns name (:import [...]))
+// NSDecl: (ns name (:import [...]) (:require [...]))
 type NSDecl struct {
-	Pos_    Position
-	Name    string
-	Imports []ImportSpec
+	Pos_     Position
+	Name     string
+	Imports  []ImportSpec
+	Requires []RequireSpec
 }
 
-func (n *NSDecl) nodeMarker()    {}
-func (n *NSDecl) Pos() Position  { return n.Pos_ }
-func NewNSDecl(pos Position, name string, imports []ImportSpec) *NSDecl {
-	return &NSDecl{Pos_: pos, Name: name, Imports: imports}
+func (n *NSDecl) nodeMarker()   {}
+func (n *NSDecl) Pos() Position { return n.Pos_ }
+func NewNSDecl(pos Position, name string, imports []ImportSpec, requires []RequireSpec) *NSDecl {
+	return &NSDecl{Pos_: pos, Name: name, Imports: imports, Requires: requires}
 }
 
 // DefDecl: (def ^T name value)

@@ -532,6 +532,23 @@ func TestTranspileSnippets(t *testing.T) {
 
 		// http — put is the one missing from golden tests
 		{name: "http/put", src: `(defn f [^string url body] (http/put url body))`, wantSub: "_glispHttpPut("},
+
+		// ns :require — glisp modules emitted as Go imports
+		{
+			name:    "ns require single",
+			src:     `(ns main (:require [github.com/user/mathlib])) (defn f [] (mathlib/add 1 2))`,
+			wantSub: `"github.com/user/mathlib"`,
+		},
+		{
+			name:    "ns require with alias",
+			src:     `(ns main (:require [[github.com/user/mathlib :as math]])) (defn f [] (math/add 1 2))`,
+			wantSub: `math "github.com/user/mathlib"`,
+		},
+		{
+			name:    "ns require and import",
+			src:     `(ns main (:import [fmt]) (:require [github.com/user/lib])) (defn f [] (fmt/println (lib/greet "World")))`,
+			wantSub: `"fmt"`,
+		},
 	}
 
 	for _, tt := range tests {

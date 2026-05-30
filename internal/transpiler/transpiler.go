@@ -70,6 +70,8 @@ type Emitter struct {
 	pkg string
 	// imports seen from ns declarations
 	imports []ast.ImportSpec
+	// requires: glisp module paths emitted as Go imports
+	requires []ast.RequireSpec
 	// loop binding names for the current loop scope
 	loopBindings []string
 	// loopInReturn: true when the current loop is in tail/return position
@@ -115,6 +117,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if ns, ok := n.(*ast.NSDecl); ok {
 			e.pkg = packageName(ns.Name)
 			e.imports = ns.Imports
+			e.requires = ns.Requires
 		}
 	}
 
@@ -122,6 +125,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	declEmitter := newEmitter()
 	declEmitter.pkg = e.pkg
 	declEmitter.imports = e.imports
+	declEmitter.requires = e.requires
 	for _, n := range nodes {
 		if _, ok := n.(*ast.NSDecl); ok {
 			continue
@@ -199,6 +203,13 @@ func (e *Emitter) emitImports() error {
 		}
 	}
 	allImports = append(allImports, e.imports...)
+	for _, req := range e.requires {
+		if req.Alias != "" {
+			allImports = append(allImports, ast.ImportSpec{Path: req.Path, Alias: req.Alias})
+		} else {
+			allImports = append(allImports, ast.ImportSpec{Path: req.Path})
+		}
+	}
 
 	if len(allImports) == 0 {
 		return nil

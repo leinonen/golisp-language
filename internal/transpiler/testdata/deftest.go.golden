@@ -383,4 +383,28 @@ func _glispJuxt(fns ...any) any {
 	}
 }
 
+func _glispRepeat(n any, val any) []any {
+	count := _glispToInt(n)
+	result := make([]any, count)
+	for i := range result {
+		result[i] = val
+	}
+	return result
+}
+
+func _glispInterpose(sep any, coll any) []any {
+	s := _glispToSlice(coll)
+	if len(s) == 0 {
+		return []any{}
+	}
+	result := make([]any, 0, len(s)*2-1)
+	for i, v := range s {
+		if i > 0 {
+			result = append(result, sep)
+		}
+		result = append(result, v)
+	}
+	return result
+}
+
 // --- end glisp runtime helpers ---

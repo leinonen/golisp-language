@@ -859,6 +859,16 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return e.emitRuntimeCall("_glispHttpRequest", n.Args, 1)
 		case "subs":
 			return e.emitSubs(n.Args)
+		case "format":
+			return e.emitFormat(n.Args)
+		case "parse-int":
+			return e.emitParseInt(n.Args)
+		case "parse-float":
+			return e.emitParseFloat(n.Args)
+		case "repeat":
+			return e.emitRuntimeCall("_glispRepeat", n.Args, 2)
+		case "interpose":
+			return e.emitRuntimeCall("_glispInterpose", n.Args, 2)
 		}
 	}
 
@@ -1505,6 +1515,53 @@ func (e *Emitter) emitSubs(args []ast.Node) error {
 		e.write(":")
 	}
 	e.write("]")
+	return nil
+}
+
+// emitFormat emits (format fmt-str args...) → fmt.Sprintf(fmt-str, args...)
+func (e *Emitter) emitFormat(args []ast.Node) error {
+	if len(args) < 1 {
+		return fmt.Errorf("format requires at least 1 argument")
+	}
+	e.needImport("fmt")
+	e.write("fmt.Sprintf(")
+	for i, arg := range args {
+		if i > 0 {
+			e.write(", ")
+		}
+		if err := e.emitExpr(arg); err != nil {
+			return err
+		}
+	}
+	e.write(")")
+	return nil
+}
+
+// emitParseInt emits (parse-int s) → strconv.Atoi(_glispToString(s))
+func (e *Emitter) emitParseInt(args []ast.Node) error {
+	if len(args) != 1 {
+		return fmt.Errorf("parse-int requires exactly 1 argument")
+	}
+	e.needImport("strconv")
+	e.write("strconv.Atoi(_glispToString(")
+	if err := e.emitExpr(args[0]); err != nil {
+		return err
+	}
+	e.write("))")
+	return nil
+}
+
+// emitParseFloat emits (parse-float s) → strconv.ParseFloat(_glispToString(s), 64)
+func (e *Emitter) emitParseFloat(args []ast.Node) error {
+	if len(args) != 1 {
+		return fmt.Errorf("parse-float requires exactly 1 argument")
+	}
+	e.needImport("strconv")
+	e.write("strconv.ParseFloat(_glispToString(")
+	if err := e.emitExpr(args[0]); err != nil {
+		return err
+	}
+	e.write("), 64)")
 	return nil
 }
 

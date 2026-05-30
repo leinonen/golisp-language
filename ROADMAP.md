@@ -199,11 +199,11 @@ Core ops needed in every real server — transforming API payloads, shaping DB r
 - [ ] `partition-by` — `(partition-by f coll)` — split on predicate changes
 
 ### 7c. String & number utilities
-- [ ] `format` — `(format "Hello, %s! You are %d years old." name age)` — wraps `fmt.Sprintf`
-- [ ] `parse-int` — `(parse-int s)` → `[int error]` — wraps `strconv.Atoi`
-- [ ] `parse-float` — `(parse-float s)` → `[float64 error]` — wraps `strconv.ParseFloat`
-- [ ] `repeat` — `(repeat n val)` → slice of n copies of val
-- [ ] `interpose` — `(interpose sep coll)` → new seq with sep between each element
+- [x] `format` — `(format "Hello, %s! You are %d years old." name age)` — wraps `fmt.Sprintf`
+- [x] `parse-int` — `(parse-int s)` → `[int error]` — wraps `strconv.Atoi`
+- [x] `parse-float` — `(parse-float s)` → `[float64 error]` — wraps `strconv.ParseFloat`
+- [x] `repeat` — `(repeat n val)` → slice of n copies of val
+- [x] `interpose` — `(interpose sep coll)` → new seq with sep between each element
 
 ### 7d. Set support
 The AST node `SetLit` exists; needs transpiler wiring and runtime helpers.

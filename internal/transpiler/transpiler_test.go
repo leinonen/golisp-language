@@ -384,6 +384,32 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [m] (:age m 0))`,
 			wantSub: `_glispGetD(m, "age", 0)`,
 		},
+		// 7c: string & number utilities
+		{
+			name:    "format",
+			src:     `(defn f [^string name ^int age] (format "Hello, %s! You are %d." name age))`,
+			wantSub: `fmt.Sprintf("Hello, %s! You are %d.", name, age)`,
+		},
+		{
+			name:    "parse-int",
+			src:     `(defn f [^string s] (parse-int s))`,
+			wantSub: `strconv.Atoi(_glispToString(s))`,
+		},
+		{
+			name:    "parse-float",
+			src:     `(defn f [^string s] (parse-float s))`,
+			wantSub: `strconv.ParseFloat(_glispToString(s), 64)`,
+		},
+		{
+			name:    "repeat",
+			src:     `(defn f [^int n] (repeat n 0))`,
+			wantSub: `_glispRepeat(n, 0)`,
+		},
+		{
+			name:    "interpose",
+			src:     `(defn f [coll] (interpose "," coll))`,
+			wantSub: `_glispInterpose(",", coll)`,
+		},
 	}
 
 	for _, tt := range tests {

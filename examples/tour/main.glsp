@@ -2,7 +2,7 @@
 ; Demonstrates: defn, type annotations, cond, switch, loop/recur, map/filter/reduce,
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
 ;               destructuring (map and sequential), keyword lookup (:key m),
-;               panic/recover
+;               panic/recover, format, parse-int, parse-float, repeat, interpose
 
 (ns main
   (:import [fmt]))
@@ -78,6 +78,17 @@
   ; String processing
   (let [words (long-words "the quick brown fox jumps over the lazy dog")]
     (fmt/Println "long words:" (join words ", ")))
+
+  ; format, parse-int, parse-float, repeat, interpose
+  (fmt/Println (format "grade for 87: %s (score: %d)" (grade 87) 87))
+  (if-err [n err] (parse-int "42")
+    (do (fmt/Println "parse-int error:" err) nil)
+    (do (fmt/Println (format "parse-int: %d * 2 = %d" n (* n 2))) nil))
+  (if-err [x err] (parse-float "2.718")
+    (do (fmt/Println "parse-float error:" err) nil)
+    (do (fmt/Println (format "parse-float: %.3f" x)) nil))
+  (fmt/Println "repeat:   " (join (repeat 5 "*") ""))
+  (fmt/Println "interpose:" (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
 
   ; Analyze student classes concurrently.
   ; Map destructuring in fn params: {name :name scores :scores}

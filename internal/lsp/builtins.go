@@ -76,6 +76,11 @@ var builtinDocs = map[string]BuiltinDoc{
 	"split":        {Sig: "(split s sep)             →  []string", Doc: "Split s on sep and return the parts as a slice."},
 	"join":         {Sig: "(join sep coll)           →  string", Doc: "Join the elements of coll into a string separated by sep."},
 	"subs":         {Sig: "(subs s start end?)       →  string", Doc: "Substring of s from start to end (exclusive). Omit end for the rest of the string."},
+	"format":       {Sig: "(format fmt & args)       →  string", Doc: "Format string using fmt.Sprintf directives (e.g. %s, %d, %v)."},
+	"parse-int":    {Sig: "(parse-int s)             →  [int error]", Doc: "Parse string s as a base-10 integer. Returns (int, error) — use with if-err."},
+	"parse-float":  {Sig: "(parse-float s)           →  [float64 error]", Doc: "Parse string s as a 64-bit float. Returns (float64, error) — use with if-err."},
+	"repeat":       {Sig: "(repeat n val)            →  []any", Doc: "Return a slice of n copies of val."},
+	"interpose":    {Sig: "(interpose sep coll)       →  []any", Doc: "Return a new seq with sep inserted between each element of coll."},
 
 	// I/O
 	"println": {Sig: "(println & args)", Doc: "Print args to stdout followed by a newline."},

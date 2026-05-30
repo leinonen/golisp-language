@@ -1,0 +1,59 @@
+(defn ^any get-second [^[]any coll]
+  (second coll))
+
+(defn ^any get-last [^[]any coll]
+  (last coll))
+
+(defn ^bool is-empty [^[]any coll]
+  (empty? coll))
+
+(defn ^any safe-coll [^[]any coll]
+  (not-empty coll))
+
+(defn ^any nested-get [^map[string]any m]
+  (get-in m ["a" "b"]))
+
+(defn ^map[string]any nested-set [^map[string]any m ^any v]
+  (assoc-in m ["a" "b"] v))
+
+(defn ^map[string]any nested-inc [^map[string]any m]
+  (update-in m ["a" "count"] (fn [n] (+ (int n) 1))))
+
+(defn ^map[string]any bump [^map[string]any m]
+  (update m "count" (fn [n] (+ (int n) 1))))
+
+(defn ^map[string]any project [^map[string]any m]
+  (select-keys m ["id" "name"]))
+
+(defn ^map[string]any rename [^map[string]any m]
+  (rename-keys m {"old-key" "new-key"}))
+
+(defn ^map[string]any group [^[]any users]
+  (group-by "status" users))
+
+(defn ^map[string]any freq [^[]any items]
+  (frequencies items))
+
+(defn ^any build-map [^[]any pairs]
+  (into {} pairs))
+
+(defn ^[]any join-seqs [^[]any a ^[]any b ^[]any c]
+  (concat a b c))
+
+(defn ^[]any flat-map [^[]any coll]
+  (mapcat (fn [x] [x x]) coll))
+
+(defn ^[]any take-pos [^[]any nums]
+  (take-while (fn [n] (> (int n) 0)) nums))
+
+(defn ^[]any drop-neg [^[]any nums]
+  (drop-while (fn [n] (< (int n) 0)) nums))
+
+(defn ^map[string]any zip [^[]any ks ^[]any vs]
+  (zipmap ks vs))
+
+(defn ^[]any chunks [^[]any coll]
+  (partition 3 coll))
+
+(defn ^[]any by-sign [^[]any nums]
+  (partition-by (fn [n] (> (int n) 0)) nums))

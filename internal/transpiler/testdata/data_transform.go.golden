@@ -1,75 +1,101 @@
-package transpiler
+package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
-// RuntimeSource returns a complete Go source file containing the runtime helpers
-// needed for the given set of built-in packages. Used by the multi-file compiler
-// to emit helpers into a single shared file instead of every generated file.
-func RuntimeSource(pkgName string, builtins map[string]bool) string {
-	seen := map[string]bool{}
-	var imports []string
-	addImport := func(pkg string) {
-		if !seen[pkg] {
-			seen[pkg] = true
-			imports = append(imports, `"`+pkg+`"`)
-		}
-	}
-	if builtins["sort"] {
-		addImport("sort")
-	}
-	if builtins["strings"] || builtins["net/http"] {
-		addImport("strings")
-	}
-	if builtins["encoding/json"] {
-		addImport("encoding/json")
-		addImport("fmt")
-	}
-	if builtins["net/http"] {
-		addImport("fmt")
-		addImport("io")
-		addImport("net/http")
-	}
-	if builtins["os"] {
-		addImport("fmt")
-		addImport("os")
-	}
-	if builtins["data"] {
-		addImport("fmt")
-	}
-
-	s := fmt.Sprintf("package %s\n", pkgName)
-	if len(imports) > 0 {
-		s += "\nimport (\n"
-		for _, imp := range imports {
-			s += "\t" + imp + "\n"
-		}
-		s += ")\n"
-	}
-	s += glispRuntime
-	if builtins["sort"] {
-		s += glispSortRuntime
-	}
-	if builtins["strings"] {
-		s += glispStrRuntime
-	}
-	if builtins["encoding/json"] {
-		s += glispJsonRuntime
-	}
-	if builtins["net/http"] {
-		s += glispHttpRuntime
-	}
-	if builtins["os"] {
-		s += glispEnvRuntime
-	}
-	if builtins["data"] {
-		s += glispDataRuntime
-	}
-	return s
+func getSecond(coll []any) any {
+	return _glispSecond(coll)
 }
 
-// glispRuntime is emitted at the top of every generated Go file.
-// It provides the runtime helpers used by built-in functions.
-const glispRuntime = `
+func getLast(coll []any) any {
+	return _glispLast(coll)
+}
+
+func isEmpty(coll []any) bool {
+	return _glispIsEmpty(coll)
+}
+
+func safeColl(coll []any) any {
+	return _glispNotEmpty(coll)
+}
+
+func nestedGet(m map[string]any) any {
+	return _glispGetIn(m, []any{"a", "b"})
+}
+
+func nestedSet(m map[string]any, v any) map[string]any {
+	return _glispAssocIn(m, []any{"a", "b"}, v)
+}
+
+func nestedInc(m map[string]any) map[string]any {
+	return _glispUpdateIn(m, []any{"a", "count"}, func(n any) any {
+		return (_glispToInt(n) + 1)
+	})
+}
+
+func bump(m map[string]any) map[string]any {
+	return _glispUpdate(m, "count", func(n any) any {
+		return (_glispToInt(n) + 1)
+	})
+}
+
+func project(m map[string]any) map[string]any {
+	return _glispSelectKeys(m, []any{"id", "name"})
+}
+
+func rename(m map[string]any) map[string]any {
+	return _glispRenameKeys(m, map[string]any{"old-key": "new-key"})
+}
+
+func group(users []any) map[string]any {
+	return _glispGroupBy("status", users)
+}
+
+func freq(items []any) map[string]any {
+	return _glispFrequencies(items)
+}
+
+func buildMap(pairs []any) any {
+	return _glispInto(map[string]any{}, pairs)
+}
+
+func joinSeqs(a []any, b []any, c []any) []any {
+	return _glispConcat(a, b, c)
+}
+
+func flatMap(coll []any) []any {
+	return _glispMapcat(func(x any) any {
+		return []any{x, x}
+	}, coll)
+}
+
+func takePos(nums []any) []any {
+	return _glispTakeWhile(func(n any) any {
+		return (_glispToInt(n) > 0)
+	}, nums)
+}
+
+func dropNeg(nums []any) []any {
+	return _glispDropWhile(func(n any) any {
+		return (_glispToInt(n) < 0)
+	}, nums)
+}
+
+func zip(ks []any, vs []any) map[string]any {
+	return _glispZipmap(ks, vs)
+}
+
+func chunks(coll []any) []any {
+	return _glispPartition(3, coll)
+}
+
+func bySign(nums []any) []any {
+	return _glispPartitionBy(func(n any) any {
+		return (_glispToInt(n) > 0)
+	}, nums)
+}
+
 // --- glisp runtime helpers (generated) ---
 
 func _glispGet(m any, key any) any {
@@ -579,192 +605,7 @@ func _glispPartition(n any, coll any) []any {
 }
 
 // --- end glisp runtime helpers ---
-`
 
-// glispSortRuntime is appended when sort-by is used (requires "sort" import).
-const glispSortRuntime = `
-func _glispSortBy(f any, coll any) []any {
-	fn := f.(func(any) any)
-	s := _glispToSlice(coll)
-	result := make([]any, len(s))
-	copy(result, s)
-	sort.SliceStable(result, func(i, j int) bool {
-		ki := fn(result[i])
-		kj := fn(result[j])
-		switch a := ki.(type) {
-		case int:
-			if b, ok := kj.(int); ok {
-				return a < b
-			}
-		case int64:
-			if b, ok := kj.(int64); ok {
-				return a < b
-			}
-		case float64:
-			if b, ok := kj.(float64); ok {
-				return a < b
-			}
-		case string:
-			if b, ok := kj.(string); ok {
-				return a < b
-			}
-		}
-		return false
-	})
-	return result
-}
-`
-
-// glispStrRuntime is appended when split/join are used (requires "strings" import).
-const glispStrRuntime = `
-func _glispSplit(s any, sep any) []any {
-	parts := strings.Split(s.(string), sep.(string))
-	result := make([]any, len(parts))
-	for i, p := range parts {
-		result[i] = p
-	}
-	return result
-}
-
-func _glispJoin(coll any, sep any) string {
-	s := _glispToSlice(coll)
-	parts := make([]string, len(s))
-	for i, v := range s {
-		if str, ok := v.(string); ok {
-			parts[i] = str
-		}
-	}
-	return strings.Join(parts, sep.(string))
-}
-`
-
-// glispJsonRuntime is appended when json/encode or json/decode are used (requires "encoding/json" import).
-const glispJsonRuntime = `
-func _glispJsonEncode(v any) (string, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
-}
-
-func _glispJsonDecode(s any) (any, error) {
-	var result any
-	err := json.Unmarshal([]byte(fmt.Sprintf("%v", s)), &result)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-`
-
-// glispHttpRuntime is appended when http/* built-ins are used (requires "net/http", "io", "strings" imports).
-const glispHttpRuntime = `
-func _glispHttpDo(method, url, body, headers any) (map[string]any, error) {
-	var reqBody io.Reader
-	if body != nil {
-		reqBody = strings.NewReader(fmt.Sprintf("%v", body))
-	}
-	req, err := http.NewRequest(fmt.Sprintf("%v", method), fmt.Sprintf("%v", url), reqBody)
-	if err != nil {
-		return nil, err
-	}
-	if headers != nil {
-		if hdrs, ok := headers.(map[string]any); ok {
-			for k, v := range hdrs {
-				req.Header.Set(k, fmt.Sprintf("%v", v))
-			}
-		}
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	respHeaders := make(map[string]any)
-	for k := range resp.Header {
-		respHeaders[k] = resp.Header.Get(k)
-	}
-	return map[string]any{
-		"status":  int64(resp.StatusCode),
-		"headers": respHeaders,
-		"body":    string(bodyBytes),
-	}, nil
-}
-
-func _glispHttpGet(url any) (map[string]any, error) {
-	return _glispHttpDo("GET", url, nil, nil)
-}
-
-func _glispHttpGetH(url, headers any) (map[string]any, error) {
-	return _glispHttpDo("GET", url, nil, headers)
-}
-
-func _glispHttpPost(url, body any) (map[string]any, error) {
-	return _glispHttpDo("POST", url, body, nil)
-}
-
-func _glispHttpPostH(url, body, headers any) (map[string]any, error) {
-	return _glispHttpDo("POST", url, body, headers)
-}
-
-func _glispHttpPut(url, body any) (map[string]any, error) {
-	return _glispHttpDo("PUT", url, body, nil)
-}
-
-func _glispHttpPutH(url, body, headers any) (map[string]any, error) {
-	return _glispHttpDo("PUT", url, body, headers)
-}
-
-func _glispHttpDelete(url any) (map[string]any, error) {
-	return _glispHttpDo("DELETE", url, nil, nil)
-}
-
-func _glispHttpRequest(opts any) (map[string]any, error) {
-	m, ok := opts.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("http/request: opts must be a map")
-	}
-	method := "GET"
-	if v, ok := m["method"]; ok && v != nil {
-		method = fmt.Sprintf("%v", v)
-	}
-	url := ""
-	if v, ok := m["url"]; ok && v != nil {
-		url = fmt.Sprintf("%v", v)
-	}
-	var body any
-	if v, ok := m["body"]; ok {
-		body = v
-	}
-	var headers any
-	if v, ok := m["headers"]; ok {
-		headers = v
-	}
-	return _glispHttpDo(method, url, body, headers)
-}
-`
-
-// glispEnvRuntime is appended when os/env is used (requires "os" import).
-const glispEnvRuntime = `
-func _glispEnv(name any) string {
-	return os.Getenv(fmt.Sprintf("%v", name))
-}
-
-func _glispEnvDefault(name any, fallback any) string {
-	if val, ok := os.LookupEnv(fmt.Sprintf("%v", name)); ok {
-		return val
-	}
-	return fmt.Sprintf("%v", fallback)
-}
-`
-
-// glispDataRuntime is appended when data-transformation built-ins are used (requires "fmt" import).
-const glispDataRuntime = `
 func _glispAssocInSlice(m any, ks []any, v any) map[string]any {
 	result := map[string]any{}
 	if mm, ok := m.(map[string]any); ok {
@@ -871,4 +712,3 @@ func _glispPartitionBy(f any, coll any) []any {
 	}
 	return result
 }
-`

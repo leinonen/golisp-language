@@ -746,6 +746,54 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return e.emitRuntimeCall("_glispTake", n.Args, 2)
 		case "drop":
 			return e.emitRuntimeCall("_glispDrop", n.Args, 2)
+		// 7b: data transformation
+		case "second":
+			return e.emitRuntimeCall("_glispSecond", n.Args, 1)
+		case "last":
+			return e.emitRuntimeCall("_glispLast", n.Args, 1)
+		case "empty?":
+			return e.emitRuntimeCall("_glispIsEmpty", n.Args, 1)
+		case "not-empty":
+			return e.emitRuntimeCall("_glispNotEmpty", n.Args, 1)
+		case "get-in":
+			return e.emitRuntimeCall("_glispGetIn", n.Args, 2)
+		case "assoc-in":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispAssocIn", n.Args, 3)
+		case "update-in":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispUpdateIn", n.Args, 3)
+		case "update":
+			return e.emitRuntimeCall("_glispUpdate", n.Args, 3)
+		case "select-keys":
+			return e.emitRuntimeCall("_glispSelectKeys", n.Args, 2)
+		case "rename-keys":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispRenameKeys", n.Args, 2)
+		case "group-by":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispGroupBy", n.Args, 2)
+		case "frequencies":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispFrequencies", n.Args, 1)
+		case "into":
+			return e.emitRuntimeCall("_glispInto", n.Args, 2)
+		case "concat":
+			return e.emitVariadicRuntimeCall("_glispConcat", n.Args)
+		case "mapcat":
+			return e.emitRuntimeCall("_glispMapcat", n.Args, 2)
+		case "take-while":
+			return e.emitRuntimeCall("_glispTakeWhile", n.Args, 2)
+		case "drop-while":
+			return e.emitRuntimeCall("_glispDropWhile", n.Args, 2)
+		case "zipmap":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispZipmap", n.Args, 2)
+		case "partition":
+			return e.emitRuntimeCall("_glispPartition", n.Args, 2)
+		case "partition-by":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispPartitionBy", n.Args, 2)
 		// 2c: higher-order utilities
 		case "complement":
 			return e.emitRuntimeCall("_glispComplement", n.Args, 1)

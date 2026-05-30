@@ -180,23 +180,23 @@ internal/lsp/
 ### 7b. Data transformation
 Core ops needed in every real server — transforming API payloads, shaping DB results, building responses.
 
-- [ ] `get-in` — `(get-in m [:a :b :c])` — nested map/slice access
-- [ ] `assoc-in` — `(assoc-in m [:a :b] v)` — nested map update
-- [ ] `update-in` — `(update-in m [:a :b] f)` — nested map update via function
-- [ ] `update` — `(update m :key f)` — update a single key via function
-- [ ] `select-keys` — `(select-keys m [:id :name])` — map projection
-- [ ] `rename-keys` — `(rename-keys m {:old :new})` — rename map keys
-- [ ] `group-by` — `(group-by :status users)` → `{"active" [...] "inactive" [...]}`
-- [ ] `frequencies` — `(frequencies [:a :b :a])` → `{:a 2 :b 1}`
-- [ ] `into` — `(into {} pairs)` — build map from seq of pairs; `(into [] coll)` — collect to vector
-- [ ] `concat` — `(concat coll1 coll2 ...)` — join sequences
-- [ ] `mapcat` — `(mapcat f coll)` — map then flatten one level
-- [ ] `take-while` / `drop-while` — predicate-based slicing
-- [ ] `empty?` / `not-empty` — nil/empty check
-- [ ] `second` / `last` — common positional accessors
-- [ ] `zipmap` — `(zipmap keys vals)` — build map from two sequences
-- [ ] `partition` — `(partition n coll)` — split into chunks of size n
-- [ ] `partition-by` — `(partition-by f coll)` — split on predicate changes
+- [x] `get-in` — `(get-in m [:a :b :c])` — nested map/slice access
+- [x] `assoc-in` — `(assoc-in m [:a :b] v)` — nested map update
+- [x] `update-in` — `(update-in m [:a :b] f)` — nested map update via function
+- [x] `update` — `(update m :key f)` — update a single key via function
+- [x] `select-keys` — `(select-keys m [:id :name])` — map projection
+- [x] `rename-keys` — `(rename-keys m {:old :new})` — rename map keys
+- [x] `group-by` — `(group-by :status users)` → `{"active" [...] "inactive" [...]}`
+- [x] `frequencies` — `(frequencies [:a :b :a])` → `{:a 2 :b 1}`
+- [x] `into` — `(into {} pairs)` — build map from seq of pairs; `(into [] coll)` — collect to vector
+- [x] `concat` — `(concat coll1 coll2 ...)` — join sequences
+- [x] `mapcat` — `(mapcat f coll)` — map then flatten one level
+- [x] `take-while` / `drop-while` — predicate-based slicing
+- [x] `empty?` / `not-empty` — nil/empty check
+- [x] `second` / `last` — common positional accessors
+- [x] `zipmap` — `(zipmap keys vals)` — build map from two sequences
+- [x] `partition` — `(partition n coll)` — split into chunks of size n
+- [x] `partition-by` — `(partition-by f coll)` — split on predicate changes
 
 ### 7c. String & number utilities
 - [x] `format` — `(format "Hello, %s! You are %d years old." name age)` — wraps `fmt.Sprintf`

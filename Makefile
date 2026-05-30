@@ -23,7 +23,7 @@ install:
 
 clean:
 	rm -f $(BIN) $(BIN_LSP)
-	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient
+	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient examples/data/data
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
 	find . -name "*.go.out" -delete
 
@@ -34,10 +34,10 @@ fmt-glsp: build
 	find examples -name '*.glsp' | xargs ./$(BIN) fmt
 
 examples-clean:
-	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient
+	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient examples/data/data
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
 
-examples: examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient
+examples: examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data
 
 examples-tour: build
 	./$(BIN) build -o examples/tour/tour examples/tour/main.glsp
@@ -53,3 +53,6 @@ examples-multifile: build
 
 examples-httpclient: build
 	./$(BIN) build -o examples/httpclient/httpclient examples/httpclient/main.glsp
+
+examples-data: build
+	./$(BIN) build -o examples/data/data examples/data/main.glsp

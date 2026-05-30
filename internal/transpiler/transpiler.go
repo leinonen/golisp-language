@@ -138,6 +138,10 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 
 	// Merge builtin import needs from decl pass
 	e.builtinImports = declEmitter.builtinImports
+	// glispDataRuntime uses fmt; mark it needed only in single-file mode (RuntimeSource handles it for multi-file).
+	if e.emitRuntime && e.builtinImports["data"] {
+		e.needImport("fmt")
+	}
 	if err := e.emitImports(); err != nil {
 		return err
 	}
@@ -162,6 +166,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 		if e.builtinImports["os"] {
 			e.write(glispEnvRuntime)
+		}
+		if e.builtinImports["data"] {
+			e.write(glispDataRuntime)
 		}
 	}
 	return nil

@@ -64,11 +64,11 @@ func TestMatchPath_root(t *testing.T) {
 func TestRoutes_dispatch(t *testing.T) {
 	called := ""
 	app := Routes(
-		GET("/", func(req map[string]any) map[string]any {
+		Get("/", func(req map[string]any) map[string]any {
 			called = "home"
 			return map[string]any{"status": 200}
 		}),
-		POST("/items", func(req map[string]any) map[string]any {
+		Post("/items", func(req map[string]any) map[string]any {
 			called = "create"
 			return map[string]any{"status": 201}
 		}),
@@ -93,7 +93,7 @@ func TestRoutes_dispatch(t *testing.T) {
 
 func TestRoutes_methodMismatch(t *testing.T) {
 	app := Routes(
-		GET("/items", func(req map[string]any) map[string]any {
+		Get("/items", func(req map[string]any) map[string]any {
 			return map[string]any{"status": 200}
 		}),
 	)
@@ -105,7 +105,7 @@ func TestRoutes_methodMismatch(t *testing.T) {
 
 func TestRoutes_noMatch(t *testing.T) {
 	app := Routes(
-		GET("/home", func(req map[string]any) map[string]any {
+		Get("/home", func(req map[string]any) map[string]any {
 			return map[string]any{"status": 200}
 		}),
 	)
@@ -118,7 +118,7 @@ func TestRoutes_noMatch(t *testing.T) {
 func TestRoutes_pathParams(t *testing.T) {
 	var gotParams map[string]any
 	app := Routes(
-		GET("/users/:id", func(req map[string]any) map[string]any {
+		Get("/users/:id", func(req map[string]any) map[string]any {
 			gotParams, _ = req["params"].(map[string]any)
 			return map[string]any{"status": 200}
 		}),

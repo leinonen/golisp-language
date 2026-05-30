@@ -21,7 +21,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/transpiler/emit_concurrency.go` | `go`, `defer`, `chan`, `send!`, `recv!`, `select!`, `if-err`, method/field/struct interop |
 | `internal/transpiler/emit_loop.go` | `loop`/`recur` → `for` |
 | `internal/transpiler/emit_types.go` | `identToGo`, `typeExprToGo`, `qualifiedTypeToGo`, `zeroValueFor` |
-| `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime` (conditional) |
+| `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`, `glispEnvRuntime` (conditional) |
 | `internal/formatter/formatter.go` | AST → formatted glisp source; `Format(src)` public API |
 | `internal/compiler/compiler.go` | Orchestrates pipeline: `Compile`, `CompileAndBuild`, `CompileDir`, `CompileTest` |
 | `cmd/glisp/main.go` | CLI: `print`, `compile`, `build`, `test`, `fmt` subcommands |
@@ -48,13 +48,17 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 **`->` in identifiers**: `ring->handler` → `ringToHandler`. Pre-processed with `strings.ReplaceAll(s, "->", "-To-")` before camelCase conversion in `identToGo`.
 
+**Package-qualified naming**: glisp source uses lowercase-hyphenated names (`fmt/println`, `web/json-response`). `identToGo` applies `fnToGo` to the part after `/`: if all-lowercase → PascalCase (`println` → `Println`, `json-response` → `JsonResponse`); if any uppercase → pass through as-is (backward compat). Type annotations (`^web/Request`) go through `qualifiedTypeToGo` (slash→dot only) and are unaffected.
+
 **Type annotations**: `^(chan int)` needs parens because `chan` followed by space would confuse the lexer. `^[string error]` uses brackets to denote multi-return `(string, error)`. `^web/Request` uses slash notation for package-qualified types — `typeExprToGo` converts `pkg/Type` → `pkg.Type` via `qualifiedTypeToGo`.
 
-**Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link. Conditional blocks (`glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`) are appended only when the corresponding built-ins are used, gated by `builtinImports` keys (`"sort"`, `"strings"`, `"encoding/json"`). For multi-file builds (`glisp build dir/`), helpers are instead written once to `glisp_runtime.go` in the same directory via `transpiler.RuntimeSource`; individual files use `TranspileNoRuntime` which sets `emitRuntime=false`.
+**Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link. Conditional blocks (`glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`, `glispEnvRuntime`) are appended only when the corresponding built-ins are used, gated by `builtinImports` keys (`"sort"`, `"strings"`, `"encoding/json"`, `"os"`). For multi-file builds (`glisp build dir/`), helpers are instead written once to `glisp_runtime.go` in the same directory via `transpiler.RuntimeSource`; individual files use `TranspileNoRuntime` which sets `emitRuntime=false`.
 
 **`json/encode` / `json/decode`**: built-in forms (no AST node needed — dispatched by symbol name in `emitCallExpr`). Both return multi-value `(value, error)` and are designed for use with `if-err`. `json/decode` returns `any` so it handles both JSON objects and arrays.
 
-**web API**: all web functionality lives in `web/web.go` as plain Go — no special transpiler forms. `Request` and `Response` are type aliases for `map[string]any` (use `^web/Request` / `^web/Response` in glisp annotations). `Handler` is `func(Request) Response`. Middleware signature is `func(Handler) Handler`. `Wrap(h Handler, mws ...Middleware)` applies middlewares outermost-first. `WrapJson` stores parsed body in `req["json-body"]`; `WrapAuth` stores the Bearer token in `req["identity"]`. `ServeFiles` bridges Ring ↔ `http.FileServer` via `httptest.ResponseRecorder`. `ServeGraceful` traps SIGINT/SIGTERM and shuts down with a 5 s context deadline.
+**`os/env`**: built-in form dispatched by symbol name. `(os/env "VAR")` → `os.Getenv`; `(os/env "VAR" "default")` → `os.LookupEnv` with fallback. Returns `string`. Appends `glispEnvRuntime` (gated on `builtinImports["os"]`); also marks `"fmt"` needed in single-file mode since the runtime helper uses `fmt.Sprintf`.
+
+**web API**: all web functionality lives in `web/web.go` as plain Go — no special transpiler forms. `Request` and `Response` are type aliases for `map[string]any` (use `^web/Request` / `^web/Response` in glisp annotations). `Handler` is `func(Request) Response`. Middleware signature is `func(Handler) Handler`. `wrap(h Handler, mws ...Middleware)` applies middlewares outermost-first. `wrap-json` stores parsed body in `req["json-body"]`; `wrap-auth` stores the Bearer token in `req["identity"]`. `serve-files` bridges Ring ↔ `http.FileServer` via `httptest.ResponseRecorder`. `serve-graceful` traps SIGINT/SIGTERM and shuts down with a 5 s context deadline. HTTP route helpers: `(web/get path handler)`, `(web/post path handler)`, etc.
 
 **`defmethod` — receiver methods**: `(defmethod ^*ReceiverType name [self params...] ^RetType body)` emits `func (self *ReceiverType) Name(params) RetType { body }`. The `^` annotation before the method name is the receiver type (`^T` value receiver, `^*T` pointer receiver). The first element of the params vector is the receiver variable name; remaining params are regular params. Together with `definterface` and `defstruct`, this is the full Go interface/struct/method triad.
 
@@ -65,7 +69,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `(len w)` where `w` is `any` | `len` needs a concrete type | `(len (str w))` for strings; for slices use `(int (reduce (fn [n _] (+ (int n) 1)) 0 xs))` |
 | `(if x ...)` where `x` is a non-bool `any` | Go `if` requires boolean | `(= x nil)` or `(not= x nil)` for nil checks |
 | `(fn [c] ... (go ...) )` — `go` as last expr in a `func(...) any` | missing return | add `nil` as the last expr: `(let [...] (go ...) nil)` |
-| `fmt/Println` (or any multi-return Go fn) as the tail of a `func(...) any` closure | `(int, error)` can't coerce to `any` | `(do (fmt/Println ...) nil)` discards the multi-return via IIFE |
+| `fmt/println` (or any multi-return Go fn) as the tail of a `func(...) any` closure | `(int, error)` can't coerce to `any` | `(do (fmt/println ...) nil)` discards the multi-return via IIFE |
 | `(defn ^int f [] (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `^any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
 
 ## Formatter

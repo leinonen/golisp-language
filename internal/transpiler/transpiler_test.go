@@ -143,7 +143,7 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "pkg qualified call",
-			src:     `(defn greet [] (fmt/Println "hello"))`,
+			src:     `(defn greet [] (fmt/println "hello"))`,
 			wantSub: "fmt.Println(",
 		},
 		{
@@ -425,6 +425,113 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [coll] (interpose "," coll))`,
 			wantSub: `_glispInterpose(",", coll)`,
 		},
+
+		// Arithmetic / comparison / logic
+		{name: "mod", src: `(defn f [a b] (mod a b))`, wantSub: " % "},
+		{name: "not=", src: `(defn f [a b] (not= a b))`, wantSub: "!="},
+		{name: "<=", src: `(defn f [a b] (<= a b))`, wantSub: "<="},
+		{name: ">=", src: `(defn f [a b] (>= a b))`, wantSub: ">="},
+		{name: "and", src: `(defn f [a b] (and a b))`, wantSub: "&&"},
+		{name: "or", src: `(defn f [a b] (or a b))`, wantSub: "||"},
+		{name: "not", src: `(defn f [a] (not a))`, wantSub: "!("},
+
+		// Map operations
+		{name: "assoc", src: `(defn f [m] (assoc m "k" 1))`, wantSub: "_glispAssoc("},
+		{name: "dissoc", src: `(defn f [m] (dissoc m "k"))`, wantSub: "_glispDissoc("},
+		{name: "keys", src: `(defn f [m] (keys m))`, wantSub: "_glispKeys("},
+		{name: "vals", src: `(defn f [m] (vals m))`, wantSub: "_glispVals("},
+		{name: "merge", src: `(defn f [a b] (merge a b))`, wantSub: "_glispMerge("},
+
+		// Collection operations
+		{name: "conj", src: `(defn f [coll x] (conj coll x))`, wantSub: "append("},
+		{name: "count", src: `(defn f [coll] (count coll))`, wantSub: "len("},
+		{name: "first", src: `(defn f [coll] (first coll))`, wantSub: ".([]any)[0]"},
+		{name: "rest", src: `(defn f [coll] (rest coll))`, wantSub: ".([]any)[1:]"},
+		{name: "nth", src: `(defn f [coll i] (nth coll i))`, wantSub: ".([]any)["},
+
+		// Type / error
+		{name: "nil?", src: `(defn f [x] (nil? x))`, wantSub: "== nil"},
+		{name: "error", src: `(defn f [^string msg] (error msg))`, wantSub: "errors.New("},
+		{name: "string conv", src: `(defn f [^int x] (string x))`, wantSub: "string("},
+		{name: "int conv", src: `(defn f [x] (int x))`, wantSub: "_glispToInt("},
+		{name: "as type assertion", src: `(defn f [x] (as ^int x))`, wantSub: ".(int)"},
+
+		// I/O
+		{name: "print", src: `(defn f [x] (print x))`, wantSub: "fmt.Print("},
+
+		// Iteration
+		{name: "doseq", src: `(defn f [coll] (doseq [x coll] (println x)))`, wantSub: "for _, x := range"},
+		{name: "dotimes", src: `(defn f [] (dotimes [i 3] (println i)))`, wantSub: "for i := 0"},
+
+		// errors/new — pkg-prefixed, goes through fnToGo
+		{name: "errors/new", src: `(defn f [^string msg] (errors/new msg))`, wantSub: "errors.New("},
+
+		// fmt — verify naming convention for commonly-used fmt functions
+		{name: "fmt/printf", src: `(defn f [^string s] (fmt/printf "%s" s))`, wantSub: "fmt.Printf("},
+		{name: "fmt/sprintf", src: `(defn f [^string s] (fmt/sprintf "%s" s))`, wantSub: "fmt.Sprintf("},
+		{name: "fmt/errorf", src: `(defn f [^string s] (fmt/errorf "%s" s))`, wantSub: "fmt.Errorf("},
+
+		// strings — verify hyphen→PascalCase conversion
+		{name: "strings/contains", src: `(defn f [^string s] (strings/contains s "x"))`, wantSub: "strings.Contains("},
+		{name: "strings/has-prefix", src: `(defn f [^string s] (strings/has-prefix s "x"))`, wantSub: "strings.HasPrefix("},
+		{name: "strings/has-suffix", src: `(defn f [^string s] (strings/has-suffix s "x"))`, wantSub: "strings.HasSuffix("},
+		{name: "strings/trim-space", src: `(defn f [^string s] (strings/trim-space s))`, wantSub: "strings.TrimSpace("},
+		{name: "strings/to-upper", src: `(defn f [^string s] (strings/to-upper s))`, wantSub: "strings.ToUpper("},
+		{name: "strings/to-lower", src: `(defn f [^string s] (strings/to-lower s))`, wantSub: "strings.ToLower("},
+		{name: "strings/split", src: `(defn f [^string s] (strings/split s ","))`, wantSub: "strings.Split("},
+		{name: "strings/join", src: `(defn f [coll] (strings/join coll ","))`, wantSub: "strings.Join("},
+		{name: "strings/replace", src: `(defn f [^string s] (strings/replace s "a" "b" -1))`, wantSub: "strings.Replace("},
+		{name: "strings/replace-all", src: `(defn f [^string s] (strings/replace-all s "a" "b"))`, wantSub: "strings.ReplaceAll("},
+		{name: "strings/index", src: `(defn f [^string s] (strings/index s "x"))`, wantSub: "strings.Index("},
+		{name: "strings/trim-prefix", src: `(defn f [^string s] (strings/trim-prefix s "x"))`, wantSub: "strings.TrimPrefix("},
+		{name: "strings/trim-suffix", src: `(defn f [^string s] (strings/trim-suffix s "x"))`, wantSub: "strings.TrimSuffix("},
+		{name: "strings/trim", src: `(defn f [^string s] (strings/trim s " "))`, wantSub: "strings.Trim("},
+		{name: "strings/count", src: `(defn f [^string s] (strings/count s "x"))`, wantSub: "strings.Count("},
+		{name: "strings/repeat", src: `(defn f [^string s] (strings/repeat s 3))`, wantSub: "strings.Repeat("},
+
+		// strconv
+		{name: "strconv/atoi", src: `(defn f [^string s] (strconv/atoi s))`, wantSub: "strconv.Atoi("},
+		{name: "strconv/itoa", src: `(defn f [^int n] (strconv/itoa n))`, wantSub: "strconv.Itoa("},
+		{name: "strconv/parse-int", src: `(defn f [^string s] (strconv/parse-int s 10 64))`, wantSub: "strconv.ParseInt("},
+		{name: "strconv/parse-float", src: `(defn f [^string s] (strconv/parse-float s 64))`, wantSub: "strconv.ParseFloat("},
+		{name: "strconv/format-int", src: `(defn f [^int64 n] (strconv/format-int n 10))`, wantSub: "strconv.FormatInt("},
+		{name: "strconv/format-float", src: `(defn f [^float64 x] (strconv/format-float x 102 -1))`, wantSub: "strconv.FormatFloat("},
+
+		// math
+		{name: "math/sqrt", src: `(defn f [^float64 x] (math/sqrt x))`, wantSub: "math.Sqrt("},
+		{name: "math/abs", src: `(defn f [^float64 x] (math/abs x))`, wantSub: "math.Abs("},
+		{name: "math/pow", src: `(defn f [^float64 x y] (math/pow x y))`, wantSub: "math.Pow("},
+		{name: "math/floor", src: `(defn f [^float64 x] (math/floor x))`, wantSub: "math.Floor("},
+		{name: "math/ceil", src: `(defn f [^float64 x] (math/ceil x))`, wantSub: "math.Ceil("},
+		{name: "math/round", src: `(defn f [^float64 x] (math/round x))`, wantSub: "math.Round("},
+		{name: "math/max", src: `(defn f [^float64 a b] (math/max a b))`, wantSub: "math.Max("},
+		{name: "math/min", src: `(defn f [^float64 a b] (math/min a b))`, wantSub: "math.Min("},
+		{name: "math/pi constant", src: `(defn f [] math/pi)`, wantSub: "math.Pi"},
+
+		// sort
+		{name: "sort/ints", src: `(defn f [s] (sort/ints s))`, wantSub: "sort.Ints("},
+		{name: "sort/strings", src: `(defn f [s] (sort/strings s))`, wantSub: "sort.Strings("},
+		{name: "sort/slice", src: `(defn f [coll] (sort/slice coll (fn [i j] true)))`, wantSub: "sort.Slice("},
+
+		// time
+		{name: "time/now", src: `(defn f [] (time/now))`, wantSub: "time.Now("},
+		{name: "time/sleep", src: `(defn f [] (time/sleep time/second))`, wantSub: "time.Sleep("},
+		{name: "time/since", src: `(defn f [t] (time/since t))`, wantSub: "time.Since("},
+		{name: "time/second constant", src: `(defn f [] time/second)`, wantSub: "time.Second"},
+		{name: "time/millisecond constant", src: `(defn f [] time/millisecond)`, wantSub: "time.Millisecond"},
+
+		// log
+		{name: "log/println", src: `(defn f [x] (log/println x))`, wantSub: "log.Println("},
+		{name: "log/printf", src: `(defn f [^string s] (log/printf "%s" s))`, wantSub: "log.Printf("},
+		{name: "log/fatal", src: `(defn f [^string s] (log/fatal s))`, wantSub: "log.Fatal("},
+		{name: "log/fatalf", src: `(defn f [^string s] (log/fatalf "%s" s))`, wantSub: "log.Fatalf("},
+
+		// os
+		{name: "os/exit", src: `(defn f [] (os/exit 0))`, wantSub: "os.Exit("},
+		{name: "os/args", src: `(defn f [] os/args)`, wantSub: "os.Args"},
+
+		// http — put is the one missing from golden tests
+		{name: "http/put", src: `(defn f [^string url body] (http/put url body))`, wantSub: "_glispHttpPut("},
 	}
 
 	for _, tt := range tests {
@@ -448,6 +555,10 @@ func TestIdentToGo(t *testing.T) {
 		{"my-func", "myFunc"},
 		{"MyType", "MyType"},
 		{"fmt/Println", "fmt.Println"},
+		{"fmt/println", "fmt.Println"},
+		{"strings/has-prefix", "strings.HasPrefix"},
+		{"web/json-response", "web.JsonResponse"},
+		{"web/serve-graceful", "web.ServeGraceful"},
 		{"nil?", "isNil"},
 		{"send!", "send"},
 		{"*global*", "global"},

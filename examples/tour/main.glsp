@@ -38,7 +38,7 @@
 (defn catch-panic []
   (let [r (recover)]
     (when (not= r nil)
-      (fmt/Println "caught panic:" r))))
+      (fmt/println "caught panic:" r))))
 
 ;;; Returns a/b, or 0 if b is zero (panic caught by deferred handler).
 (defn ^int safe-divide [^int a ^int b]
@@ -68,27 +68,27 @@
 (defn main []
 
   ; Panic and recover
-  (fmt/Println "10/2 =" (safe-divide 10 2))
+  (fmt/println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)
 
   ; Fibonacci via loop/recur
   (let [fibs (map (fn [n] (fib (int n))) (range 10))]
-    (fmt/Println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))
+    (fmt/println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))
 
   ; String processing
   (let [words (long-words "the quick brown fox jumps over the lazy dog")]
-    (fmt/Println "long words:" (join words ", ")))
+    (fmt/println "long words:" (join words ", ")))
 
   ; format, parse-int, parse-float, repeat, interpose
-  (fmt/Println (format "grade for 87: %s (score: %d)" (grade 87) 87))
+  (fmt/println (format "grade for 87: %s (score: %d)" (grade 87) 87))
   (if-err [n err] (parse-int "42")
-    (do (fmt/Println "parse-int error:" err) nil)
-    (do (fmt/Println (format "parse-int: %d * 2 = %d" n (* n 2))) nil))
+    (do (fmt/println "parse-int error:" err) nil)
+    (do (fmt/println (format "parse-int: %d * 2 = %d" n (* n 2))) nil))
   (if-err [x err] (parse-float "2.718")
-    (do (fmt/Println "parse-float error:" err) nil)
-    (do (fmt/Println (format "parse-float: %.3f" x)) nil))
-  (fmt/Println "repeat:   " (join (repeat 5 "*") ""))
-  (fmt/Println "interpose:" (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
+    (do (fmt/println "parse-float error:" err) nil)
+    (do (fmt/println (format "parse-float: %.3f" x)) nil))
+  (fmt/println "repeat:   " (join (repeat 5 "*") ""))
+  (fmt/println "interpose:" (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
 
   ; Analyze student classes concurrently.
   ; Map destructuring in fn params: {name :name scores :scores}
@@ -121,11 +121,11 @@
             ranked  (sort-by (fn [{avg :avg}] avg) results)
             [top second third] ranked]
 
-        (fmt/Println "\n=== Class Report ===")
+        (fmt/println "\n=== Class Report ===")
         (map
           (fn [{name :name avg :avg grade :grade passing :passing}]
             (do
-              (fmt/Println " "
+              (fmt/println " "
                 name
                 "| avg:" avg
                 "| grade:" grade
@@ -134,11 +134,11 @@
           ranked)
 
         ; keyword lookup: (:name m) extracts the :name key from a map
-        (fmt/Println "\nbottom:" (:name top)
+        (fmt/println "\nbottom:" (:name top)
                      " mid:" (:name second)
                      " top:" (:name third))
 
         ; JSON export via if-err
         (if-err [out err] (json/encode {"report" ranked})
-          (do (fmt/Println "encode error:" err) nil)
-          (do (fmt/Println "\nJSON:" out) nil))))))
+          (do (fmt/println "encode error:" err) nil)
+          (do (fmt/println "\nJSON:" out) nil))))))

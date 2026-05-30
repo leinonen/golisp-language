@@ -149,20 +149,20 @@ type Route struct {
 	handler Handler
 }
 
-// GET creates a route that matches GET requests on pattern.
-func GET(pattern string, h Handler) Route { return Route{"GET", pattern, h} }
+// Get creates a route that matches GET requests on pattern.
+func Get(pattern string, h Handler) Route { return Route{"GET", pattern, h} }
 
-// POST creates a route that matches POST requests on pattern.
-func POST(pattern string, h Handler) Route { return Route{"POST", pattern, h} }
+// Post creates a route that matches POST requests on pattern.
+func Post(pattern string, h Handler) Route { return Route{"POST", pattern, h} }
 
-// PUT creates a route that matches PUT requests on pattern.
-func PUT(pattern string, h Handler) Route { return Route{"PUT", pattern, h} }
+// Put creates a route that matches PUT requests on pattern.
+func Put(pattern string, h Handler) Route { return Route{"PUT", pattern, h} }
 
-// DELETE creates a route that matches DELETE requests on pattern.
-func DELETE(pattern string, h Handler) Route { return Route{"DELETE", pattern, h} }
+// Delete creates a route that matches DELETE requests on pattern.
+func Delete(pattern string, h Handler) Route { return Route{"DELETE", pattern, h} }
 
-// PATCH creates a route that matches PATCH requests on pattern.
-func PATCH(pattern string, h Handler) Route { return Route{"PATCH", pattern, h} }
+// Patch creates a route that matches PATCH requests on pattern.
+func Patch(pattern string, h Handler) Route { return Route{"PATCH", pattern, h} }
 
 // Routes combines multiple routes into a single Handler. Tries each route in
 // order; the first matching method+pattern wins. Path params (e.g. :id) are

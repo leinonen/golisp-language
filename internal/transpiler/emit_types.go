@@ -21,7 +21,7 @@ func identToGo(s string) string {
 	if idx := strings.Index(s, "/"); idx > 0 {
 		pkg := s[:idx]
 		fn := s[idx+1:]
-		return identToGo(pkg) + "." + fn
+		return identToGo(pkg) + "." + fnToGo(fn)
 	}
 
 	// Strip stars (earmuff convention *var*)
@@ -71,6 +71,30 @@ func identToGo(s string) string {
 	}
 
 	return result
+}
+
+// fnToGo converts the function-name part of a pkg/fn identifier to Go PascalCase.
+// If fn already contains any uppercase letter it is treated as explicit Go naming
+// and returned as-is (backward-compatible with old-style pkg/PascalCase calls).
+// Otherwise it is assumed to be Clojure-style lowercase-hyphenated and converted:
+//
+//	println        → Println
+//	has-prefix     → HasPrefix
+//	json-response  → JsonResponse
+func fnToGo(fn string) string {
+	for _, c := range fn {
+		if unicode.IsUpper(c) {
+			return fn
+		}
+	}
+	parts := strings.Split(fn, "-")
+	var b strings.Builder
+	for _, p := range parts {
+		if len(p) > 0 {
+			b.WriteString(strings.ToUpper(p[:1]) + p[1:])
+		}
+	}
+	return b.String()
 }
 
 // cleanIdentPart removes characters invalid in Go identifiers from an ident part.

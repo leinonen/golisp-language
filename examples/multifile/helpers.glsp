@@ -10,4 +10,4 @@
 
 ;;; Prints a labeled list of values to stdout.
 (defn print-results [^string label ^[]any nums]
-  (fmt/Printf "%s: %v\n" label nums))
+  (fmt/printf "%s: %v\n" label nums))

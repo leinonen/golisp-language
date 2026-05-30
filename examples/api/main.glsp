@@ -7,65 +7,65 @@
    {"id" "4" "title" "Read a book" "done" false "priority" "low"}])
 
 (defn ^web/Response health [^web/Request req]
-  (web/JsonResponse 200 {"status" "ok" "tasks" (len tasks)}))
+  (web/json-response 200 {"status" "ok" "tasks" (len tasks)}))
 
 (defn ^web/Response list-tasks [^web/Request req]
-  (let [done-param (web/QueryParam req "done")]
+  (let [done-param (web/query-param req "done")]
     (switch done-param
-      "true"  (web/JsonResponse 200
+      "true"  (web/json-response 200
                 (filter (fn [t] (= (get t "done") true)) tasks))
-      "false" (web/JsonResponse 200
+      "false" (web/json-response 200
                 (filter (fn [t] (= (get t "done") false)) tasks))
-      :default (web/JsonResponse 200 tasks))))
+      :default (web/json-response 200 tasks))))
 
 (defn ^web/Response get-task [^web/Request req]
-  (let [id (web/PathParam req "id")]
+  (let [id (web/path-param req "id")]
     (if-let [task (some (fn [t] (if (= (get t "id") id) t nil)) tasks)]
-      (web/JsonResponse 200 task)
-      (web/JsonResponse 404 {"error" (str "task " id " not found")}))))
+      (web/json-response 200 task)
+      (web/json-response 404 {"error" (str "task " id " not found")}))))
 
 (defn ^web/Response create-task [^web/Request req]
-  (if-let [body (web/BodyMap req)]
-    (web/JsonResponse 201 (assoc body "id" "new"))
-    (web/JsonResponse 400 {"error" "invalid or missing JSON body"})))
+  (if-let [body (web/body-map req)]
+    (web/json-response 201 (assoc body "id" "new"))
+    (web/json-response 400 {"error" "invalid or missing JSON body"})))
 
 (defn ^web/Response delete-task [^web/Request req]
-  (let [id (web/PathParam req "id")]
-    (web/JsonResponse 200
+  (let [id (web/path-param req "id")]
+    (web/json-response 200
       {"deleted" id
        "note"    "demo only — no persistence"})))
 
 (defn ^web/Response export-tasks [^web/Request req]
-  (web/JsonResponse 200
+  (web/json-response 200
     {"tasks"       tasks
      "count"       (len tasks)
      "exported-by" (when-let [who (get req "identity")] (str who))}))
 
-(def export-handler (web/Wrap export-tasks web/WrapAuth))
+(def export-handler (web/wrap export-tasks web/wrap-auth))
 
 (def app
-  (web/Wrap
-    (web/Routes
-      (web/GET "/health" health)
-      (web/GET "/tasks" list-tasks)
-      (web/GET "/tasks/:id" get-task)
-      (web/POST "/tasks" create-task)
-      (web/DELETE "/tasks/:id" delete-task)
-      (web/GET "/export" export-handler))
-    web/WrapLogging
-    web/WrapRecover
-    web/WrapCors
-    web/WrapJson))
+  (web/wrap
+    (web/routes
+      (web/get "/health" health)
+      (web/get "/tasks" list-tasks)
+      (web/get "/tasks/:id" get-task)
+      (web/post "/tasks" create-task)
+      (web/delete "/tasks/:id" delete-task)
+      (web/get "/export" export-handler))
+    web/wrap-logging
+    web/wrap-recover
+    web/wrap-cors
+    web/wrap-json))
 
 (defn main []
   (let [port (os/env "PORT" "4000")
         addr (str ":" port)]
-    (fmt/Println (str "Tasks API on " addr))
-    (fmt/Println "  GET    /health")
-    (fmt/Println "  GET    /tasks[?done=true|false]")
-    (fmt/Println "  GET    /tasks/:id")
-    (fmt/Println "  POST   /tasks          body: {\"title\":\"...\"}")
-    (fmt/Println "  DELETE /tasks/:id")
-    (fmt/Println
+    (fmt/println (str "Tasks API on " addr))
+    (fmt/println "  GET    /health")
+    (fmt/println "  GET    /tasks[?done=true|false]")
+    (fmt/println "  GET    /tasks/:id")
+    (fmt/println "  POST   /tasks          body: {\"title\":\"...\"}")
+    (fmt/println "  DELETE /tasks/:id")
+    (fmt/println
       "  GET    /export         requires: Authorization: Bearer <token>")
-    (web/ServeGraceful addr app)))
+    (web/serve-graceful addr app)))

@@ -62,17 +62,17 @@ Handlers are `Request → Response` (both aliases for `map[string]any`).
 (ns main (:import [fmt golisp/web]))
 
 (defn ^web/Response handler [^web/Request req]
-  (web/JsonResponse 200 {"message" "hello"}))
+  (web/json-response 200 {"message" "hello"}))
 
 (defn main []
-  (fmt/Println "Listening on :3000")
-  (web/ServeGraceful ":3000"
-    (web/Wrap
-      (web/Routes
-        (web/GET "/" handler))
-      web/WrapLogging
-      web/WrapCors
-      web/WrapJson)))
+  (fmt/println "Listening on :3000")
+  (web/serve-graceful ":3000"
+    (web/wrap
+      (web/routes
+        (web/get "/" handler))
+      web/wrap-logging
+      web/wrap-cors
+      web/wrap-json)))
 ```
 
 ## Docker packaging

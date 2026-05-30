@@ -12,7 +12,7 @@ build-lsp:
 	go build -o $(BIN_LSP) ./cmd/glisp-lsp
 
 test:
-	go test ./...
+	go test $(shell go list ./... | grep -v golisp/examples)
 
 test-update:
 	go test ./internal/transpiler/... -update

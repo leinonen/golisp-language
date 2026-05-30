@@ -9,16 +9,23 @@ import (
 	"strings"
 )
 
-// Require is a single dependency entry.
+// Require is a single glisp module dependency entry.
 type Require struct {
+	Path    string
+	Version string
+}
+
+// GoRequire is a Go package dependency entry declared in go-require.
+type GoRequire struct {
 	Path    string
 	Version string
 }
 
 // ModFile represents the contents of a glisp.mod file.
 type ModFile struct {
-	Module   string
-	Requires []Require
+	Module     string
+	Requires   []Require
+	GoRequires []GoRequire
 }
 
 // ModFilePath returns the path to glisp.mod in dir.
@@ -40,10 +47,18 @@ func ReadModFile(dir string) (*ModFile, error) {
 	return parseModFile(string(data))
 }
 
+type blockKind int
+
+const (
+	blockNone blockKind = iota
+	blockRequire
+	blockGoRequire
+)
+
 func parseModFile(src string) (*ModFile, error) {
 	mf := &ModFile{}
 	scanner := bufio.NewScanner(strings.NewReader(src))
-	inRequireBlock := false
+	inBlock := blockNone
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -51,14 +66,19 @@ func parseModFile(src string) (*ModFile, error) {
 			continue
 		}
 
-		if inRequireBlock {
+		if inBlock != blockNone {
 			if line == ")" {
-				inRequireBlock = false
+				inBlock = blockNone
 				continue
 			}
 			parts := strings.Fields(line)
 			if len(parts) >= 2 {
-				mf.Requires = append(mf.Requires, Require{Path: parts[0], Version: parts[1]})
+				switch inBlock {
+				case blockRequire:
+					mf.Requires = append(mf.Requires, Require{Path: parts[0], Version: parts[1]})
+				case blockGoRequire:
+					mf.GoRequires = append(mf.GoRequires, GoRequire{Path: parts[0], Version: parts[1]})
+				}
 			}
 			continue
 		}
@@ -68,14 +88,23 @@ func parseModFile(src string) (*ModFile, error) {
 			continue
 		}
 		if line == "require (" {
-			inRequireBlock = true
+			inBlock = blockRequire
+			continue
+		}
+		if line == "go-require (" {
+			inBlock = blockGoRequire
 			continue
 		}
 		if rest, ok := strings.CutPrefix(line, "require "); ok {
-			// inline: require github.com/user/lib v1.0.0
 			parts := strings.Fields(rest)
 			if len(parts) >= 2 {
 				mf.Requires = append(mf.Requires, Require{Path: parts[0], Version: parts[1]})
+			}
+		}
+		if rest, ok := strings.CutPrefix(line, "go-require "); ok {
+			parts := strings.Fields(rest)
+			if len(parts) >= 2 {
+				mf.GoRequires = append(mf.GoRequires, GoRequire{Path: parts[0], Version: parts[1]})
 			}
 		}
 	}
@@ -87,6 +116,13 @@ func WriteModFile(dir string, mf *ModFile) error {
 	var sb strings.Builder
 	if mf.Module != "" {
 		sb.WriteString("module " + mf.Module + "\n")
+	}
+	if len(mf.GoRequires) > 0 {
+		sb.WriteString("\ngo-require (\n")
+		for _, r := range mf.GoRequires {
+			sb.WriteString("\t" + r.Path + " " + r.Version + "\n")
+		}
+		sb.WriteString(")\n")
 	}
 	if len(mf.Requires) > 0 {
 		sb.WriteString("\nrequire (\n")
@@ -118,4 +154,15 @@ func (mf *ModFile) AddRequire(path, version string) {
 		}
 	}
 	mf.Requires = append(mf.Requires, Require{Path: path, Version: version})
+}
+
+// AddGoRequire adds or updates a go-require entry in mf.
+func (mf *ModFile) AddGoRequire(path, version string) {
+	for i, r := range mf.GoRequires {
+		if r.Path == path {
+			mf.GoRequires[i].Version = version
+			return
+		}
+	}
+	mf.GoRequires = append(mf.GoRequires, GoRequire{Path: path, Version: version})
 }

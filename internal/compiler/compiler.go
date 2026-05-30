@@ -111,7 +111,13 @@ func GetModule(projectDir, modulePath, version string) error {
 		modulePath = module.ResolveModulePath(moduleDir, filepath.Base(moduleDir))
 	}
 
-	if err := module.EnsureGoMod(moduleDir, modulePath); err != nil {
+	// Read the module's glisp.mod to discover its Go dependencies
+	modFile, err := module.ReadModFile(moduleDir)
+	if err != nil {
+		return fmt.Errorf("read glisp.mod for %s: %w", modulePath, err)
+	}
+
+	if err := module.EnsureGoMod(moduleDir, modulePath, modFile.GoRequires); err != nil {
 		return fmt.Errorf("ensure go.mod for %s: %w", modulePath, err)
 	}
 
@@ -121,6 +127,16 @@ func GetModule(projectDir, modulePath, version string) error {
 
 	if err := module.RegisterInGoMod(projectDir, modulePath, version, moduleDir); err != nil {
 		return err
+	}
+
+	// Propagate the module's Go dependencies into the project's go.mod
+	for _, gr := range modFile.GoRequires {
+		ref := gr.Path + "@" + gr.Version
+		cmd := exec.Command("go", "mod", "edit", "-require="+ref)
+		cmd.Dir = projectDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("go mod edit -require=%s in project: %w\n%s", ref, err, out)
+		}
 	}
 
 	return nil

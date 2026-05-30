@@ -24,7 +24,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`, `glispEnvRuntime` (conditional) |
 | `internal/formatter/formatter.go` | AST → formatted glisp source; `Format(src)` public API |
 | `internal/compiler/compiler.go` | Orchestrates pipeline: `Compile`, `CompileAndBuild`, `CompileDir`, `CompileTest`, `TranspileDir`, `GetModule`, `ResolveDeps` |
-| `internal/module/modfile.go` | `glisp.mod` parsing/writing: `ReadModFile`, `WriteModFile`, `InitModFile` |
+| `internal/module/modfile.go` | `glisp.mod` parsing/writing: `ReadModFile`, `WriteModFile`, `InitModFile`; `GoRequire` type, `AddGoRequire` |
 | `internal/module/resolver.go` | Module download (GitHub tar.gz), go.mod wiring: `Download`, `EnsureGoMod`, `RegisterInGoMod`, `IsCached` |
 | `cmd/glisp/main.go` | CLI: `print`, `compile`, `build`, `test`, `fmt`, `get`, `mod` subcommands |
 | `web/web.go` | Ring adapter, routing, middleware, request helpers, static files, graceful shutdown — plain Go, not glisp |
@@ -148,6 +148,37 @@ glisp build <dir/>                   auto-fetches missing deps from glisp.mod be
 2. Use PascalCase for all exported function/type names
 3. Tag a release (`v1.0.0`) on GitHub
 4. Consumers run `glisp get github.com/you/lib@v1.0.0`
+
+**Wrapping a Go package** — modules can declare Go package dependencies with `go-require`. `glisp get` propagates them into both the module's own `go.mod` and the project's `go.mod`:
+
+```
+module github.com/user/glisp-pgx
+
+go-require (
+  github.com/jackc/pgx/v5 v5.7.0
+)
+```
+
+In the module's `.glsp` files, import the Go package via `:import` (not `:require` — that's for glisp modules):
+```clojure
+(ns db
+  (:import [context]
+           [github.com/jackc/pgx/v5]))
+
+(defn ^[any error] Connect [^string url]
+  (pgx/connect context/background url))
+
+(defn ^[any error] Exec [^any conn ^string sql]
+  (let [typed (as ^*pgx/Conn conn)]
+    (.Exec typed context/background sql)))
+```
+
+Key rules for Go-wrapping modules:
+- Use `(:import [...])` for Go packages; `(:require [...])` only for other glisp modules
+- Return opaque Go types as `any`; callers type-assert with `(as ^*pkg/Type val)` when methods are needed
+- Type annotation syntax for pointer-to-external-type: `^*pgx/Conn` → `*pgx.Conn` (slash→dot via `qualifiedTypeToGo`)
+- The package qualifier comes from the last path segment: `(:import [github.com/jackc/pgx/v5])` → qualifier is `pgx`
+- Go interop primitives available: `(.Method obj args)` for method calls, `(.-Field obj)` for field access, `(Type. {:field val})` for struct literals, `(as ^T val)` for type assertions
 
 ## Go module
 

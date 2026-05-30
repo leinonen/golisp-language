@@ -59,14 +59,26 @@ func ResolveModulePath(moduleDir, fallback string) string {
 	return fallback
 }
 
-// EnsureGoMod writes a minimal go.mod to moduleDir if one doesn't exist.
-func EnsureGoMod(moduleDir, modulePath string) error {
+// EnsureGoMod writes a minimal go.mod to moduleDir if one doesn't exist,
+// then adds any go-require entries as require directives.
+func EnsureGoMod(moduleDir, modulePath string, goReqs []GoRequire) error {
 	goModPath := filepath.Join(moduleDir, "go.mod")
 	if _, err := os.Stat(goModPath); err == nil {
 		return nil
 	}
 	content := "module " + modulePath + "\n\ngo 1.21\n"
-	return os.WriteFile(goModPath, []byte(content), 0644)
+	if err := os.WriteFile(goModPath, []byte(content), 0644); err != nil {
+		return err
+	}
+	for _, gr := range goReqs {
+		ref := gr.Path + "@" + gr.Version
+		cmd := exec.Command("go", "mod", "edit", "-require="+ref)
+		cmd.Dir = moduleDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("go mod edit -require=%s: %w\n%s", ref, err, out)
+		}
+	}
+	return nil
 }
 
 // RegisterInGoMod adds require + replace directives for a module in the project's go.mod.

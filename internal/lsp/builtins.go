@@ -128,6 +128,8 @@ var builtinDocs = map[string]BuiltinDoc{
 	"close!":  {Sig: "(close! ch)", Doc: "Close channel ch."},
 	"select!": {Sig: "(select! cases...)", Doc: "Wait on multiple channel operations; execute the first ready case."},
 	"if-err":  {Sig: "(if-err [val err] expr on-err on-ok)", Doc: "Destructure a [value error] pair; evaluate on-err if err is non-nil, on-ok otherwise."},
+	"if-let":   {Sig: "(if-let [pat expr] then else?)", Doc: "Bind pat from expr; if the value is non-nil, evaluate then (bindings in scope), otherwise else (nil if omitted). Supports destructuring patterns."},
+	"when-let": {Sig: "(when-let [pat expr] body...)", Doc: "Bind pat from expr; if the value is non-nil, evaluate body, otherwise nil. Supports destructuring patterns."},
 
 	// fmt package
 	"fmt/Println":  {Sig: "(fmt/Println & args)              →  [int error]", Doc: "Print args to stdout with a newline. Returns bytes written and any error."},

@@ -603,3 +603,36 @@ func (n *IfErrExpr) Pos() Position  { return n.Pos_ }
 func NewIfErrExpr(pos Position, val, errName string, expr, onErr, onOk Node) *IfErrExpr {
 	return &IfErrExpr{Pos_: pos, ValName: val, ErrName: errName, Expr: expr, OnErr: onErr, OnOk: onOk}
 }
+
+// IfLetExpr: (if-let [pat expr] then else?)
+// Binds pat from expr; if the bound value is non-nil, evaluates Then (with the
+// bindings in scope), otherwise Else (nil if omitted). Pattern is a *Symbol,
+// *VectorLit, or *MapLit, mirroring LetBinding.Pattern.
+type IfLetExpr struct {
+	Pos_    Position
+	Pattern Node
+	Expr    Node
+	Then    Node
+	Else    Node // may be nil
+}
+
+func (n *IfLetExpr) nodeMarker()   {}
+func (n *IfLetExpr) Pos() Position { return n.Pos_ }
+func NewIfLetExpr(pos Position, pattern, expr, then, els Node) *IfLetExpr {
+	return &IfLetExpr{Pos_: pos, Pattern: pattern, Expr: expr, Then: then, Else: els}
+}
+
+// WhenLetExpr: (when-let [pat expr] body...)
+// Binds pat from expr; if the bound value is non-nil, evaluates Body, otherwise nil.
+type WhenLetExpr struct {
+	Pos_    Position
+	Pattern Node
+	Expr    Node
+	Body    []Node
+}
+
+func (n *WhenLetExpr) nodeMarker()   {}
+func (n *WhenLetExpr) Pos() Position { return n.Pos_ }
+func NewWhenLetExpr(pos Position, pattern, expr Node, body []Node) *WhenLetExpr {
+	return &WhenLetExpr{Pos_: pos, Pattern: pattern, Expr: expr, Body: body}
+}

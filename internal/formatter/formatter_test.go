@@ -223,6 +223,36 @@ func TestFormat(t *testing.T) {
 			want:  "(when x (foo))\n",
 		},
 		{
+			name:  "if-let inline",
+			input: "(if-let [u (find x)] u \"none\")",
+			want:  "(if-let [u (find x)] u \"none\")\n",
+		},
+		{
+			name:  "if-let no else inline",
+			input: "(if-let [u (find x)] (name u))",
+			want:  "(if-let [u (find x)] (name u))\n",
+		},
+		{
+			name:  "if-let map destructure inline",
+			input: "(if-let [{n :name} (find x)] n \"anon\")",
+			want:  "(if-let [{n :name} (find x)] n \"anon\")\n",
+		},
+		{
+			name:  "when-let inline",
+			input: "(when-let [u (find x)] (notify u))",
+			want:  "(when-let [u (find x)] (notify u))\n",
+		},
+		{
+			name:  "if-let multiline",
+			input: "(if-let [user (find-user identifier)] (greet-the-user-warmly user) (return-anonymous-default))",
+			want:  "(if-let [user (find-user identifier)]\n  (greet-the-user-warmly user)\n  (return-anonymous-default))\n",
+		},
+		{
+			name:  "when-let multiline",
+			input: "(when-let [user (find-user identifier)] (log-the-access user) (notify-the-subscribers user))",
+			want:  "(when-let [user (find-user identifier)]\n  (log-the-access user)\n  (notify-the-subscribers user))\n",
+		},
+		{
 			name:  "idempotent ns",
 			input: "(ns main (:import [fmt golisp/stdlib]))\n",
 			want:  "(ns main (:import [fmt golisp/stdlib]))\n",

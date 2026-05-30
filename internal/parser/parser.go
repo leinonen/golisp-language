@@ -382,6 +382,10 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseValues(pos)
 		case "if-err":
 			return p.parseIfErr(pos)
+		case "if-let":
+			return p.parseIfLet(pos)
+		case "when-let":
+			return p.parseWhenLet(pos)
 		case "as":
 			return p.parseTypeAssert(pos)
 		case "deftest":
@@ -1067,6 +1071,83 @@ func (p *parser) parseIfErr(pos ast.Position) (*ast.IfErrExpr, error) {
 		return nil, err
 	}
 	return ast.NewIfErrExpr(pos, valTok.Text, errTok.Text, expr, onErr, onOk), nil
+}
+
+// parseBindPattern parses a single binding pattern — a symbol, a sequential
+// vector destructure, or a map destructure — matching the forms accepted in
+// let bindings. Used by if-let / when-let.
+func (p *parser) parseBindPattern() (ast.Node, error) {
+	switch p.peekType() {
+	case lexer.TokenLBracket:
+		return p.parseVector()
+	case lexer.TokenLBrace:
+		return p.parseMap()
+	default:
+		symTok, err := p.expect(lexer.TokenSymbol)
+		if err != nil {
+			return nil, err
+		}
+		return ast.NewSymbol(p.mkpos(symTok), symTok.Text), nil
+	}
+}
+
+func (p *parser) parseIfLet(pos ast.Position) (*ast.IfLetExpr, error) {
+	p.advance() // "if-let"
+	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+		return nil, err
+	}
+	pattern, err := p.parseBindPattern()
+	if err != nil {
+		return nil, err
+	}
+	value, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRBracket); err != nil {
+		return nil, err
+	}
+	then, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	var els ast.Node
+	if p.peekType() != lexer.TokenRParen {
+		els, err = p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewIfLetExpr(pos, pattern, value, then, els), nil
+}
+
+func (p *parser) parseWhenLet(pos ast.Position) (*ast.WhenLetExpr, error) {
+	p.advance() // "when-let"
+	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+		return nil, err
+	}
+	pattern, err := p.parseBindPattern()
+	if err != nil {
+		return nil, err
+	}
+	value, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRBracket); err != nil {
+		return nil, err
+	}
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewWhenLetExpr(pos, pattern, value, body), nil
 }
 
 func (p *parser) parseTypeAssert(pos ast.Position) (*ast.TypeAssertExpr, error) {

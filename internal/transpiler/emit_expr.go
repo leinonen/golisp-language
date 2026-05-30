@@ -146,6 +146,9 @@ func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
 			if !ok {
 				return fmt.Errorf("sequential destructure elements must be symbols, got %T", el)
 			}
+			if sym.Name == "_" {
+				continue // discard: emitting `_ := ...` is illegal Go
+			}
 			e.writeIndent()
 			e.writef("%s := _glispGet(%s, int64(%d))\n", identToGo(sym.Name), src, i)
 		}
@@ -158,6 +161,9 @@ func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
 			kw, ok := pair.Value.(*ast.KeywordLit)
 			if !ok {
 				return fmt.Errorf("map destructure values must be keywords, got %T", pair.Value)
+			}
+			if sym.Name == "_" {
+				continue // discard
 			}
 			e.writeIndent()
 			e.writef("%s := _glispGet(%s, \"%s\")\n", identToGo(sym.Name), src, kw.Value)
@@ -316,6 +322,174 @@ func (e *Emitter) emitWhenExpr(n *ast.WhenExpr) error {
 	e.pop()
 	e.writeIndent()
 	e.write("}()")
+	return nil
+}
+
+// emitBindLetPrologue emits the binding for an if-let/when-let pattern at the
+// current indentation and returns the Go name to nil-test. For destructuring
+// patterns (*VectorLit / *MapLit) the value is bound to a fresh temp and the
+// pattern is returned so the caller can emit the destructured bindings inside
+// the truthy branch only (keeping them out of scope in the else/nil branch).
+func (e *Emitter) emitBindLetPrologue(pattern, expr ast.Node) (string, ast.Node, error) {
+	if sym, ok := pattern.(*ast.Symbol); ok {
+		name := identToGo(sym.Name)
+		e.writeIndent()
+		e.writef("%s := ", name)
+		if err := e.emitExpr(expr); err != nil {
+			return "", nil, err
+		}
+		e.nl()
+		return name, nil, nil
+	}
+	tmp := e.fresh("t")
+	e.writeIndent()
+	e.writef("%s := ", tmp)
+	if err := e.emitExpr(expr); err != nil {
+		return "", nil, err
+	}
+	e.nl()
+	return tmp, pattern, nil
+}
+
+// emitIfLetExpr emits an if-let form in expression position (IIFE).
+func (e *Emitter) emitIfLetExpr(n *ast.IfLetExpr) error {
+	e.write("func() any {")
+	e.nl()
+	e.push()
+	if err := e.emitIfLetReturn(n); err != nil {
+		return err
+	}
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// emitIfLetReturn emits if-let in return position (no closure wrapper).
+func (e *Emitter) emitIfLetReturn(n *ast.IfLetExpr) error {
+	name, destruct, err := e.emitBindLetPrologue(n.Pattern, n.Expr)
+	if err != nil {
+		return err
+	}
+	e.writeIndent()
+	e.writef("if %s != nil {", name)
+	e.nl()
+	e.push()
+	if destruct != nil {
+		if err := e.emitDestructureBindings(name, destruct); err != nil {
+			return err
+		}
+	}
+	if err := e.emitReturnNode(n.Then); err != nil {
+		return err
+	}
+	e.pop()
+	if n.Else != nil {
+		e.line("} else {")
+		e.push()
+		if err := e.emitReturnNode(n.Else); err != nil {
+			return err
+		}
+		e.pop()
+		e.line("}")
+		return nil
+	}
+	e.line("}")
+	e.line("return nil")
+	return nil
+}
+
+// emitIfLetStmt emits an if-let in statement position.
+func (e *Emitter) emitIfLetStmt(n *ast.IfLetExpr) error {
+	name, destruct, err := e.emitBindLetPrologue(n.Pattern, n.Expr)
+	if err != nil {
+		return err
+	}
+	e.writeIndent()
+	e.writef("if %s != nil {", name)
+	e.nl()
+	e.push()
+	if destruct != nil {
+		if err := e.emitDestructureBindings(name, destruct); err != nil {
+			return err
+		}
+	}
+	if err := e.emitStmtNode(n.Then); err != nil {
+		return err
+	}
+	e.pop()
+	if n.Else != nil {
+		e.line("} else {")
+		e.push()
+		if err := e.emitStmtNode(n.Else); err != nil {
+			return err
+		}
+		e.pop()
+	}
+	e.line("}")
+	return nil
+}
+
+// emitWhenLetExpr emits a when-let form in expression position (IIFE).
+func (e *Emitter) emitWhenLetExpr(n *ast.WhenLetExpr) error {
+	e.write("func() any {")
+	e.nl()
+	e.push()
+	if err := e.emitWhenLetReturn(n); err != nil {
+		return err
+	}
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// emitWhenLetReturn emits when-let in return position (no closure wrapper).
+func (e *Emitter) emitWhenLetReturn(n *ast.WhenLetExpr) error {
+	name, destruct, err := e.emitBindLetPrologue(n.Pattern, n.Expr)
+	if err != nil {
+		return err
+	}
+	e.writeIndent()
+	e.writef("if %s != nil {", name)
+	e.nl()
+	e.push()
+	if destruct != nil {
+		if err := e.emitDestructureBindings(name, destruct); err != nil {
+			return err
+		}
+	}
+	if err := e.emitBody(n.Body, true); err != nil {
+		return err
+	}
+	e.pop()
+	e.line("}")
+	e.line("return nil")
+	return nil
+}
+
+// emitWhenLetStmt emits a when-let in statement position.
+func (e *Emitter) emitWhenLetStmt(n *ast.WhenLetExpr) error {
+	name, destruct, err := e.emitBindLetPrologue(n.Pattern, n.Expr)
+	if err != nil {
+		return err
+	}
+	e.writeIndent()
+	e.writef("if %s != nil {", name)
+	e.nl()
+	e.push()
+	if destruct != nil {
+		if err := e.emitDestructureBindings(name, destruct); err != nil {
+			return err
+		}
+	}
+	for _, node := range n.Body {
+		if err := e.emitStmtNode(node); err != nil {
+			return err
+		}
+	}
+	e.pop()
+	e.line("}")
 	return nil
 }
 

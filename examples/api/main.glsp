@@ -21,17 +21,15 @@
       :else (stdlib/JsonResponse 200 tasks))))
 
 (defn ^stdlib/Response get-task [^stdlib/Request req]
-  (let [id (stdlib/PathParam req "id")
-        matches (filter (fn [t] (= (get t "id") id)) tasks)]
-    (if (> (len matches) 0)
-      (stdlib/JsonResponse 200 (get matches 0))
+  (let [id (stdlib/PathParam req "id")]
+    (if-let [task (some (fn [t] (if (= (get t "id") id) t nil)) tasks)]
+      (stdlib/JsonResponse 200 task)
       (stdlib/JsonResponse 404 {"error" (str "task " id " not found")}))))
 
 (defn ^stdlib/Response create-task [^stdlib/Request req]
-  (let [body (stdlib/BodyMap req)]
-    (if (= body nil)
-      (stdlib/JsonResponse 400 {"error" "invalid or missing JSON body"})
-      (stdlib/JsonResponse 201 (assoc body "id" "new")))))
+  (if-let [body (stdlib/BodyMap req)]
+    (stdlib/JsonResponse 201 (assoc body "id" "new"))
+    (stdlib/JsonResponse 400 {"error" "invalid or missing JSON body"})))
 
 (defn ^stdlib/Response delete-task [^stdlib/Request req]
   (let [id (stdlib/PathParam req "id")]
@@ -43,7 +41,7 @@
   (stdlib/JsonResponse 200
     {"tasks"       tasks
      "count"       (len tasks)
-     "exported-by" (str (get req "identity"))}))
+     "exported-by" (when-let [who (get req "identity")] (str who))}))
 
 (def export-handler (stdlib/Wrap export-tasks stdlib/WrapAuth))
 

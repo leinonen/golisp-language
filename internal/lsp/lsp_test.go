@@ -222,6 +222,22 @@ func TestHover_builtin_ifErr(t *testing.T) {
 	}
 }
 
+func TestHover_builtin_ifLet(t *testing.T) {
+	src := "(if-let [u (find x)] u nil)"
+	result := FindHover(src, 0, 1)
+	if result == nil {
+		t.Fatal("expected hover for 'if-let'")
+	}
+}
+
+func TestHover_builtin_whenLet(t *testing.T) {
+	src := "(when-let [u (find x)] u)"
+	result := FindHover(src, 0, 1)
+	if result == nil {
+		t.Fatal("expected hover for 'when-let'")
+	}
+}
+
 func TestHover_builtin_json(t *testing.T) {
 	// json/encode contains '/' which is a symbol rune
 	src := "(json/encode x)"

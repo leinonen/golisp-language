@@ -1,0 +1,8 @@
+(defn ^any notify [^any users ^any id]
+  (when-let [user (get users id)]
+    (println "found" (:name user))
+    (:name user)))
+
+(defn ^any first-tag [^any post]
+  (when-let [[tag _] (get post "tags")]
+    tag))

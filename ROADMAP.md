@@ -168,7 +168,7 @@ internal/lsp/
 - [x] `panic` / `recover` — call `panic()` and use `recover()` inside `defer`; essential for middleware and wrapping third-party code
 - [ ] `switch` / `case` — value switch and type switch; eliminates awkward `cond` workarounds for Go interop
 - [ ] `as->` — `(as-> x $ (assoc $ :k v) (dissoc $ :old))` — threading with named binding; useful when thread position varies
-- [ ] `when-let` / `if-let` — `(when-let [user (find-user id)] ...)` — nil-guarded binding; extremely common pattern
+- [x] `when-let` / `if-let` — `(when-let [user (find-user id)] ...)` — nil-guarded binding; extremely common pattern. Branch taken when bound value is non-nil (`!= nil`); binding supports destructuring
 - [ ] `doto` — `(doto obj (.SetHeader "Content-Type" "application/json") (.Write body))` — fluent/builder-style Go APIs
 - [ ] `with-open` — `(with-open [f (os/Open path)] body)` — emits `defer f.Close()`; resource cleanup
 
@@ -268,7 +268,7 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 1 | ~~**6d: `panic` / `recover`**~~ ✓ | Blocks writing safe middleware; can't recover from third-party panics |
 | 2 | **4d: Release infrastructure** | Can't publish without binaries and an install story |
 | 3 | **6d: `switch` / `case`** | Essential Go form; eliminates awkward `cond` chains in interop code |
-| 4 | **6d: `when-let` / `if-let`** | Extremely common nil-guard pattern; small effort, high payoff |
+| 4 | ~~**6d: `when-let` / `if-let`**~~ ✓ | Extremely common nil-guard pattern; small effort, high payoff |
 | 5 | **7c: `format` / `parse-int` / `parse-float`** | Every real program needs string formatting and input parsing |
 | 6 | **7b: `empty?` / `not-empty` / `second` / `last`** | Embarrassing gaps; trivial to add |
 | 7 | **7b: `get-in` / `assoc-in` / `update-in` / `update` / `select-keys`** | Needed in every REST handler — shaping request/response maps |

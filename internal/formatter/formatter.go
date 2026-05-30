@@ -173,6 +173,10 @@ func format(n ast.Node, indent int) string {
 		return ind(indent) + inline(n)
 	case *ast.IfErrExpr:
 		return formatIfErr(v, indent)
+	case *ast.IfLetExpr:
+		return formatIfLet(v, indent)
+	case *ast.WhenLetExpr:
+		return formatWhenLet(v, indent)
 	case *ast.DefDecl:
 		return formatDef(v, indent)
 	case *ast.DefnDecl:
@@ -359,6 +363,18 @@ func inline(n ast.Node) string {
 	case *ast.IfErrExpr:
 		return "(if-err [" + v.ValName + " " + v.ErrName + "] " +
 			inline(v.Expr) + " " + inline(v.OnErr) + " " + inline(v.OnOk) + ")"
+	case *ast.IfLetExpr:
+		s := "(if-let [" + inline(v.Pattern) + " " + inline(v.Expr) + "] " + inline(v.Then)
+		if v.Else != nil {
+			s += " " + inline(v.Else)
+		}
+		return s + ")"
+	case *ast.WhenLetExpr:
+		parts := []string{"when-let [" + inline(v.Pattern) + " " + inline(v.Expr) + "]"}
+		for _, b := range v.Body {
+			parts = append(parts, inline(b))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.DefDecl:
 		s := "(def"
 		if v.TypeAnnot != nil {
@@ -885,5 +901,34 @@ func formatIfErr(v *ast.IfErrExpr, indent int) string {
 	sb.WriteString(ind(indent) + "(if-err [" + v.ValName + " " + v.ErrName + "] " + inline(v.Expr) + "\n")
 	sb.WriteString(format(v.OnErr, indent+1) + "\n")
 	sb.WriteString(format(v.OnOk, indent+1) + ")")
+	return sb.String()
+}
+
+func formatIfLet(v *ast.IfLetExpr, indent int) string {
+	il := inline(v)
+	if fits(il, indent) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(if-let [" + inline(v.Pattern) + " " + inline(v.Expr) + "]\n")
+	sb.WriteString(format(v.Then, indent+1))
+	if v.Else != nil {
+		sb.WriteString("\n" + format(v.Else, indent+1))
+	}
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func formatWhenLet(v *ast.WhenLetExpr, indent int) string {
+	il := inline(v)
+	if fits(il, indent) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(when-let [" + inline(v.Pattern) + " " + inline(v.Expr) + "]")
+	for _, b := range v.Body {
+		sb.WriteString("\n" + format(b, indent+1))
+	}
+	sb.WriteString(")")
 	return sb.String()
 }

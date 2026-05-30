@@ -117,6 +117,31 @@ func TestTranspileSnippets(t *testing.T) {
 			wantSub: "if err != nil {",
 		},
 		{
+			name:    "if-let with else",
+			src:     `(defn f [id] (if-let [user (find-user id)] (:name user) "anon"))`,
+			wantSub: "if user != nil {",
+		},
+		{
+			name:    "if-let without else returns nil",
+			src:     `(defn f [id] (if-let [user (find-user id)] (:name user)))`,
+			wantSub: "return nil",
+		},
+		{
+			name:    "when-let",
+			src:     `(defn f [id] (when-let [user (find-user id)] (:name user)))`,
+			wantSub: "if user != nil {",
+		},
+		{
+			name:    "if-let map destructure",
+			src:     `(defn f [id] (if-let [{name :name} (find-user id)] name "anon"))`,
+			wantSub: `name := _glispGet(`,
+		},
+		{
+			name:    "if-let statement position",
+			src:     `(defn f [id] (if-let [user (find-user id)] (println user)) nil)`,
+			wantSub: "if user != nil {",
+		},
+		{
 			name:    "pkg qualified call",
 			src:     `(defn greet [] (fmt/Println "hello"))`,
 			wantSub: "fmt.Println(",

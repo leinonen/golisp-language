@@ -29,6 +29,10 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 		addImport("io")
 		addImport("net/http")
 	}
+	if builtins["os"] {
+		addImport("fmt")
+		addImport("os")
+	}
 
 	s := fmt.Sprintf("package %s\n", pkgName)
 	if len(imports) > 0 {
@@ -50,6 +54,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["net/http"] {
 		s += glispHttpRuntime
+	}
+	if builtins["os"] {
+		s += glispEnvRuntime
 	}
 	return s
 }
@@ -588,5 +595,19 @@ func _glispHttpRequest(opts any) (map[string]any, error) {
 		headers = v
 	}
 	return _glispHttpDo(method, url, body, headers)
+}
+`
+
+// glispEnvRuntime is appended when os/env is used (requires "os" import).
+const glispEnvRuntime = `
+func _glispEnv(name any) string {
+	return os.Getenv(fmt.Sprintf("%v", name))
+}
+
+func _glispEnvDefault(name any, fallback any) string {
+	if val, ok := os.LookupEnv(fmt.Sprintf("%v", name)); ok {
+		return val
+	}
+	return fmt.Sprintf("%v", fallback)
 }
 `

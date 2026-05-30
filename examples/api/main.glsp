@@ -58,12 +58,14 @@
     web/WrapJson))
 
 (defn main []
-  (fmt/Println "Tasks API on :4000")
-  (fmt/Println "  GET    /health")
-  (fmt/Println "  GET    /tasks[?done=true|false]")
-  (fmt/Println "  GET    /tasks/:id")
-  (fmt/Println "  POST   /tasks          body: {\"title\":\"...\"}")
-  (fmt/Println "  DELETE /tasks/:id")
-  (fmt/Println
-    "  GET    /export         requires: Authorization: Bearer <token>")
-  (web/ServeGraceful ":4000" app))
+  (let [port (os/env "PORT" "4000")
+        addr (str ":" port)]
+    (fmt/Println (str "Tasks API on " addr))
+    (fmt/Println "  GET    /health")
+    (fmt/Println "  GET    /tasks[?done=true|false]")
+    (fmt/Println "  GET    /tasks/:id")
+    (fmt/Println "  POST   /tasks          body: {\"title\":\"...\"}")
+    (fmt/Println "  DELETE /tasks/:id")
+    (fmt/Println
+      "  GET    /export         requires: Authorization: Bearer <token>")
+    (web/ServeGraceful addr app)))

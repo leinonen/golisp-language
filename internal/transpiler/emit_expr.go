@@ -802,6 +802,17 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			}
 			e.write("recover()")
 			return nil
+		case "os/env":
+			e.needImport("os")
+			if e.emitRuntime {
+				e.needImport("fmt")
+			}
+			if len(n.Args) == 1 {
+				return e.emitRuntimeCall("_glispEnv", n.Args, 1)
+			} else if len(n.Args) == 2 {
+				return e.emitRuntimeCall("_glispEnvDefault", n.Args, 2)
+			}
+			return fmt.Errorf("os/env requires 1 or 2 arguments, got %d", len(n.Args))
 		case "json/encode":
 			e.needImport("encoding/json")
 			return e.emitRuntimeCall("_glispJsonEncode", n.Args, 1)

@@ -324,6 +324,21 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		// 3a: JSON operations
 		{
+			name:    "os/env emits runtime call",
+			src:     `(defn f [] (os/env "HOME"))`,
+			wantSub: `_glispEnv("HOME")`,
+		},
+		{
+			name:    "os/env with default emits runtime call",
+			src:     `(defn f [] (os/env "MISSING" "fallback"))`,
+			wantSub: `_glispEnvDefault("MISSING", "fallback")`,
+		},
+		{
+			name:    "os/env adds os import",
+			src:     `(defn f [] (os/env "HOME"))`,
+			wantSub: `"os"`,
+		},
+		{
 			name:    "json/encode emits runtime call",
 			src:     `(defn f [data] (json/encode data))`,
 			wantSub: "_glispJsonEncode(",

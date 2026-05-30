@@ -96,6 +96,9 @@ var builtinDocs = map[string]BuiltinDoc{
 	"doseq":   {Sig: "(doseq [x coll] body...)", Doc: "Evaluate body for each element x in coll. Returns nil."},
 	"dotimes": {Sig: "(dotimes [i n] body...)", Doc: "Evaluate body n times with i bound to 0, 1, ..., n-1. Returns nil."},
 
+	// OS
+	"os/env": {Sig: "(os/env name)  →  string\n(os/env name default)  →  string", Doc: "Read environment variable. Returns empty string if unset. With default, returns default when the variable is unset."},
+
 	// JSON
 	"json/encode": {Sig: "(json/encode x)  →  [string error]", Doc: "Encode x as a JSON string. Use with if-err to handle errors."},
 	"json/decode": {Sig: "(json/decode s)  →  [any error]", Doc: "Decode JSON string s into a value. Use with if-err to handle errors."},

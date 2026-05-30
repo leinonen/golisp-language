@@ -48,10 +48,10 @@
 ### 3a. JSON support
 - [x] `json/encode` — `any` → JSON string (returns `[string error]`)
 - [x] `json/decode` — JSON string → `any, error` (handles objects and arrays)
-- [x] `json-response` stdlib helper
+- [x] `json-response` web helper
 
 ### 3b. Routing DSL
-- [x] `routes`, `GET`, `POST`, `PUT`, `DELETE`, `PATCH` stdlib functions
+- [x] `routes`, `GET`, `POST`, `PUT`, `DELETE`, `PATCH` web functions
 - [x] Path params: `/users/:id` extracted into request map as `"params"`
 
 ### 3c. Middleware
@@ -59,13 +59,13 @@
 - [x] `wrap-cors` — CORS headers
 - [x] `wrap-auth` — Bearer token extraction into `"identity"`
 - [x] `wrap-timeout` — per-request context deadline
-- [x] `compose` / `wrap` — `(stdlib/Wrap handler stdlib/WrapLogging stdlib/WrapCors)`
+- [x] `compose` / `wrap` — `(web/Wrap handler web/WrapLogging web/WrapCors)`
 
 ### 3d. Request helpers
 - [x] `query-param`, `path-param`, `body-map`, `header`
 
 ### 3e. Static file serving
-- [x] `serve-files` — `(stdlib/ServeFiles "/static/" "public/")`
+- [x] `serve-files` — `(web/ServeFiles "/static/" "public/")`
 
 ### 3f. Graceful shutdown
 - [x] `serve-graceful` — drains in-flight requests on SIGINT/SIGTERM
@@ -129,7 +129,7 @@ internal/lsp/
 - [x] Resolve symbol → `defn`/`def` location
 
 ### 5d. Completions
-- [x] Top-level `defn`/`def` names, built-in forms, stdlib names
+- [x] Top-level `defn`/`def` names, built-in forms, web package names
 
 ### 5e. Docstrings
 - [x] `;;; doc comment` preceding a `defn` stored in AST

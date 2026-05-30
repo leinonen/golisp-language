@@ -34,7 +34,7 @@ glisp test    file.glsp         # run deftest cases
 ; Type annotations
 (defn ^int add [^int a ^int b] (+ a b))
 (defn ^[string error] parse [^string s] (values s nil))  ; multi-return
-(defn ^stdlib/Response handler [^stdlib/Request req] ...)  ; package-qualified
+(defn ^web/Response handler [^web/Request req] ...)  ; package-qualified
 
 ; Control flow
 (if cond then else)
@@ -59,20 +59,20 @@ glisp test    file.glsp         # run deftest cases
 Handlers are `Request → Response` (both aliases for `map[string]any`).
 
 ```clojure
-(ns main (:import [fmt golisp/stdlib]))
+(ns main (:import [fmt golisp/web]))
 
-(defn ^stdlib/Response handler [^stdlib/Request req]
-  (stdlib/JsonResponse 200 {"message" "hello"}))
+(defn ^web/Response handler [^web/Request req]
+  (web/JsonResponse 200 {"message" "hello"}))
 
 (defn main []
   (fmt/Println "Listening on :3000")
-  (stdlib/ServeGraceful ":3000"
-    (stdlib/Wrap
-      (stdlib/Routes
-        (stdlib/GET "/" handler))
-      stdlib/WrapLogging
-      stdlib/WrapCors
-      stdlib/WrapJson)))
+  (web/ServeGraceful ":3000"
+    (web/Wrap
+      (web/Routes
+        (web/GET "/" handler))
+      web/WrapLogging
+      web/WrapCors
+      web/WrapJson)))
 ```
 
 ## Docker packaging
@@ -152,7 +152,7 @@ special forms) plus glisp-specific rules (type annotations, `defstruct`, `if-err
 
 ## LSP (Neovim 0.12+)
 
-`glisp-lsp` is a Language Server that provides diagnostics (parse errors highlighted inline), hover (show `defn`/`def` signatures and stdlib type definitions like `stdlib/Request`), jump-to-definition, and completions.
+`glisp-lsp` is a Language Server that provides diagnostics (parse errors highlighted inline), hover (show `defn`/`def` signatures and web package type definitions like `web/Request`), jump-to-definition, and completions.
 
 ### Install
 

@@ -1,10 +1,10 @@
-// Package stdlib provides Ring-style web server helpers for glisp programs.
+// Package web provides Ring-style web server helpers for glisp programs.
 // A Ring handler is a function of type func(Request) Response.
 // Request and response maps follow the Ring convention:
 //
 //	Request: {"method": "GET", "path": "/", "headers": {...}, "body": "..."}
 //	Response: {"status": 200, "headers": {"Content-Type": "..."}, "body": "..."}
-package stdlib
+package web
 
 import (
 	"context"
@@ -262,7 +262,7 @@ func Compose(mws ...Middleware) Middleware {
 }
 
 // Wrap applies middlewares (outermost-first) to handler.
-// glisp usage: (stdlib/Wrap my-handler stdlib/WrapLogging stdlib/WrapCors)
+// glisp usage: (web/Wrap my-handler web/WrapLogging web/WrapCors)
 func Wrap(h Handler, mws ...Middleware) Handler {
 	return Compose(mws...)(h)
 }

@@ -84,8 +84,8 @@ func TestFormat(t *testing.T) {
 		},
 		{
 			name:  "ns with imports",
-			input: "(ns main (:import [fmt golisp/stdlib]))",
-			want:  "(ns main (:import [fmt golisp/stdlib]))\n",
+			input: "(ns main (:import [fmt golisp/web]))",
+			want:  "(ns main (:import [fmt golisp/web]))\n",
 		},
 		{
 			name:  "def simple",
@@ -254,8 +254,8 @@ func TestFormat(t *testing.T) {
 		},
 		{
 			name:  "idempotent ns",
-			input: "(ns main (:import [fmt golisp/stdlib]))\n",
-			want:  "(ns main (:import [fmt golisp/stdlib]))\n",
+			input: "(ns main (:import [fmt golisp/web]))\n",
+			want:  "(ns main (:import [fmt golisp/web]))\n",
 		},
 		{
 			name:  "multiple top-level separated by blank line",

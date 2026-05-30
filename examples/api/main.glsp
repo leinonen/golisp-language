@@ -1,4 +1,4 @@
-(ns main (:import [fmt golisp/stdlib]))
+(ns main (:import [fmt golisp/web]))
 
 (def tasks
   [{"id" "1" "title" "Buy groceries" "done" false "priority" "low"}
@@ -6,58 +6,58 @@
    {"id" "3" "title" "Go for a run" "done" false "priority" "medium"}
    {"id" "4" "title" "Read a book" "done" false "priority" "low"}])
 
-(defn ^stdlib/Response health [^stdlib/Request req]
-  (stdlib/JsonResponse 200 {"status" "ok" "tasks" (len tasks)}))
+(defn ^web/Response health [^web/Request req]
+  (web/JsonResponse 200 {"status" "ok" "tasks" (len tasks)}))
 
-(defn ^stdlib/Response list-tasks [^stdlib/Request req]
-  (let [done-param (stdlib/QueryParam req "done")]
+(defn ^web/Response list-tasks [^web/Request req]
+  (let [done-param (web/QueryParam req "done")]
     (cond
       (= done-param "true")
-        (stdlib/JsonResponse 200
+        (web/JsonResponse 200
           (filter (fn [t] (= (get t "done") true)) tasks))
       (= done-param "false")
-        (stdlib/JsonResponse 200
+        (web/JsonResponse 200
           (filter (fn [t] (= (get t "done") false)) tasks))
-      :else (stdlib/JsonResponse 200 tasks))))
+      :else (web/JsonResponse 200 tasks))))
 
-(defn ^stdlib/Response get-task [^stdlib/Request req]
-  (let [id (stdlib/PathParam req "id")]
+(defn ^web/Response get-task [^web/Request req]
+  (let [id (web/PathParam req "id")]
     (if-let [task (some (fn [t] (if (= (get t "id") id) t nil)) tasks)]
-      (stdlib/JsonResponse 200 task)
-      (stdlib/JsonResponse 404 {"error" (str "task " id " not found")}))))
+      (web/JsonResponse 200 task)
+      (web/JsonResponse 404 {"error" (str "task " id " not found")}))))
 
-(defn ^stdlib/Response create-task [^stdlib/Request req]
-  (if-let [body (stdlib/BodyMap req)]
-    (stdlib/JsonResponse 201 (assoc body "id" "new"))
-    (stdlib/JsonResponse 400 {"error" "invalid or missing JSON body"})))
+(defn ^web/Response create-task [^web/Request req]
+  (if-let [body (web/BodyMap req)]
+    (web/JsonResponse 201 (assoc body "id" "new"))
+    (web/JsonResponse 400 {"error" "invalid or missing JSON body"})))
 
-(defn ^stdlib/Response delete-task [^stdlib/Request req]
-  (let [id (stdlib/PathParam req "id")]
-    (stdlib/JsonResponse 200
+(defn ^web/Response delete-task [^web/Request req]
+  (let [id (web/PathParam req "id")]
+    (web/JsonResponse 200
       {"deleted" id
        "note"    "demo only — no persistence"})))
 
-(defn ^stdlib/Response export-tasks [^stdlib/Request req]
-  (stdlib/JsonResponse 200
+(defn ^web/Response export-tasks [^web/Request req]
+  (web/JsonResponse 200
     {"tasks"       tasks
      "count"       (len tasks)
      "exported-by" (when-let [who (get req "identity")] (str who))}))
 
-(def export-handler (stdlib/Wrap export-tasks stdlib/WrapAuth))
+(def export-handler (web/Wrap export-tasks web/WrapAuth))
 
 (def app
-  (stdlib/Wrap
-    (stdlib/Routes
-      (stdlib/GET "/health" health)
-      (stdlib/GET "/tasks" list-tasks)
-      (stdlib/GET "/tasks/:id" get-task)
-      (stdlib/POST "/tasks" create-task)
-      (stdlib/DELETE "/tasks/:id" delete-task)
-      (stdlib/GET "/export" export-handler))
-    stdlib/WrapLogging
-    stdlib/WrapRecover
-    stdlib/WrapCors
-    stdlib/WrapJson))
+  (web/Wrap
+    (web/Routes
+      (web/GET "/health" health)
+      (web/GET "/tasks" list-tasks)
+      (web/GET "/tasks/:id" get-task)
+      (web/POST "/tasks" create-task)
+      (web/DELETE "/tasks/:id" delete-task)
+      (web/GET "/export" export-handler))
+    web/WrapLogging
+    web/WrapRecover
+    web/WrapCors
+    web/WrapJson))
 
 (defn main []
   (fmt/Println "Tasks API on :4000")
@@ -68,4 +68,4 @@
   (fmt/Println "  DELETE /tasks/:id")
   (fmt/Println
     "  GET    /export         requires: Authorization: Bearer <token>")
-  (stdlib/ServeGraceful ":4000" app))
+  (web/ServeGraceful ":4000" app))

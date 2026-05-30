@@ -247,18 +247,18 @@ func TestHover_builtin_json(t *testing.T) {
 	}
 }
 
-func TestHover_stdlibTypes(t *testing.T) {
-	// (defn ^stdlib/Response health [^stdlib/Request req]
+func TestHover_webTypes(t *testing.T) {
+	// (defn ^web/Response health [^web/Request req]
 	// col:  0    5 7              22     30 32
-	//                col 7: 's' of stdlib/Response (right after ^)
-	//                                          col 32: 's' of stdlib/Request (right after ^)
-	src := "(defn ^stdlib/Response health [^stdlib/Request req])"
+	//                col 7: 's' of web/Response (right after ^)
+	//                                          col 32: 's' of web/Request (right after ^)
+	src := "(defn ^web/Response health [^web/Request req])"
 	for _, tc := range []struct {
 		col  int
 		want string
 	}{
-		{7, "stdlib/Response"}, // cursor on 's' of stdlib/Response (after ^)
-		{32, "stdlib/Request"}, // cursor on 's' of stdlib/Request (after ^)
+		{7, "web/Response"}, // cursor on 's' of web/Response (after ^)
+		{32, "web/Request"}, // cursor on 's' of web/Request (after ^)
 	} {
 		name := symbolAtPosition(src, 0, tc.col)
 		if name != tc.want {

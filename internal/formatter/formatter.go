@@ -602,7 +602,7 @@ func formatCall(v *ast.CallExpr, indent int) string {
 	}
 	var sb strings.Builder
 	// Keep the first arg on the head line only when it's a simple atom that
-	// fits there. A nested call (e.g. each route in stdlib/Routes) breaks onto
+	// fits there. A nested call (e.g. each route in web/Routes) breaks onto
 	// its own line so it isn't crammed inline.
 	firstInline := inline(v.Args[0])
 	if _, isCall := v.Args[0].(*ast.CallExpr); !isCall && fits("("+headStr+" "+firstInline, indent) {

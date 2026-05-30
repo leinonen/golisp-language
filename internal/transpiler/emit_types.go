@@ -91,8 +91,8 @@ func cleanIdentPart(s string) string {
 //   "[string error]"   → "(string, error)"  (multi-return, strip brackets)
 //   "*http.Request"    → "*http.Request"   (unchanged)
 //   "[]string"         → "[]string"        (unchanged)
-//   "stdlib/Request"   → "stdlib.Request"  (slash→dot for qualified types)
-//   "(chan stdlib/Response)" → "chan stdlib.Response"
+//   "web/Request"   → "web.Request"  (slash→dot for qualified types)
+//   "(chan web/Response)" → "chan web.Response"
 func typeExprToGo(text string) string {
 	text = strings.TrimSpace(text)
 	// Multi-return: [T1 T2 ...]

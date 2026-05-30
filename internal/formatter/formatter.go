@@ -601,9 +601,20 @@ func formatCall(v *ast.CallExpr, indent int) string {
 		return ind(indent) + "(" + headStr + ")"
 	}
 	var sb strings.Builder
-	sb.WriteString(ind(indent) + "(" + headStr + " " + inline(v.Args[0]))
-	for _, a := range v.Args[1:] {
-		sb.WriteString("\n" + format(a, indent+1))
+	// Keep the first arg on the head line only when it's a simple atom that
+	// fits there. A nested call (e.g. each route in stdlib/Routes) breaks onto
+	// its own line so it isn't crammed inline.
+	firstInline := inline(v.Args[0])
+	if _, isCall := v.Args[0].(*ast.CallExpr); !isCall && fits("("+headStr+" "+firstInline, indent) {
+		sb.WriteString(ind(indent) + "(" + headStr + " " + firstInline)
+		for _, a := range v.Args[1:] {
+			sb.WriteString("\n" + format(a, indent+1))
+		}
+	} else {
+		sb.WriteString(ind(indent) + "(" + headStr)
+		for _, a := range v.Args {
+			sb.WriteString("\n" + format(a, indent+1))
+		}
 	}
 	sb.WriteString(")")
 	return sb.String()

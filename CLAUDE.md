@@ -44,6 +44,8 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 **`if-let` / `when-let`**: `(if-let [pat expr] then else?)` / `(when-let [pat expr] body...)` (`emit_expr.go`). Binds `pat` (single symbol, or a `_glispGet`-based destructure pattern) from `expr`, then branches on **`!= nil`** (nil-guard, matching `nil?`). Truthy branch gets the bindings in scope; destructured names are emitted *inside* that branch only, so they don't leak into the else/nil branch. `if-let` with no else and `when-let`'s false case return `nil`. Constraint: binding a non-nilable concrete type (e.g. a raw `int`) won't compile against `!= nil` — bind `any`-typed values (map lookups, find-fns).
 
+**`let-or`**: `(let-or [name1 expr1 fallback1 name2 expr2 fallback2 ...] body...)` (`emit_expr.go`). Flat sequential nil-guard bindings — each binding evaluates `expr`, checks `== nil`, and returns `fallback` immediately if nil. Flattens chains of `if-let`/`if (= x nil)` validation guards into a single level. All names are in scope for subsequent bindings and the body. Use for validating request fields before a DB call. AST: `LetOrExpr`/`LetOrBinding` in `ast/nodes.go`.
+
 **Statement vs expression position**: `let`/`if`/`do`/`when`/`cond` in statement position emit as plain Go blocks. In expression position they wrap in an IIFE `func() any { ... }()`. `emitStmtNode` handles statement position; `emitExpr` handles expression position.
 
 **Return position**: `emitReturnNode` handles tail-position nodes. `loop` in return position emits `return value` directly (no `any` temp var). The `loopInReturn bool` field tracks this.
@@ -73,6 +75,8 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `(fn [c] ... (go ...) )` — `go` as last expr in a `func(...) any` | missing return | add `nil` as the last expr: `(let [...] (go ...) nil)` |
 | `fmt/println` (or any multi-return Go fn) as the tail of a `func(...) any` closure | `(int, error)` can't coerce to `any` | `(do (fmt/println ...) nil)` discards the multi-return via IIFE |
 | `(defn ^int f [] (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `^any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
+| passing `[]T` (concrete slice) to `reduce`/`map`/`filter` | `_glispToSlice` only handles `[]any`; concrete slices iterate as nil | in Go bridge code, convert: `result := make([]any, len(s)); for i,v := range s { result[i]=v }` |
+| `(defn f [] ...)` with no `^RetType`, void-ish body | Go generates `func f()` (void); using it in return position fails | add explicit `^any` annotation if the fn is called in expression/return position |
 
 ## Formatter
 
@@ -179,6 +183,8 @@ Key rules for Go-wrapping modules:
 - Type annotation syntax for pointer-to-external-type: `^*pgx/Conn` → `*pgx.Conn` (slash→dot via `qualifiedTypeToGo`)
 - The package qualifier comes from the last path segment: `(:import [github.com/jackc/pgx/v5])` → qualifier is `pgx`
 - Go interop primitives available: `(.Method obj args)` for method calls, `(.-Field obj)` for field access, `(Type. {:field val})` for struct literals, `(as ^T val)` for type assertions
+- **Bridge pattern for variadic Go APIs**: write a hand-written `bridge.go` (same package) with unexported Go helpers that handle variadic spreading and type assertions; call them from glisp as unqualified names. Unqualified calls use `identToGo` (camelCase, lowercase first letter), so `(bridge-query ...)` → `bridgeQuery`. The bridge functions must be unexported (lowercase) — they're only accessible within the package.
+- **`[]any` for collections**: glisp's `_glispToSlice` only handles `[]any`. If a Go bridge function returns a concrete slice type (e.g. `[]map[string]any`), convert it to `[]any` before returning so `reduce`/`map`/`filter` work correctly.
 
 ## Go module
 

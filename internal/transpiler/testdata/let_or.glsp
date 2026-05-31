@@ -1,0 +1,17 @@
+(ns main
+  (:import [fmt]))
+
+(defn ^any parse-body [^any req]
+  (let-or [body (get req "body")  "missing body"
+           name (get body "name") "name required"
+           age  (get body "age")  "age required"]
+    {"name" name "age" age}))
+
+(defn ^any multi-level [^any x ^any y]
+  (let-or [a x "no x"
+           b y "no y"]
+    (str a b)))
+
+(defn main []
+  (let [result (parse-body {"body" {"name" "Alice" "age" 30}})]
+    (do (fmt/println result) nil)))

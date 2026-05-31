@@ -323,6 +323,8 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitIfLetExpr(v)
 	case *ast.WhenLetExpr:
 		return e.emitWhenLetExpr(v)
+	case *ast.LetOrExpr:
+		return e.emitLetOrExpr(v)
 	case *ast.MethodCallExpr:
 		return e.emitMethodCallExpr(v)
 	case *ast.FieldAccessExpr:
@@ -356,6 +358,8 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 		return e.emitIfLetStmt(v)
 	case *ast.WhenLetExpr:
 		return e.emitWhenLetStmt(v)
+	case *ast.LetOrExpr:
+		return e.emitLetOrStmt(v)
 	case *ast.DoExpr:
 		for _, node := range v.Body {
 			if err := e.emitStmtNode(node); err != nil {
@@ -546,6 +550,8 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 		return e.emitIfLetReturn(v)
 	case *ast.WhenLetExpr:
 		return e.emitWhenLetReturn(v)
+	case *ast.LetOrExpr:
+		return e.emitLetOrReturn(v)
 	case *ast.LoopExpr:
 		return e.emitLoopExpr(v, true)
 	case *ast.ValuesExpr:

@@ -648,6 +648,25 @@ func NewIfLetExpr(pos Position, pattern, expr, then, els Node) *IfLetExpr {
 	return &IfLetExpr{Pos_: pos, Pattern: pattern, Expr: expr, Then: then, Else: els}
 }
 
+// LetOrBinding is a single (name, expr, fallback) triple in a let-or form.
+type LetOrBinding struct {
+	Name     string
+	Expr     Node
+	Fallback Node
+}
+
+// LetOrExpr: (let-or [name1 expr1 fallback1 ...] body...)
+// Each binding evaluates expr; if the result is nil, returns fallback immediately.
+// All bindings must succeed (non-nil) before body is evaluated.
+type LetOrExpr struct {
+	Pos_     Position
+	Bindings []LetOrBinding
+	Body     []Node
+}
+
+func (n *LetOrExpr) nodeMarker()   {}
+func (n *LetOrExpr) Pos() Position { return n.Pos_ }
+
 // WhenLetExpr: (when-let [pat expr] body...)
 // Binds pat from expr; if the bound value is non-nil, evaluates Body, otherwise nil.
 type WhenLetExpr struct {

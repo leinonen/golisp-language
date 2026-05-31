@@ -3,6 +3,8 @@ package lsp
 import (
 	"encoding/json"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"golisp/internal/formatter"
@@ -133,11 +135,56 @@ func (s *Server) handleDefinition(req *Request) *Response {
 	if !ok {
 		return s.ok(req, nil)
 	}
-	r := FindDefinition(source, p.Position.Line, p.Position.Character)
-	if r == nil {
+	if r := FindDefinition(source, p.Position.Line, p.Position.Character); r != nil {
+		return s.ok(req, Location{URI: p.TextDocument.URI, Range: *r})
+	}
+	// Symbol not found in current file — resolve name once, then search other open docs.
+	name := symbolAtPosition(source, p.Position.Line, p.Position.Character)
+	if name == "" {
 		return s.ok(req, nil)
 	}
-	return s.ok(req, Location{URI: p.TextDocument.URI, Range: *r})
+	for uri, src := range s.docs {
+		if uri == p.TextDocument.URI {
+			continue
+		}
+		if r := FindDeclByName(src, name); r != nil {
+			return s.ok(req, Location{URI: uri, Range: *r})
+		}
+	}
+	// Still not found — scan sibling .glsp files on disk that aren't open.
+	if loc := s.searchSiblingFiles(p.TextDocument.URI, name); loc != nil {
+		return s.ok(req, *loc)
+	}
+	return s.ok(req, nil)
+}
+
+// searchSiblingFiles reads all .glsp files in the same directory as currentURI
+// that are not already tracked in s.docs, and searches each for a declaration of name.
+func (s *Server) searchSiblingFiles(currentURI, name string) *Location {
+	path := strings.TrimPrefix(currentURI, "file://")
+	dir := filepath.Dir(path)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".glsp") {
+			continue
+		}
+		filePath := filepath.Join(dir, e.Name())
+		fileURI := "file://" + filePath
+		if _, open := s.docs[fileURI]; open {
+			continue // already searched above
+		}
+		src, err := os.ReadFile(filePath)
+		if err != nil {
+			continue
+		}
+		if r := FindDeclByName(string(src), name); r != nil {
+			return &Location{URI: fileURI, Range: *r}
+		}
+	}
+	return nil
 }
 
 func (s *Server) handleCompletion(req *Request) *Response {

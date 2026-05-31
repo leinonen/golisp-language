@@ -160,6 +160,19 @@ func (e *Emitter) emitIfErrExprReturn(n *ast.IfErrExpr) error {
 	}
 	e.pop()
 	e.line("}")
+	// Wrap ok-branch in a block when it is another if-err so that nested
+	// if-err chains with the same error variable name don't cause "no new
+	// variables on left side of :=" errors in Go.
+	if _, nested := n.OnOk.(*ast.IfErrExpr); nested {
+		e.line("{")
+		e.push()
+		if err := e.emitReturnNode(n.OnOk); err != nil {
+			return err
+		}
+		e.pop()
+		e.line("}")
+		return nil
+	}
 	return e.emitReturnNode(n.OnOk)
 }
 

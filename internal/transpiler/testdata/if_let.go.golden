@@ -128,6 +128,40 @@ func _glispToSlice(v any) []any {
 	return nil
 }
 
+func _glispConj(coll any, elems ...any) []any {
+	if coll == nil {
+		return append([]any(nil), elems...)
+	}
+	return append(coll.([]any), elems...)
+}
+
+func _glispLen(v any) int {
+	if v == nil {
+		return 0
+	}
+	return len(v.([]any))
+}
+
+func _glispFirst(v any) any {
+	s := v.([]any)
+	if len(s) == 0 {
+		return nil
+	}
+	return s[0]
+}
+
+func _glispRest(v any) []any {
+	s := v.([]any)
+	if len(s) == 0 {
+		return []any{}
+	}
+	return s[1:]
+}
+
+func _glispNth(v any, i any) any {
+	return v.([]any)[_glispToInt(i)]
+}
+
 func _glispToInt(v any) int {
 	switch n := v.(type) {
 	case int:

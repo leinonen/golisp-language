@@ -430,6 +430,66 @@ func (e *Emitter) emitIfLetStmt(n *ast.IfLetExpr) error {
 	return nil
 }
 
+// emitLetOrReturn emits let-or in return position: flat sequential nil guards.
+func (e *Emitter) emitLetOrReturn(n *ast.LetOrExpr) error {
+	for _, b := range n.Bindings {
+		goName := identToGo(b.Name)
+		e.writeIndent()
+		e.writef("%s := ", goName)
+		if err := e.emitExpr(b.Expr); err != nil {
+			return err
+		}
+		e.nl()
+		e.writeIndent()
+		e.writef("if %s == nil {", goName)
+		e.nl()
+		e.push()
+		if err := e.emitReturnNode(b.Fallback); err != nil {
+			return err
+		}
+		e.pop()
+		e.line("}")
+	}
+	return e.emitBody(n.Body, true)
+}
+
+// emitLetOrExpr emits let-or in expression position (IIFE).
+func (e *Emitter) emitLetOrExpr(n *ast.LetOrExpr) error {
+	e.write("func() any {")
+	e.nl()
+	e.push()
+	if err := e.emitLetOrReturn(n); err != nil {
+		return err
+	}
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// emitLetOrStmt emits let-or in statement position (no return wrapper).
+func (e *Emitter) emitLetOrStmt(n *ast.LetOrExpr) error {
+	for _, b := range n.Bindings {
+		goName := identToGo(b.Name)
+		e.writeIndent()
+		e.writef("%s := ", goName)
+		if err := e.emitExpr(b.Expr); err != nil {
+			return err
+		}
+		e.nl()
+		e.writeIndent()
+		e.writef("if %s == nil {", goName)
+		e.nl()
+		e.push()
+		if err := e.emitStmtNode(b.Fallback); err != nil {
+			return err
+		}
+		e.pop()
+		e.line("}")
+	}
+	return e.emitBody(n.Body, false)
+}
+
 // emitWhenLetExpr emits a when-let form in expression position (IIFE).
 func (e *Emitter) emitWhenLetExpr(n *ast.WhenLetExpr) error {
 	e.write("func() any {")
@@ -1152,11 +1212,10 @@ func (e *Emitter) emitConj(args []ast.Node) error {
 	if len(args) < 2 {
 		return fmt.Errorf("conj requires collection + element(s)")
 	}
-	e.write("append(")
+	e.write("_glispConj(")
 	if err := e.emitExpr(args[0]); err != nil {
 		return err
 	}
-	e.write(".([]any)")
 	for _, arg := range args[1:] {
 		e.write(", ")
 		if err := e.emitExpr(arg); err != nil {
@@ -1171,11 +1230,11 @@ func (e *Emitter) emitCount(args []ast.Node) error {
 	if len(args) != 1 {
 		return fmt.Errorf("count requires 1 argument")
 	}
-	e.write("len(")
+	e.write("_glispLen(")
 	if err := e.emitExpr(args[0]); err != nil {
 		return err
 	}
-	e.write(".([]any))")
+	e.write(")")
 	return nil
 }
 
@@ -1183,11 +1242,11 @@ func (e *Emitter) emitFirst(args []ast.Node) error {
 	if len(args) != 1 {
 		return fmt.Errorf("first requires 1 argument")
 	}
-	e.write("(")
+	e.write("_glispFirst(")
 	if err := e.emitExpr(args[0]); err != nil {
 		return err
 	}
-	e.write(".([]any)[0])")
+	e.write(")")
 	return nil
 }
 
@@ -1195,11 +1254,11 @@ func (e *Emitter) emitRest(args []ast.Node) error {
 	if len(args) != 1 {
 		return fmt.Errorf("rest requires 1 argument")
 	}
-	e.write("(")
+	e.write("_glispRest(")
 	if err := e.emitExpr(args[0]); err != nil {
 		return err
 	}
-	e.write(".([]any)[1:])")
+	e.write(")")
 	return nil
 }
 
@@ -1207,15 +1266,15 @@ func (e *Emitter) emitNth(args []ast.Node) error {
 	if len(args) != 2 {
 		return fmt.Errorf("nth requires 2 arguments")
 	}
-	e.write("(")
+	e.write("_glispNth(")
 	if err := e.emitExpr(args[0]); err != nil {
 		return err
 	}
-	e.write(".([]any)[")
+	e.write(", ")
 	if err := e.emitExpr(args[1]); err != nil {
 		return err
 	}
-	e.write("])")
+	e.write(")")
 	return nil
 }
 

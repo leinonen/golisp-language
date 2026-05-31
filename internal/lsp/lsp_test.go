@@ -1,6 +1,10 @@
 package lsp
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 // ── Diagnostics ──────────────────────────────────────────────────────────────
 
@@ -343,6 +347,56 @@ func TestDefinition_multiLine(t *testing.T) {
 	// defn is on line 2 (0-based)
 	if r.Start.Line != 2 {
 		t.Errorf("want line 2, got %d", r.Start.Line)
+	}
+}
+
+func TestDefinition_crossFile_openDocs(t *testing.T) {
+	fileA := "file:///project/a.glsp"
+	fileB := "file:///project/b.glsp"
+	srcA := "(ns main)\n(helper 42)"
+	srcB := "(ns main)\n(defn helper [x] x)"
+
+	s := NewServer()
+	s.docs[fileA] = srcA
+	s.docs[fileB] = srcB
+
+	name := symbolAtPosition(srcA, 1, 1)
+	if name != "helper" {
+		t.Fatalf("expected symbol 'helper', got %q", name)
+	}
+	r := FindDeclByName(srcB, name)
+	if r == nil {
+		t.Fatal("expected to find 'helper' in file B")
+	}
+	if r.Start.Line != 1 {
+		t.Errorf("want line 1 (0-based), got %d", r.Start.Line)
+	}
+}
+
+func TestDefinition_crossFile_filesystem(t *testing.T) {
+	dir := t.TempDir()
+	fileA := filepath.Join(dir, "a.glsp")
+	fileB := filepath.Join(dir, "b.glsp")
+	if err := os.WriteFile(fileA, []byte("(ns main)\n(helper 42)"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fileB, []byte("(ns main)\n(defn helper [x] x)"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	uriA := "file://" + fileA
+	s := NewServer()
+	s.docs[uriA] = "(ns main)\n(helper 42)" // only A is open
+
+	loc := s.searchSiblingFiles(uriA, "helper")
+	if loc == nil {
+		t.Fatal("expected to find 'helper' in sibling file on disk")
+	}
+	if loc.URI != "file://"+fileB {
+		t.Errorf("unexpected URI: %s", loc.URI)
+	}
+	if loc.Range.Start.Line != 1 {
+		t.Errorf("want line 1, got %d", loc.Range.Start.Line)
 	}
 }
 

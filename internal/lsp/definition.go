@@ -12,6 +12,11 @@ func FindDefinition(source string, line, col int) *Range {
 	if name == "" {
 		return nil
 	}
+	return FindDeclByName(source, name)
+}
+
+// FindDeclByName searches source for a top-level declaration of name and returns its range.
+func FindDeclByName(source, name string) *Range {
 	nodes, err := parser.ParseString(source)
 	if err != nil {
 		return nil

@@ -386,6 +386,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseIfLet(pos)
 		case "when-let":
 			return p.parseWhenLet(pos)
+		case "let-or":
+			return p.parseLetOr(pos)
 		case "switch":
 			return p.parseSwitch(pos)
 		case "as":
@@ -1201,6 +1203,44 @@ func (p *parser) parseIfLet(pos ast.Position) (*ast.IfLetExpr, error) {
 		return nil, err
 	}
 	return ast.NewIfLetExpr(pos, pattern, value, then, els), nil
+}
+
+func (p *parser) parseLetOr(pos ast.Position) (*ast.LetOrExpr, error) {
+	p.advance() // "let-or"
+	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+		return nil, err
+	}
+	var bindings []ast.LetOrBinding
+	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
+		nameTok, err := p.expect(lexer.TokenSymbol)
+		if err != nil {
+			return nil, err
+		}
+		expr, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		fallback, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		bindings = append(bindings, ast.LetOrBinding{
+			Name:     nameTok.Text,
+			Expr:     expr,
+			Fallback: fallback,
+		})
+	}
+	if _, err := p.expect(lexer.TokenRBracket); err != nil {
+		return nil, err
+	}
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return &ast.LetOrExpr{Pos_: pos, Bindings: bindings, Body: body}, nil
 }
 
 func (p *parser) parseWhenLet(pos ast.Position) (*ast.WhenLetExpr, error) {

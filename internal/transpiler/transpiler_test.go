@@ -443,11 +443,11 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "merge", src: `(defn f [a b] (merge a b))`, wantSub: "_glispMerge("},
 
 		// Collection operations
-		{name: "conj", src: `(defn f [coll x] (conj coll x))`, wantSub: "append("},
-		{name: "count", src: `(defn f [coll] (count coll))`, wantSub: "len("},
-		{name: "first", src: `(defn f [coll] (first coll))`, wantSub: ".([]any)[0]"},
-		{name: "rest", src: `(defn f [coll] (rest coll))`, wantSub: ".([]any)[1:]"},
-		{name: "nth", src: `(defn f [coll i] (nth coll i))`, wantSub: ".([]any)["},
+		{name: "conj", src: `(defn f [coll x] (conj coll x))`, wantSub: "_glispConj("},
+		{name: "count", src: `(defn f [coll] (count coll))`, wantSub: "_glispLen("},
+		{name: "first", src: `(defn f [coll] (first coll))`, wantSub: "_glispFirst("},
+		{name: "rest", src: `(defn f [coll] (rest coll))`, wantSub: "_glispRest("},
+		{name: "nth", src: `(defn f [coll i] (nth coll i))`, wantSub: "_glispNth("},
 
 		// Type / error
 		{name: "nil?", src: `(defn f [x] (nil? x))`, wantSub: "== nil"},

@@ -2,3 +2,7 @@ glisp
 glisp-lsp
 examples/*/*
 !examples/**/*.glsp
+!examples/**/*.mod
+!examples/**/Makefile
+!examples/**/Dockerfile
+!examples/**/docker-compose.yml

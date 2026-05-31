@@ -1,0 +1,11 @@
+(ns main
+  (:import [golisp/web]))
+
+(defn ^web/Response bad-request [^string msg]
+  (web/json-response 400 {"error" msg}))
+
+(defn ^web/Response not-found [^string msg]
+  (web/json-response 404 {"error" msg}))
+
+(defn ^web/Response server-error [^error err]
+  (web/json-response 500 {"error" (.Error err)}))

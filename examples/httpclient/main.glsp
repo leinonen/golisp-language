@@ -3,13 +3,17 @@
 ; Uses httpbin.org — a free HTTP echo service for testing.
 (ns main (:import [fmt]))
 
+;;; Decode the "body" field of an HTTP response map, or nil on error.
+(defn ^any decode-resp [^any resp]
+  (if-err [body err] (json/decode (get resp "body"))
+    (do (fmt/println "decode failed:" (.Error err)) nil)
+    body))
+
 ;;; Fetch a URL and return the JSON-decoded body map, or nil on error.
 (defn ^any fetch [^string url]
   (if-err [resp err] (http/get url)
     (do (fmt/println "GET failed:" (.Error err)) nil)
-    (if-err [body err2] (json/decode (get resp "body"))
-      (do (fmt/println "decode failed:" (.Error err2)) nil)
-      body)))
+    (decode-resp resp)))
 
 ;;; POST a JSON payload to url. Returns the JSON-decoded response body, or nil.
 (defn ^any post-json [^string url ^map[string]any payload]
@@ -17,27 +21,24 @@
     (do (fmt/println "encode failed:" (.Error err)) nil)
     (if-err [resp err2] (http/post url encoded {"Content-Type" "application/json"})
       (do (fmt/println "POST failed:" (.Error err2)) nil)
-      (if-err [body err3] (json/decode (get resp "body"))
-        (do (fmt/println "decode failed:" (.Error err3)) nil)
-        body))))
+      (decode-resp resp))))
 
 (defn main []
   (fmt/println "=== GET /get ===")
-  (let [get-body (fetch "https://httpbin.org/get")]
-    (when (not= get-body nil) (fmt/println "url:" (get get-body "url"))))
+  (when-let [body (fetch "https://httpbin.org/get")]
+    (fmt/println "url:" (get body "url")))
   (fmt/println "\n=== GET /get?foo=bar ===")
-  (let [qbody (fetch "https://httpbin.org/get?foo=bar")]
-    (when (not= qbody nil) (fmt/println "foo=" (get (get qbody "args") "foo"))))
+  (when-let [qbody (fetch "https://httpbin.org/get?foo=bar")]
+    (fmt/println "foo=" (get (get qbody "args") "foo")))
   (fmt/println "\n=== GET /bearer ===")
   (if-err [bresp berr] (http/get "https://httpbin.org/bearer" {"Authorization" "Bearer secret-token"})
     (do (fmt/println "failed:" (.Error berr)) nil)
     (do (fmt/println "status:" (get bresp "status")) nil))
   (fmt/println "\n=== POST /post ===")
-  (let [post-body (post-json "https://httpbin.org/post" {"name" "alice" "score" 42})]
-    (when (not= post-body nil)
-      (let [echoed (get post-body "json")]
-        (fmt/println "echoed name: " (get echoed "name"))
-        (fmt/println "echoed score:" (get echoed "score")))))
+  (when-let [post-body (post-json "https://httpbin.org/post" {"name" "alice" "score" 42})]
+    (let [echoed (get post-body "json")]
+      (fmt/println "echoed name: " (get echoed "name"))
+      (fmt/println "echoed score:" (get echoed "score"))))
   (fmt/println "\n=== PUT /put ===")
   (if-err [presp perr] (http/put "https://httpbin.org/put" "{\"updated\":true}" {"Content-Type" "application/json"})
     (do (fmt/println "PUT failed:" (.Error perr)) nil)

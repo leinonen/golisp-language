@@ -123,6 +123,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 
 	// Pass 1: emit declarations into a side buffer to discover import needs
 	declEmitter := newEmitter()
+	declEmitter.emitRuntime = e.emitRuntime
 	declEmitter.pkg = e.pkg
 	declEmitter.imports = e.imports
 	declEmitter.requires = e.requires

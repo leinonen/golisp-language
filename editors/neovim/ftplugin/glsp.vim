@@ -1,5 +1,4 @@
 setlocal commentstring=;\ %s
-setlocal iskeyword+=!,?,/,-,>
 
 " Format via `glisp fmt -` (stdin -> stdout)
 setlocal formatprg=glisp\ fmt\ -

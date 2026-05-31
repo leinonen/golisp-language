@@ -6,8 +6,14 @@
    {"id" "3" "title" "Go for a run" "done" false "priority" "medium"}
    {"id" "4" "title" "Read a book" "done" false "priority" "low"}])
 
+(defn ^web/Response bad-request [^string msg]
+  (web/json-response 400 {"error" msg}))
+
+(defn ^web/Response not-found [^string msg]
+  (web/json-response 404 {"error" msg}))
+
 (defn ^web/Response health [^web/Request req]
-  (web/json-response 200 {"status" "ok" "tasks" (len tasks)}))
+  (web/json-response 200 {"status" "ok" "count" (len tasks)}))
 
 (defn ^web/Response list-tasks [^web/Request req]
   (let [done-param (web/query-param req "done")]
@@ -22,12 +28,12 @@
   (let [id (web/path-param req "id")]
     (if-let [task (some (fn [t] (if (= (get t "id") id) t nil)) tasks)]
       (web/json-response 200 task)
-      (web/json-response 404 {"error" (str "task " id " not found")}))))
+      (not-found (str "task " id " not found")))))
 
 (defn ^web/Response create-task [^web/Request req]
   (if-let [body (web/body-map req)]
     (web/json-response 201 (assoc body "id" "new"))
-    (web/json-response 400 {"error" "invalid or missing JSON body"})))
+    (bad-request "invalid or missing JSON body")))
 
 (defn ^web/Response delete-task [^web/Request req]
   (let [id (web/path-param req "id")]
@@ -39,9 +45,7 @@
   (web/json-response 200
     {"tasks"       tasks
      "count"       (len tasks)
-     "exported-by" (when-let [who (get req "identity")] (str who))}))
-
-(def export-handler (web/wrap export-tasks web/wrap-auth))
+     "exported-by" (get req "identity")}))
 
 (def app
   (web/wrap
@@ -51,7 +55,7 @@
       (web/get "/tasks/:id" get-task)
       (web/post "/tasks" create-task)
       (web/delete "/tasks/:id" delete-task)
-      (web/get "/export" export-handler))
+      (web/get "/export" (web/wrap export-tasks web/wrap-auth)))
     web/wrap-logging
     web/wrap-recover
     web/wrap-cors

@@ -1,4 +1,4 @@
-# glisp language
+# golisp (glisp)
 
 Clojure-style S-expression language that transpiles to Go. Write Ring-style web servers without the JVM.
 

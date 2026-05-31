@@ -35,7 +35,6 @@ func multiLevel(x any, y any) any {
 func main() {
 	result := parseBody(map[string]any{"body": map[string]any{"name": "Alice", "age": 30}})
 	fmt.Println(result)
-	nil
 }
 
 // --- glisp runtime helpers (generated) ---

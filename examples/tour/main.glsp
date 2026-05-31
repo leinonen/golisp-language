@@ -82,11 +82,11 @@
   ; format, parse-int, parse-float, repeat, interpose
   (fmt/println (format "grade for 87: %s (score: %d)" (grade 87) 87))
   (if-err [n err] (parse-int "42")
-    (do (fmt/println "parse-int error:" err) nil)
-    (do (fmt/println (format "parse-int: %d * 2 = %d" n (* n 2))) nil))
+    (fmt/println "parse-int error:" err)
+    (fmt/println (format "parse-int: %d * 2 = %d" n (* n 2))))
   (if-err [x err] (parse-float "2.718")
-    (do (fmt/println "parse-float error:" err) nil)
-    (do (fmt/println (format "parse-float: %.3f" x)) nil))
+    (fmt/println "parse-float error:" err)
+    (fmt/println (format "parse-float: %.3f" x)))
   (fmt/println "repeat:   " (join (repeat 5 "*") ""))
   (fmt/println "interpose:" (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
 
@@ -124,13 +124,11 @@
         (fmt/println "\n=== Class Report ===")
         (map
           (fn [{name :name avg :avg grade :grade passing :passing}]
-            (do
-              (fmt/println " "
-                name
-                "| avg:" avg
-                "| grade:" grade
-                "| passing:" passing)
-              nil))
+            (fmt/println " "
+              name
+              "| avg:" avg
+              "| grade:" grade
+              "| passing:" passing))
           ranked)
 
         ; keyword lookup: (:name m) extracts the :name key from a map
@@ -140,5 +138,5 @@
 
         ; JSON export via if-err
         (if-err [out err] (json/encode {"report" ranked})
-          (do (fmt/println "encode error:" err) nil)
-          (do (fmt/println "\nJSON:" out) nil))))))
+          (fmt/println "encode error:" err)
+          (fmt/println "\nJSON:" out))))))

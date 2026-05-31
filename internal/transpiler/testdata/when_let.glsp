@@ -1,6 +1,6 @@
 (defn ^any notify [^any users ^any id]
   (when-let [user (get users id)]
-    (println "found" (:name user))
+    (fmt/println "found" (:name user))
     (:name user)))
 
 (defn ^any first-tag [^any post]

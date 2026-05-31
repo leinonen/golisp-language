@@ -754,8 +754,8 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return nil
 		case "str":
 			return e.emitStr(n.Args)
-		case "println", "print":
-			return e.emitPrint(sym.Name, n.Args)
+		case "fmt/println", "fmt/print":
+			return e.emitFmtPrint(sym.Name, n.Args)
 		case "get":
 			return e.emitGet(n.Args)
 		case "assoc":
@@ -1139,10 +1139,12 @@ func (e *Emitter) emitStr(args []ast.Node) error {
 	return nil
 }
 
-func (e *Emitter) emitPrint(fn string, args []ast.Node) error {
+// emitFmtPrintCall emits a raw fmt.Println/fmt.Print call (no IIFE, no return).
+// Used in statement and return position.
+func (e *Emitter) emitFmtPrintCall(fn string, args []ast.Node) error {
 	e.needImport("fmt")
 	goFn := "fmt.Println"
-	if fn == "print" {
+	if fn == "fmt/print" {
 		goFn = "fmt.Print"
 	}
 	e.writef("%s(", goFn)
@@ -1155,6 +1157,17 @@ func (e *Emitter) emitPrint(fn string, args []ast.Node) error {
 		}
 	}
 	e.write(")")
+	return nil
+}
+
+// emitFmtPrint emits fmt.Println/fmt.Print wrapped in an IIFE returning nil,
+// for use in expression position.
+func (e *Emitter) emitFmtPrint(fn string, args []ast.Node) error {
+	e.write("func() any { ")
+	if err := e.emitFmtPrintCall(fn, args); err != nil {
+		return err
+	}
+	e.write("; return nil }()")
 	return nil
 }
 

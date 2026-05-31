@@ -18,5 +18,5 @@
 
 (defn ^any process [^string cmd]
   (switch cmd
-    "start" (do (println "starting") true)
-    "stop"  (do (println "stopping") false)))
+    "start" (do (fmt/println "starting") true)
+    "stop"  (do (fmt/println "stopping") false)))

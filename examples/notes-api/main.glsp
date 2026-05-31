@@ -5,7 +5,7 @@
   (let [db-url (os/env "DATABASE_URL" "postgres://notes:notes@localhost:5432/notes")
         port   (os/env "PORT" "4000")]
     (if-err [conn err] (db-connect db-url)
-      (do (fmt/println "db connect failed:" (.Error err)) nil)
+      (fmt/println "db connect failed:" (.Error err))
       (let [app (web/wrap
                   (web/routes
                     (web/get    "/health"          (make-health))

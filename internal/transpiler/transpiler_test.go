@@ -83,7 +83,7 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "goroutine",
-			src:     `(defn run [] (go (println "hi")))`,
+			src:     `(defn run [] (go (fmt/println "hi")))`,
 			wantSub: "go func() {",
 		},
 		{
@@ -138,7 +138,7 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "if-let statement position",
-			src:     `(defn f [id] (if-let [user (find-user id)] (println user)) nil)`,
+			src:     `(defn f [id] (if-let [user (find-user id)] (fmt/println user)) nil)`,
 			wantSub: "if user != nil {",
 		},
 		{
@@ -163,7 +163,7 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "defer",
-			src:     `(defn f [] (defer (println "done")) (println "body"))`,
+			src:     `(defn f [] (defer (fmt/println "done")) (fmt/println "body"))`,
 			wantSub: "defer ",
 		},
 		{
@@ -173,7 +173,7 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "recover",
-			src:     `(defn f [] (defer (fn [] (let [r (recover)] (println r)))) nil)`,
+			src:     `(defn f [] (defer (fn [] (let [r (recover)] (fmt/println r)))) nil)`,
 			wantSub: "recover()",
 		},
 		// 2a: collection operations
@@ -457,11 +457,12 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "as type assertion", src: `(defn f [x] (as ^int x))`, wantSub: ".(int)"},
 
 		// I/O
-		{name: "print", src: `(defn f [x] (print x))`, wantSub: "fmt.Print("},
+		{name: "fmt/println", src: `(defn f [x] (fmt/println x))`, wantSub: "fmt.Println("},
+		{name: "fmt/print", src: `(defn f [x] (fmt/print x))`, wantSub: "fmt.Print("},
 
 		// Iteration
-		{name: "doseq", src: `(defn f [coll] (doseq [x coll] (println x)))`, wantSub: "for _, x := range"},
-		{name: "dotimes", src: `(defn f [] (dotimes [i 3] (println i)))`, wantSub: "for i := 0"},
+		{name: "doseq", src: `(defn f [coll] (doseq [x coll] (fmt/println x)))`, wantSub: "for _, x := range"},
+		{name: "dotimes", src: `(defn f [] (dotimes [i 3] (fmt/println i)))`, wantSub: "for i := 0"},
 
 		// errors/new — pkg-prefixed, goes through fnToGo
 		{name: "errors/new", src: `(defn f [^string msg] (errors/new msg))`, wantSub: "errors.New("},

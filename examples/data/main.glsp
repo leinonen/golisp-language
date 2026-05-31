@@ -36,7 +36,7 @@
   ; --- select-keys ---
   (fmt/println "\n=== select-keys ===")
   (let [summaries (map (fn [p] (select-keys p ["name" "price" "stock"])) products)]
-    (map (fn [s] (do (fmt/println " " s) nil)) (take 3 summaries)))
+    (map (fn [s] (fmt/println " " s)) (take 3 summaries)))
 
   ; --- rename-keys ---
   ; (get products 0) uses _glispGet which accepts any — works on []any.

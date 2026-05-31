@@ -107,10 +107,6 @@ var builtinDocs = map[string]BuiltinDoc{
 	"repeat":       {Sig: "(repeat n val)            →  []any", Doc: "Return a slice of n copies of val."},
 	"interpose":    {Sig: "(interpose sep coll)       →  []any", Doc: "Return a new seq with sep inserted between each element of coll."},
 
-	// I/O
-	"println": {Sig: "(println & args)", Doc: "Print args to stdout followed by a newline."},
-	"print":   {Sig: "(print & args)", Doc: "Print args to stdout without a trailing newline."},
-
 	// Type / error
 	"int":   {Sig: "(int x)       →  int", Doc: "Convert x to int."},
 	"error": {Sig: "(error msg)   →  error", Doc: "Create a new error with message msg."},
@@ -166,7 +162,8 @@ var builtinDocs = map[string]BuiltinDoc{
 	"when-let": {Sig: "(when-let [pat expr] body...)", Doc: "Bind pat from expr; if the value is non-nil, evaluate body, otherwise nil. Supports destructuring patterns."},
 
 	// fmt package
-	"fmt/println":  {Sig: "(fmt/println & args)              →  [int error]", Doc: "Print args to stdout with a newline. Returns bytes written and any error."},
+	"fmt/println":  {Sig: "(fmt/println & args)              →  nil", Doc: "Print args to stdout with a newline. Returns nil."},
+	"fmt/print":   {Sig: "(fmt/print & args)                →  nil", Doc: "Print args to stdout without a trailing newline. Returns nil."},
 	"fmt/printf":   {Sig: "(fmt/printf format & args)         →  [int error]", Doc: "Print a formatted string to stdout using Printf-style verbs like %s, %d, %v."},
 	"fmt/sprintf":  {Sig: "(fmt/sprintf format & args)        →  string", Doc: "Format and return a string using Printf-style verbs like %s, %d, %v."},
 	"fmt/errorf":   {Sig: "(fmt/errorf format & args)         →  error", Doc: "Create a formatted error. Use %w to wrap another error."},

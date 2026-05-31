@@ -396,6 +396,21 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 	case *ast.ReturnExpr:
 		e.writeIndent()
 		return e.emitReturnExpr(v)
+	case *ast.CallExpr:
+		if sym, ok := v.Head.(*ast.Symbol); ok && (sym.Name == "fmt/println" || sym.Name == "fmt/print") {
+			e.writeIndent()
+			if err := e.emitFmtPrintCall(sym.Name, v.Args); err != nil {
+				return err
+			}
+			e.nl()
+			return nil
+		}
+		e.writeIndent()
+		if err := e.emitExpr(v); err != nil {
+			return err
+		}
+		e.nl()
+		return nil
 	default:
 		// Generic expression statement: emit and discard value
 		e.writeIndent()
@@ -574,6 +589,24 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 		return e.emitDoExprReturn(v)
 	case *ast.LetExpr:
 		return e.emitLetExprReturn(v)
+	case *ast.CallExpr:
+		if sym, ok := v.Head.(*ast.Symbol); ok && (sym.Name == "fmt/println" || sym.Name == "fmt/print") {
+			e.writeIndent()
+			if err := e.emitFmtPrintCall(sym.Name, v.Args); err != nil {
+				return err
+			}
+			e.nl()
+			e.writeIndent()
+			e.write("return nil\n")
+			return nil
+		}
+		e.writeIndent()
+		e.write("return ")
+		if err := e.emitExpr(v); err != nil {
+			return err
+		}
+		e.nl()
+		return nil
 	default:
 		e.writeIndent()
 		e.write("return ")

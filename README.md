@@ -7,7 +7,7 @@ Clojure-style S-expression language that transpiles to Go.
   (str "Hello, " name "!"))
 
 (defn main []
-  (println (greet "World")))
+  (fmt/println (greet "World")))
 ```
 
 ## Install
@@ -48,8 +48,8 @@ glisp test    file.glsp         # run deftest cases
 ; Maps:        get, assoc, dissoc, merge, keys, vals, contains?
 
 ; Go interop
-(go (println "async"))
-(defer (println "cleanup"))
+(go (fmt/println "async"))
+(defer (fmt/println "cleanup"))
 (let [ch (chan ^int 1)] (send! ch 42) (recv! ch))
 (.Write w data)   ; method call
 (.-Field obj)     ; field access

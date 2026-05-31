@@ -1,6 +1,6 @@
 # golisp (glisp)
 
-Clojure-style S-expression language that transpiles to Go. Write Ring-style web servers without the JVM.
+Clojure-style S-expression language that transpiles to Go.
 
 ```clojure
 (defn ^string greet [^string name]

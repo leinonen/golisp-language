@@ -1,15 +1,31 @@
 package main
 
-import (
-	"fmt"
-)
-
-func double(x int) int {
-	return (x * 2)
+func makeSet() any {
+	return map[any]struct{}{1: {}, 2: {}, 3: {}}
 }
 
-func greet(name string) string {
-	return (fmt.Sprintf("%v", "Hello, ") + fmt.Sprintf("%v", name) + fmt.Sprintf("%v", "!"))
+func hasTwo(s any) bool {
+	return _glispContains(s, 2)
+}
+
+func addFour(s any) any {
+	return _glispConj(s, 4)
+}
+
+func setSize(s any) int {
+	return _glispLen(s)
+}
+
+func setUnion(a any, b any) any {
+	return _glispSetUnion(a, b)
+}
+
+func setDiff(a any, b any) any {
+	return _glispSetDifference(a, b)
+}
+
+func setInter(a any, b any) any {
+	return _glispSetIntersection(a, b)
 }
 
 // --- glisp runtime helpers (generated) ---
@@ -580,3 +596,51 @@ func _glispPartition(n any, coll any) []any {
 }
 
 // --- end glisp runtime helpers ---
+
+func _glispSetUnion(a any, b any) map[any]struct{} {
+	result := make(map[any]struct{})
+	if s, ok := a.(map[any]struct{}); ok {
+		for k := range s {
+			result[k] = struct{}{}
+		}
+	}
+	if s, ok := b.(map[any]struct{}); ok {
+		for k := range s {
+			result[k] = struct{}{}
+		}
+	}
+	return result
+}
+
+func _glispSetIntersection(a any, b any) map[any]struct{} {
+	result := make(map[any]struct{})
+	as, aok := a.(map[any]struct{})
+	bs, bok := b.(map[any]struct{})
+	if !aok || !bok {
+		return result
+	}
+	for k := range as {
+		if _, exists := bs[k]; exists {
+			result[k] = struct{}{}
+		}
+	}
+	return result
+}
+
+func _glispSetDifference(a any, b any) map[any]struct{} {
+	result := make(map[any]struct{})
+	as, aok := a.(map[any]struct{})
+	bs, bok := b.(map[any]struct{})
+	if !aok {
+		return result
+	}
+	for k := range as {
+		if bok {
+			if _, exists := bs[k]; exists {
+				continue
+			}
+		}
+		result[k] = struct{}{}
+	}
+	return result
+}

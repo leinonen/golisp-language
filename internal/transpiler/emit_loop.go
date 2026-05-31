@@ -47,10 +47,17 @@ func (e *Emitter) emitLoopBlock(n *ast.LoopExpr, retVar string, inReturn bool) e
 		bindingNames[i] = identToGo(sym.Name)
 	}
 
-	// Emit initial bindings
+	// Emit initial bindings.
+	// Collection inits (vector/map/set) use `var name any = ...` so that recur can
+	// rebind them with any-returning helpers (e.g. _glispConj returns any).
+	// Scalar inits keep `:=` so Go can infer numeric types and allow direct arithmetic.
 	for i, b := range n.Bindings {
 		e.writeIndent()
-		e.writef("%s := ", bindingNames[i])
+		if isCollectionNode(b.Value) {
+			e.writef("var %s any = ", bindingNames[i])
+		} else {
+			e.writef("%s := ", bindingNames[i])
+		}
 		if err := e.emitExpr(b.Value); err != nil {
 			return err
 		}
@@ -204,6 +211,16 @@ func (e *Emitter) emitCondLoopTail(n *ast.CondExpr, retVar string) error {
 		e.line("}")
 	}
 	return nil
+}
+
+// isCollectionNode returns true for literal collection nodes (vector, map, set).
+// Used to decide whether a loop binding needs `var name any = ...` rather than `:=`.
+func isCollectionNode(n ast.Node) bool {
+	switch n.(type) {
+	case *ast.VectorLit, *ast.MapLit, *ast.SetLit:
+		return true
+	}
+	return false
 }
 
 // emitRecurInLoop emits the recur update-and-continue logic.

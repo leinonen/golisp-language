@@ -43,6 +43,7 @@ glisp test    file.glsp         # run deftest cases
 (loop [i 0] (if (>= i 10) i (recur (+ i 1))))
 
 ; Collections: map, filter, reduce, range, take, drop, sort-by, flatten
+; Sets:        #{1 2 3}, conj, contains?, union, intersection, difference
 ; Strings:     str, upper-case, lower-case, trim, split, join, replace
 ; Maps:        get, assoc, dissoc, merge, keys, vals, contains?
 

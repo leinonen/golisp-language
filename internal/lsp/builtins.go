@@ -75,6 +75,11 @@ var builtinDocs = map[string]BuiltinDoc{
 	"partition":    {Sig: "(partition n coll)         →  []any",  Doc: "Split coll into chunks of size n (incomplete last chunk is dropped)."},
 	"partition-by": {Sig: "(partition-by f coll)      →  []any",  Doc: "Split coll at each change in (f item)."},
 
+	// Sets
+	"union":        {Sig: "(union s1 s2)              →  set",   Doc: "Return a set containing all elements of s1 and s2."},
+	"intersection": {Sig: "(intersection s1 s2)       →  set",   Doc: "Return a set containing only elements in both s1 and s2."},
+	"difference":   {Sig: "(difference s1 s2)         →  set",   Doc: "Return a set of elements in s1 that are not in s2."},
+
 	// Higher-order utilities
 	"complement": {Sig: "(complement pred)          →  fn", Doc: "Return a function that is the logical negation of pred."},
 	"identity":   {Sig: "(identity x)               →  x", Doc: "Return x unchanged. Useful as a no-op placeholder function."},

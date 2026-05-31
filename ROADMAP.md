@@ -208,10 +208,10 @@ Core ops needed in every real server — transforming API payloads, shaping DB r
 ### 7d. Set support
 The AST node `SetLit` exists; needs transpiler wiring and runtime helpers.
 
-- [ ] `#{}` set literals — `#{1 2 3}` → `map[any]struct{}`
-- [ ] `conj` on sets — add element
-- [ ] `contains?` on sets — O(1) membership test
-- [ ] `union` / `intersection` / `difference` — set algebra
+- [x] `#{}` set literals — `#{1 2 3}` → `map[any]struct{}`
+- [x] `conj` on sets — add element
+- [x] `contains?` on sets — O(1) membership test
+- [x] `union` / `intersection` / `difference` — set algebra
 
 ---
 
@@ -268,7 +268,7 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 7 | **7b: `get-in` / `assoc-in` / `update-in` / `update` / `select-keys`** | Needed in every REST handler — shaping request/response maps |
 | 8 | **7b: `concat` / `into` / `mapcat` / `take-while` / `drop-while`** | Data pipeline ops for transforms and aggregations |
 | 9 | **4b: REPL readline / history** | First thing new users try; bare REPL with no editing is painful |
-| 10 | **7d: Set support (`#{}`)** | AST node already exists; wire it up |
+| 10 | ~~**7d: Set support (`#{}`)** ✓~~ | AST node already exists; wire it up |
 | 11 | **6d: `as->` / `doto` / `with-open`** | Ergonomics and Go builder-API interop |
 | 12 | **7b: `group-by` / `zipmap` / `partition` / `frequencies` / `rename-keys`** | Fill remaining collection gaps |
 | 13 | **4c: Source maps** | Debug Go panics in `.glsp` terms |

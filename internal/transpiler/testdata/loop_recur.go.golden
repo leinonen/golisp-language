@@ -113,7 +113,17 @@ func _glispToSlice(v any) []any {
 	return nil
 }
 
-func _glispConj(coll any, elems ...any) []any {
+func _glispConj(coll any, elems ...any) any {
+	if s, ok := coll.(map[any]struct{}); ok {
+		result := make(map[any]struct{}, len(s)+len(elems))
+		for k := range s {
+			result[k] = struct{}{}
+		}
+		for _, e := range elems {
+			result[e] = struct{}{}
+		}
+		return result
+	}
 	if coll == nil {
 		return append([]any(nil), elems...)
 	}
@@ -124,7 +134,17 @@ func _glispLen(v any) int {
 	if v == nil {
 		return 0
 	}
-	return len(v.([]any))
+	switch c := v.(type) {
+	case []any:
+		return len(c)
+	case map[string]any:
+		return len(c)
+	case map[any]struct{}:
+		return len(c)
+	case string:
+		return len(c)
+	}
+	return 0
 }
 
 func _glispFirst(v any) any {
@@ -214,6 +234,9 @@ func _glispContains(coll any, val any) bool {
 			_, exists := c[k]
 			return exists
 		}
+	case map[any]struct{}:
+		_, exists := c[val]
+		return exists
 	case []any:
 		for _, v := range c {
 			if v == val {
@@ -437,6 +460,8 @@ func _glispIsEmpty(coll any) bool {
 	case []any:
 		return len(v) == 0
 	case map[string]any:
+		return len(v) == 0
+	case map[any]struct{}:
 		return len(v) == 0
 	case string:
 		return len(v) == 0

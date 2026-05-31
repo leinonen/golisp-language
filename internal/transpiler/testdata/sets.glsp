@@ -1,0 +1,22 @@
+(ns main)
+
+(defn ^any make-set []
+  #{1 2 3})
+
+(defn ^bool has-two [^any s]
+  (contains? s 2))
+
+(defn ^any add-four [^any s]
+  (conj s 4))
+
+(defn ^int set-size [^any s]
+  (count s))
+
+(defn ^any set-union [^any a ^any b]
+  (union a b))
+
+(defn ^any set-diff [^any a ^any b]
+  (difference a b))
+
+(defn ^any set-inter [^any a ^any b]
+  (intersection a b))

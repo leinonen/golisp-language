@@ -189,6 +189,9 @@ func NewVectorLit(pos Position, elems []Node) *VectorLit {
 func NewMapLit(pos Position, pairs []MapPair) *MapLit {
 	return &MapLit{Pos_: pos, Pairs: pairs}
 }
+func NewSetLit(pos Position, elems []Node) *SetLit {
+	return &SetLit{Pos_: pos, Elements: elems}
+}
 
 // ---------- Top-level declarations ----------
 

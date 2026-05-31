@@ -36,6 +36,7 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	if builtins["data"] {
 		addImport("fmt")
 	}
+	// "_set" is a pseudo-package marker for set algebra helpers (no real import needed)
 
 	s := fmt.Sprintf("package %s\n", pkgName)
 	if len(imports) > 0 {
@@ -63,6 +64,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["data"] {
 		s += glispDataRuntime
+	}
+	if builtins["_set"] {
+		s += glispSetRuntime
 	}
 	return s
 }
@@ -167,7 +171,17 @@ func _glispToSlice(v any) []any {
 	return nil
 }
 
-func _glispConj(coll any, elems ...any) []any {
+func _glispConj(coll any, elems ...any) any {
+	if s, ok := coll.(map[any]struct{}); ok {
+		result := make(map[any]struct{}, len(s)+len(elems))
+		for k := range s {
+			result[k] = struct{}{}
+		}
+		for _, e := range elems {
+			result[e] = struct{}{}
+		}
+		return result
+	}
 	if coll == nil {
 		return append([]any(nil), elems...)
 	}
@@ -178,7 +192,17 @@ func _glispLen(v any) int {
 	if v == nil {
 		return 0
 	}
-	return len(v.([]any))
+	switch c := v.(type) {
+	case []any:
+		return len(c)
+	case map[string]any:
+		return len(c)
+	case map[any]struct{}:
+		return len(c)
+	case string:
+		return len(c)
+	}
+	return 0
 }
 
 func _glispFirst(v any) any {
@@ -268,6 +292,9 @@ func _glispContains(coll any, val any) bool {
 			_, exists := c[k]
 			return exists
 		}
+	case map[any]struct{}:
+		_, exists := c[val]
+		return exists
 	case []any:
 		for _, v := range c {
 			if v == val {
@@ -491,6 +518,8 @@ func _glispIsEmpty(coll any) bool {
 	case []any:
 		return len(v) == 0
 	case map[string]any:
+		return len(v) == 0
+	case map[any]struct{}:
 		return len(v) == 0
 	case string:
 		return len(v) == 0
@@ -902,6 +931,56 @@ func _glispPartitionBy(f any, coll any) []any {
 	}
 	if len(chunk) > 0 {
 		result = append(result, chunk)
+	}
+	return result
+}
+`
+
+const glispSetRuntime = `
+func _glispSetUnion(a any, b any) map[any]struct{} {
+	result := make(map[any]struct{})
+	if s, ok := a.(map[any]struct{}); ok {
+		for k := range s {
+			result[k] = struct{}{}
+		}
+	}
+	if s, ok := b.(map[any]struct{}); ok {
+		for k := range s {
+			result[k] = struct{}{}
+		}
+	}
+	return result
+}
+
+func _glispSetIntersection(a any, b any) map[any]struct{} {
+	result := make(map[any]struct{})
+	as, aok := a.(map[any]struct{})
+	bs, bok := b.(map[any]struct{})
+	if !aok || !bok {
+		return result
+	}
+	for k := range as {
+		if _, exists := bs[k]; exists {
+			result[k] = struct{}{}
+		}
+	}
+	return result
+}
+
+func _glispSetDifference(a any, b any) map[any]struct{} {
+	result := make(map[any]struct{})
+	as, aok := a.(map[any]struct{})
+	bs, bok := b.(map[any]struct{})
+	if !aok {
+		return result
+	}
+	for k := range as {
+		if bok {
+			if _, exists := bs[k]; exists {
+				continue
+			}
+		}
+		result[k] = struct{}{}
 	}
 	return result
 }

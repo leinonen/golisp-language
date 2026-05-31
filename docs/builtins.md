@@ -47,12 +47,12 @@ Core functions available in every glisp program without any import.
 | `(flatten coll)` | `[]any` | Recursively flatten nested slices |
 | `(repeat n val)` | `[]any` | Slice of n copies of val |
 | `(interpose sep coll)` | `[]any` | Insert sep between each element |
-| `(conj coll x)` | coll | Append x to a slice |
-| `(count coll)` | int | Number of elements |
+| `(conj coll x)` | coll | Append x to a slice, or add x to a set |
+| `(count coll)` | int | Number of elements (works for slices, maps, sets, strings) |
 | `(first coll)` | any | First element |
 | `(rest coll)` | `[]any` | All elements after the first |
 | `(nth coll i)` | any | Element at index i |
-| `(contains? coll x)` | bool | True when coll contains x (map, slice, string) |
+| `(contains? coll x)` | bool | True when coll contains x (map, slice, set, string) |
 | `(some pred coll)` | any | First element where pred is truthy, or nil |
 | `(every? pred coll)` | bool | True when pred is truthy for every element |
 
@@ -66,6 +66,31 @@ Core functions available in every glisp program without any import.
 | `(merge m1 m2)` | map | Merge two maps; m2 keys overwrite m1 |
 | `(keys m)` | `[]any` | All keys |
 | `(vals m)` | `[]any` | All values |
+
+## Sets
+
+Sets are unordered collections of unique values. Literal syntax: `#{1 2 3}`. Backed by `map[any]struct{}` in Go.
+
+| Form | Returns | Description |
+|---|---|---|
+| `#{x y z}` | set | Set literal |
+| `(conj s x)` | set | New set with x added |
+| `(contains? s x)` | bool | O(1) membership test |
+| `(count s)` | int | Number of elements |
+| `(empty? s)` | bool | True when s has no elements |
+| `(union s1 s2)` | set | Elements in s1 or s2 |
+| `(intersection s1 s2)` | set | Elements in both s1 and s2 |
+| `(difference s1 s2)` | set | Elements in s1 that are not in s2 |
+
+```clojure
+(let [a #{1 2 3}
+      b #{2 3 4}]
+  (contains? a 2)        ; true
+  (conj a 4)             ; #{1 2 3 4}
+  (union a b)            ; #{1 2 3 4}
+  (intersection a b)     ; #{2 3}
+  (difference a b))      ; #{1}
+```
 
 ## Strings
 

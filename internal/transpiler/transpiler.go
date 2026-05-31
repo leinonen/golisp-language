@@ -175,6 +175,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["data"] {
 			e.write(glispDataRuntime)
 		}
+		if e.builtinImports["_set"] {
+			e.write(glispSetRuntime)
+		}
 	}
 	return nil
 }
@@ -280,6 +283,8 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitVectorLit(v)
 	case *ast.MapLit:
 		return e.emitMapLit(v)
+	case *ast.SetLit:
+		return e.emitSetLit(v)
 	case *ast.CallExpr:
 		return e.emitCallExpr(v)
 	case *ast.FnExpr:

@@ -56,6 +56,22 @@ func (e *Emitter) emitMapLit(n *ast.MapLit) error {
 	return nil
 }
 
+// emitSetLit emits map[any]struct{}{...}
+func (e *Emitter) emitSetLit(n *ast.SetLit) error {
+	e.write("map[any]struct{}{")
+	for i, elem := range n.Elements {
+		if i > 0 {
+			e.write(", ")
+		}
+		if err := e.emitExpr(elem); err != nil {
+			return err
+		}
+		e.write(": {}")
+	}
+	e.write("}")
+	return nil
+}
+
 // emitFnExpr emits an anonymous function literal.
 // fn always returns any by default — every glisp expression has a value.
 // Use ^void annotation to suppress the return type (for side-effect-only fns).
@@ -988,6 +1004,16 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return e.emitRuntimeCall("_glispRepeat", n.Args, 2)
 		case "interpose":
 			return e.emitRuntimeCall("_glispInterpose", n.Args, 2)
+		// 7d: set algebra
+		case "union":
+			e.needImport("_set")
+			return e.emitRuntimeCall("_glispSetUnion", n.Args, 2)
+		case "intersection":
+			e.needImport("_set")
+			return e.emitRuntimeCall("_glispSetIntersection", n.Args, 2)
+		case "difference":
+			e.needImport("_set")
+			return e.emitRuntimeCall("_glispSetDifference", n.Args, 2)
 		}
 	}
 

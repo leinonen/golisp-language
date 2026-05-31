@@ -309,15 +309,18 @@ func (p *parser) parseMap() (*ast.MapLit, error) {
 
 func (p *parser) parseSet() (ast.Node, error) {
 	open := p.advance() // #{
+	var elems []ast.Node
 	for p.peekType() != lexer.TokenRBrace && p.peekType() != lexer.TokenEOF {
-		if _, err := p.parseExpr(); err != nil {
+		el, err := p.parseExpr()
+		if err != nil {
 			return nil, err
 		}
+		elems = append(elems, el)
 	}
 	if _, err := p.expect(lexer.TokenRBrace); err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("%d:%d: set literals not supported", open.Line, open.Column)
+	return ast.NewSetLit(p.mkpos(open), elems), nil
 }
 
 // ---------- list / special form dispatch ----------

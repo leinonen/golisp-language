@@ -13,10 +13,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"golisp/internal/compiler"
 	"golisp/internal/formatter"
+	"golisp/internal/lsp"
 	"golisp/internal/module"
 	"golisp/internal/repl"
 	"golisp/internal/transpiler"
@@ -41,6 +43,8 @@ func main() {
 		fmtCmd(os.Args[2:])
 	case "repl":
 		repl.Run(os.Stdin, os.Stdout)
+	case "doc":
+		docCmd(os.Args[2:])
 	case "get":
 		getCmd(os.Args[2:])
 	case "mod":
@@ -182,6 +186,35 @@ func fmtCmd(args []string) {
 	}
 }
 
+func normSig(sig string) string {
+	parts := strings.SplitN(sig, "→", 2)
+	if len(parts) != 2 {
+		return sig
+	}
+	return strings.TrimRight(parts[0], " ") + "  →  " + strings.TrimLeft(parts[1], " ")
+}
+
+func docCmd(args []string) {
+	if len(args) == 0 {
+		names := make([]string, 0, len(lsp.BuiltinDocs))
+		for name := range lsp.BuiltinDocs {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			fmt.Printf("%-20s  %s\n", name, normSig(lsp.BuiltinDocs[name].Sig))
+		}
+		return
+	}
+	name := args[0]
+	bd, ok := lsp.BuiltinDocs[name]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "no doc for %q\n", name)
+		os.Exit(1)
+	}
+	fmt.Printf("%s\n  %s\n", normSig(bd.Sig), bd.Doc)
+}
+
 func getCmd(args []string) {
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "get: requires <module>[@version]")
@@ -257,6 +290,7 @@ Usage:
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
   glisp fmt     [--check]      <file.glsp>   format source in-place (- = stdin→stdout)
+  glisp doc     [name]                       show built-in docs (all if no name)
   glisp get     <module>[@version]           download + register a glisp module
   glisp mod     init [module-path]           create glisp.mod for a new module/app
   glisp repl                                 start interactive REPL

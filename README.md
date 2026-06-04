@@ -26,6 +26,7 @@ glisp fmt     --check file.glsp # exit 1 if not formatted
 glisp compile file.glsp         # write file.go
 glisp print   file.glsp         # show generated Go
 glisp test    file.glsp         # run deftest cases
+glisp doc     [name]            # show built-in docs (all if no name)
 ```
 
 ## Syntax highlights
@@ -198,6 +199,12 @@ vim.lsp.enable("glisp")
 ```
 
 Diagnostics appear automatically as you edit. Hover with `K` (default Neovim mapping) over any `defn` or `def` name to see its signature. Jump to definition with `gd`. Completions trigger automatically as you type.
+
+## Documentation
+
+- [`docs/builtins.md`](docs/builtins.md) — all built-in forms and functions
+- [`docs/stdlib.md`](docs/stdlib.md) — standard library reference
+- [`docs/adr/`](docs/adr/) — architecture decision records
 
 ## Examples
 

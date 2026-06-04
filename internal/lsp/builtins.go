@@ -6,10 +6,10 @@ type BuiltinDoc struct {
 	Doc string // one-line description in glisp terms; "" if none
 }
 
-// builtinDocs maps every glisp built-in name to its signature and description.
+// BuiltinDocs maps every glisp built-in name to its signature and description.
 // User-defined names take precedence over these entries.
 // All Doc strings use glisp terminology — no Go syntax or go doc examples.
-var builtinDocs = map[string]BuiltinDoc{
+var BuiltinDocs = map[string]BuiltinDoc{
 	// Arithmetic
 	"+":   {Sig: "(+ a b ...)  →  number", Doc: "Add one or more numbers."},
 	"-":   {Sig: "(- a b ...)  →  number", Doc: "Subtract numbers. With one arg, negates."},

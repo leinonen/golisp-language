@@ -28,7 +28,7 @@ func FindHover(source string, line, col int) *HoverResult {
 	if info, ok := buildSymbolTable(nodes)[name]; ok {
 		return &info
 	}
-	if bd, ok := builtinDocs[name]; ok {
+	if bd, ok := BuiltinDocs[name]; ok {
 		return &HoverResult{Sig: bd.Sig, Doc: bd.Doc}
 	}
 	return nil

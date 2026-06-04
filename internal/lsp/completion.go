@@ -44,7 +44,7 @@ func FindCompletions(source string, line, col int) []CompletionItem {
 		}
 	}
 
-	for name, bd := range builtinDocs {
+	for name, bd := range BuiltinDocs {
 		if !seen[name] && strings.HasPrefix(name, prefix) {
 			items = append(items, CompletionItem{Label: name, Kind: 14, Detail: bd.Sig, Documentation: bd.Doc})
 		}

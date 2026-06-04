@@ -205,7 +205,7 @@ func TestHover_builtin_map(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected hover for built-in 'map'")
 	}
-	if result.Sig != builtinDocs["map"].Sig {
+	if result.Sig != BuiltinDocs["map"].Sig {
 		t.Errorf("unexpected sig: %q", result.Sig)
 	}
 }
@@ -285,7 +285,7 @@ func TestHover_userDefn_overrides_builtin(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected hover")
 	}
-	if result.Sig == builtinDocs["map"].Sig {
+	if result.Sig == BuiltinDocs["map"].Sig {
 		t.Error("user defn should override built-in")
 	}
 }

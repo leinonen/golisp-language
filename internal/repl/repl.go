@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"golisp/internal/ast"
+	"golisp/internal/lsp"
 	"golisp/internal/parser"
 	"golisp/internal/transpiler"
 )
@@ -76,6 +77,15 @@ func Run(in io.Reader, out io.Writer) {
 
 		input = strings.TrimSpace(input)
 		if input == "" {
+			continue
+		}
+
+		if name, ok := parseDocCall(input); ok {
+			if bd, found := lsp.BuiltinDocs[name]; found {
+				fmt.Fprintf(out, "%s\n  %s\n", bd.Sig, bd.Doc)
+			} else {
+				fmt.Fprintf(out, "no doc for %q\n", name)
+			}
 			continue
 		}
 
@@ -198,6 +208,19 @@ func readExpr(r *bufio.Reader, w io.Writer) (string, error) {
 	}
 
 	return strings.Join(lines, ""), nil
+}
+
+// parseDocCall detects (doc name) and returns the name if matched.
+func parseDocCall(input string) (string, bool) {
+	s := strings.TrimSpace(input)
+	if !strings.HasPrefix(s, "(doc ") || s[len(s)-1] != ')' {
+		return "", false
+	}
+	name := strings.TrimSpace(s[5 : len(s)-1])
+	if name == "" || strings.ContainsAny(name, " \t\n()[]{}") {
+		return "", false
+	}
+	return name, true
 }
 
 // parenDepth counts the net open-bracket depth of a line, skipping string literals.

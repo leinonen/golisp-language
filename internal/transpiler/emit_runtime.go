@@ -63,7 +63,7 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	if builtins["sort"] {
 		s += glispSortRuntime
 	}
-	if builtins["strings"] {
+	if builtins["strings"] || builtins["_strruntime"] {
 		s += glispStrRuntime
 	}
 	if builtins["encoding/json"] {

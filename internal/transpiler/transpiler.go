@@ -143,9 +143,20 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 
 	// Merge builtin import needs from decl pass
 	e.builtinImports = declEmitter.builtinImports
-	// glispDataRuntime uses fmt; mark it needed only in single-file mode (RuntimeSource handles it for multi-file).
-	if e.emitRuntime && e.builtinImports["data"] {
-		e.needImport("fmt")
+	// Runtimes that use fmt/os: mark those imports needed in single-file mode only.
+	// RuntimeSource handles them for multi-file.
+	if e.emitRuntime {
+		if e.builtinImports["data"] {
+			e.needImport("fmt")
+		}
+		if e.builtinImports["_file"] {
+			e.needImport("fmt")
+			e.needImport("os")
+		}
+		if e.builtinImports["regexp"] {
+			e.needImport("fmt")
+			e.needImport("regexp")
+		}
 	}
 	if err := e.emitImports(); err != nil {
 		return err
@@ -172,6 +183,12 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["os"] {
 			e.write(glispEnvRuntime)
 		}
+		if e.builtinImports["_file"] {
+			e.write(glispFileRuntime)
+		}
+		if e.builtinImports["regexp"] {
+			e.write(glispReRuntime)
+		}
 		if e.builtinImports["data"] {
 			e.write(glispDataRuntime)
 		}
@@ -197,8 +214,8 @@ func (e *Emitter) emitImports() error {
 	// Add built-in imports that were actually needed during emission.
 	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
 	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
-	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true}
-	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "sort", "testing", "encoding/json", "net/http", "io", "os", "sync", "time"} {
+	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true, "regexp": true}
+	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
 				continue
@@ -417,13 +434,23 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 		e.writeIndent()
 		return e.emitReturnExpr(v)
 	case *ast.CallExpr:
-		if sym, ok := v.Head.(*ast.Symbol); ok && (sym.Name == "fmt/println" || sym.Name == "fmt/print") {
-			e.writeIndent()
-			if err := e.emitFmtPrintCall(sym.Name, v.Args); err != nil {
-				return err
+		if sym, ok := v.Head.(*ast.Symbol); ok {
+			switch sym.Name {
+			case "fmt/println", "fmt/print":
+				e.writeIndent()
+				if err := e.emitFmtPrintCall(sym.Name, v.Args); err != nil {
+					return err
+				}
+				e.nl()
+				return nil
+			case "log/info", "log/debug", "log/warn", "log/error":
+				e.writeIndent()
+				if err := e.emitSlogCall(sym.Name, v.Args); err != nil {
+					return err
+				}
+				e.nl()
+				return nil
 			}
-			e.nl()
-			return nil
 		}
 		e.writeIndent()
 		if err := e.emitExpr(v); err != nil {
@@ -631,15 +658,27 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 	case *ast.LetExpr:
 		return e.emitLetExprReturn(v)
 	case *ast.CallExpr:
-		if sym, ok := v.Head.(*ast.Symbol); ok && (sym.Name == "fmt/println" || sym.Name == "fmt/print") {
-			e.writeIndent()
-			if err := e.emitFmtPrintCall(sym.Name, v.Args); err != nil {
-				return err
+		if sym, ok := v.Head.(*ast.Symbol); ok {
+			switch sym.Name {
+			case "fmt/println", "fmt/print":
+				e.writeIndent()
+				if err := e.emitFmtPrintCall(sym.Name, v.Args); err != nil {
+					return err
+				}
+				e.nl()
+				e.writeIndent()
+				e.write("return nil\n")
+				return nil
+			case "log/info", "log/debug", "log/warn", "log/error":
+				e.writeIndent()
+				if err := e.emitSlogCall(sym.Name, v.Args); err != nil {
+					return err
+				}
+				e.nl()
+				e.writeIndent()
+				e.write("return nil\n")
+				return nil
 			}
-			e.nl()
-			e.writeIndent()
-			e.write("return nil\n")
-			return nil
 		}
 		e.writeIndent()
 		e.write("return ")

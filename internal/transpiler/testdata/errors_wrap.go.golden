@@ -1,16 +1,19 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"os"
 )
 
-func safeRead(path string) (string, error) {
-	data, err := _glispReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return data, nil
+var ErrNotFound = errors.New(fmt.Sprintf("%v", "not found"))
+
+func loadUser(id int) error {
+	err := errors.New(fmt.Sprintf("%v", "db error"))
+	return fmt.Errorf("%s: %w", "loading user", err)
+}
+
+func isIsNotFound(err any) bool {
+	return errors.Is(err, ErrNotFound)
 }
 
 // --- glisp runtime helpers (generated) ---
@@ -581,57 +584,3 @@ func _glispPartition(n any, coll any) []any {
 }
 
 // --- end glisp runtime helpers ---
-
-func _glispEnv(name any) string {
-	return os.Getenv(fmt.Sprintf("%v", name))
-}
-
-func _glispEnvDefault(name any, fallback any) string {
-	if val, ok := os.LookupEnv(fmt.Sprintf("%v", name)); ok {
-		return val
-	}
-	return fmt.Sprintf("%v", fallback)
-}
-
-func _glispReadFile(path any) (string, error) {
-	b, err := os.ReadFile(fmt.Sprintf("%v", path))
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
-}
-
-func _glispWriteFile(path, content any) error {
-	return os.WriteFile(fmt.Sprintf("%v", path), []byte(fmt.Sprintf("%v", content)), 0644)
-}
-
-func _glispAppendFile(path, content any) error {
-	f, err := os.OpenFile(fmt.Sprintf("%v", path), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.WriteString(fmt.Sprintf("%v", content))
-	return err
-}
-
-func _glispFileExists(path any) bool {
-	_, err := os.Stat(fmt.Sprintf("%v", path))
-	return !os.IsNotExist(err)
-}
-
-func _glispListDir(path any) ([]any, error) {
-	entries, err := os.ReadDir(fmt.Sprintf("%v", path))
-	if err != nil {
-		return nil, err
-	}
-	result := make([]any, len(entries))
-	for i, entry := range entries {
-		result[i] = entry.Name()
-	}
-	return result, nil
-}
-
-func _glispMkdir(path any) error {
-	return os.MkdirAll(fmt.Sprintf("%v", path), 0755)
-}

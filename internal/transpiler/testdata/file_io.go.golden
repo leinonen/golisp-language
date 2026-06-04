@@ -5,12 +5,28 @@ import (
 	"os"
 )
 
-func safeRead(path string) (string, error) {
-	data, err := _glispReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return data, nil
+func loadConfig(path string) (string, error) {
+	return _glispReadFile(path)
+}
+
+func saveResult(path string, content string) error {
+	return _glispWriteFile(path, content)
+}
+
+func logAppend(path string, line string) error {
+	return _glispAppendFile(path, line)
+}
+
+func isConfigExists(path string) bool {
+	return _glispFileExists(path)
+}
+
+func listMigrations(dir string) ([]any, error) {
+	return _glispListDir(dir)
+}
+
+func ensureDir(path string) error {
+	return _glispMkdir(path)
 }
 
 // --- glisp runtime helpers (generated) ---

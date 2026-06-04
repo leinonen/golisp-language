@@ -33,10 +33,20 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 		addImport("fmt")
 		addImport("os")
 	}
+	if builtins["_file"] {
+		addImport("fmt")
+		addImport("os")
+	}
+	if builtins["regexp"] {
+		addImport("fmt")
+		addImport("regexp")
+	}
 	if builtins["data"] {
 		addImport("fmt")
 	}
 	// "_set" is a pseudo-package marker for set algebra helpers (no real import needed)
+	// "_file" is a pseudo-package marker for file I/O helpers (real imports: os, fmt)
+	// "regexp" gates regex helpers (real imports: regexp, fmt)
 
 	s := fmt.Sprintf("package %s\n", pkgName)
 	if len(imports) > 0 {
@@ -61,6 +71,12 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["os"] {
 		s += glispEnvRuntime
+	}
+	if builtins["_file"] {
+		s += glispFileRuntime
+	}
+	if builtins["regexp"] {
+		s += glispReRuntime
 	}
 	if builtins["data"] {
 		s += glispDataRuntime
@@ -809,6 +825,98 @@ func _glispHttpRequest(opts any) (map[string]any, error) {
 		headers = v
 	}
 	return _glispHttpDo(method, url, body, headers)
+}
+`
+
+// glispFileRuntime is appended when file I/O built-ins are used (requires "os", "fmt" imports).
+const glispFileRuntime = `
+func _glispReadFile(path any) (string, error) {
+	b, err := os.ReadFile(fmt.Sprintf("%v", path))
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func _glispWriteFile(path, content any) error {
+	return os.WriteFile(fmt.Sprintf("%v", path), []byte(fmt.Sprintf("%v", content)), 0644)
+}
+
+func _glispAppendFile(path, content any) error {
+	f, err := os.OpenFile(fmt.Sprintf("%v", path), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(fmt.Sprintf("%v", content))
+	return err
+}
+
+func _glispFileExists(path any) bool {
+	_, err := os.Stat(fmt.Sprintf("%v", path))
+	return !os.IsNotExist(err)
+}
+
+func _glispListDir(path any) ([]any, error) {
+	entries, err := os.ReadDir(fmt.Sprintf("%v", path))
+	if err != nil {
+		return nil, err
+	}
+	result := make([]any, len(entries))
+	for i, entry := range entries {
+		result[i] = entry.Name()
+	}
+	return result, nil
+}
+
+func _glispMkdir(path any) error {
+	return os.MkdirAll(fmt.Sprintf("%v", path), 0755)
+}
+`
+
+// glispReRuntime is appended when re/* built-ins are used (requires "regexp", "fmt" imports).
+const glispReRuntime = `
+func _glispReMatch(pattern, s any) bool {
+	matched, err := regexp.MatchString(fmt.Sprintf("%v", pattern), fmt.Sprintf("%v", s))
+	if err != nil {
+		panic(err)
+	}
+	return matched
+}
+
+func _glispReFind(pattern, s any) any {
+	str := fmt.Sprintf("%v", s)
+	re := regexp.MustCompile(fmt.Sprintf("%v", pattern))
+	loc := re.FindStringIndex(str)
+	if loc == nil {
+		return nil
+	}
+	return str[loc[0]:loc[1]]
+}
+
+func _glispReFindAll(pattern, s any) []any {
+	re := regexp.MustCompile(fmt.Sprintf("%v", pattern))
+	matches := re.FindAllString(fmt.Sprintf("%v", s), -1)
+	result := make([]any, len(matches))
+	for i, m := range matches {
+		result[i] = m
+	}
+	return result
+}
+
+func _glispReReplace(pattern, s, repl any) string {
+	re := regexp.MustCompile(fmt.Sprintf("%v", pattern))
+	return re.ReplaceAllString(fmt.Sprintf("%v", s), fmt.Sprintf("%v", repl))
+}
+
+func _glispReSplit(pattern, s any) []any {
+	re := regexp.MustCompile(fmt.Sprintf("%v", pattern))
+	parts := re.Split(fmt.Sprintf("%v", s), -1)
+	result := make([]any, len(parts))
+	for i, p := range parts {
+		result[i] = p
+	}
+	return result
 }
 `
 

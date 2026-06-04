@@ -2,15 +2,27 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"regexp"
 )
 
-func safeRead(path string) (string, error) {
-	data, err := _glispReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return data, nil
+func isValidEmail(s string) bool {
+	return _glispReMatch("^[^@]+@[^@]+\\.[^@]+$", s)
+}
+
+func firstNumber(s string) any {
+	return _glispReFind("\\d+", s)
+}
+
+func allWords(s string) []any {
+	return _glispReFindAll("\\w+", s)
+}
+
+func normalizeSpaces(s string) string {
+	return _glispReReplace("\\s+", s, " ")
+}
+
+func csvFields(s string) []any {
+	return _glispReSplit(",", s)
 }
 
 // --- glisp runtime helpers (generated) ---
@@ -582,56 +594,45 @@ func _glispPartition(n any, coll any) []any {
 
 // --- end glisp runtime helpers ---
 
-func _glispEnv(name any) string {
-	return os.Getenv(fmt.Sprintf("%v", name))
-}
-
-func _glispEnvDefault(name any, fallback any) string {
-	if val, ok := os.LookupEnv(fmt.Sprintf("%v", name)); ok {
-		return val
-	}
-	return fmt.Sprintf("%v", fallback)
-}
-
-func _glispReadFile(path any) (string, error) {
-	b, err := os.ReadFile(fmt.Sprintf("%v", path))
+func _glispReMatch(pattern, s any) bool {
+	matched, err := regexp.MatchString(fmt.Sprintf("%v", pattern), fmt.Sprintf("%v", s))
 	if err != nil {
-		return "", err
+		panic(err)
 	}
-	return string(b), nil
+	return matched
 }
 
-func _glispWriteFile(path, content any) error {
-	return os.WriteFile(fmt.Sprintf("%v", path), []byte(fmt.Sprintf("%v", content)), 0644)
-}
-
-func _glispAppendFile(path, content any) error {
-	f, err := os.OpenFile(fmt.Sprintf("%v", path), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
+func _glispReFind(pattern, s any) any {
+	str := fmt.Sprintf("%v", s)
+	re := regexp.MustCompile(fmt.Sprintf("%v", pattern))
+	loc := re.FindStringIndex(str)
+	if loc == nil {
+		return nil
 	}
-	defer f.Close()
-	_, err = f.WriteString(fmt.Sprintf("%v", content))
-	return err
+	return str[loc[0]:loc[1]]
 }
 
-func _glispFileExists(path any) bool {
-	_, err := os.Stat(fmt.Sprintf("%v", path))
-	return !os.IsNotExist(err)
-}
-
-func _glispListDir(path any) ([]any, error) {
-	entries, err := os.ReadDir(fmt.Sprintf("%v", path))
-	if err != nil {
-		return nil, err
+func _glispReFindAll(pattern, s any) []any {
+	re := regexp.MustCompile(fmt.Sprintf("%v", pattern))
+	matches := re.FindAllString(fmt.Sprintf("%v", s), -1)
+	result := make([]any, len(matches))
+	for i, m := range matches {
+		result[i] = m
 	}
-	result := make([]any, len(entries))
-	for i, entry := range entries {
-		result[i] = entry.Name()
-	}
-	return result, nil
+	return result
 }
 
-func _glispMkdir(path any) error {
-	return os.MkdirAll(fmt.Sprintf("%v", path), 0755)
+func _glispReReplace(pattern, s, repl any) string {
+	re := regexp.MustCompile(fmt.Sprintf("%v", pattern))
+	return re.ReplaceAllString(fmt.Sprintf("%v", s), fmt.Sprintf("%v", repl))
+}
+
+func _glispReSplit(pattern, s any) []any {
+	re := regexp.MustCompile(fmt.Sprintf("%v", pattern))
+	parts := re.Split(fmt.Sprintf("%v", s), -1)
+	result := make([]any, len(parts))
+	for i, p := range parts {
+		result[i] = p
+	}
+	return result
 }

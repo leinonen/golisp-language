@@ -1,0 +1,140 @@
+; Log parser example
+; Demonstrates: file I/O, regex, structured logging (log/slog), error wrapping
+
+(ns main (:import [fmt os]))
+
+; ---- sample data ----
+
+(def sample-log
+  (join
+    ["2024-01-15 10:23:45 INFO  user=alice  action=login   status=ok"
+     "2024-01-15 10:24:12 ERROR user=bob    action=upload  status=denied"
+     "2024-01-15 10:24:33 WARN  user=alice  action=export  status=slow"
+     "2024-01-15 10:25:01 INFO  user=carol  action=login   status=ok"
+     "2024-01-15 10:25:18 ERROR user=dan    action=delete  status=forbidden"
+     "2024-01-15 10:26:44 INFO  user=alice  action=logout  status=ok"
+     "2024-01-15 10:27:02 WARN  user=bob    action=login   status=slow"
+     "2024-01-15 10:28:19 INFO  user=eve    action=login   status=ok"
+     "not-a-log-line"
+     "2024-01-15 10:29:44 ERROR user=alice  action=upload  status=quota"]
+    "\n"))
+
+; ---- parsing ----
+
+(def log-pattern "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} (INFO|WARN|ERROR)")
+
+;;; Extract key=value field from a log line. Returns "" if not found.
+(defn ^string kv [^string k ^string line]
+  (let [m (re/find (str k "=\\S+") line)]
+    (if (nil? m)
+      ""
+      (let [parts (re/split "=" (str m))]
+        (if (>= (count parts) 2) (str (nth parts 1)) "")))))
+
+;;; Parse one log line into a map, or nil if the line is malformed.
+(defn ^any parse-line [^string line]
+  (when (re/match log-pattern line)
+    {"level"  (str (re/find "INFO|WARN|ERROR" line))
+     "user"   (kv "user" line)
+     "action" (kv "action" line)
+     "status" (kv "status" line)}))
+
+;;; Load and parse all entries from a log file. Returns [entries error].
+(defn ^[[]any error] load-log [^string path]
+  (if-err [content err] (read-file path)
+    (values nil (wrap-error "reading log file" err))
+    (let [lines   (split (str content) "\n")
+          entries (filter (fn [e] (not (nil? e)))
+                          (map (fn [l] (parse-line (str l))) lines))]
+      (values entries nil))))
+
+; ---- analysis ----
+
+;;; Build a plain-text summary report from parsed entries.
+(defn ^string build-report [^[]any entries]
+  (let [total   (count entries)
+        errors  (count (filter (fn [e] (= (get e "level") "ERROR")) entries))
+        warns   (count (filter (fn [e] (= (get e "level") "WARN")) entries))
+        user-set (reduce (fn [acc e] (assoc acc (str (get e "user")) true))
+                         {}
+                         entries)
+        err-lines (map (fn [e]
+                         (format "  [%s] user=%-8s action=%-8s status=%s"
+                                 (get e "level")
+                                 (get e "user")
+                                 (get e "action")
+                                 (get e "status")))
+                       (filter (fn [e] (= (get e "level") "ERROR")) entries))]
+    (join
+      [(format "Log Analysis Report")
+       (format "===================")
+       (format "Total entries  : %d" total)
+       (format "Errors         : %d" errors)
+       (format "Warnings       : %d" warns)
+       (format "Unique users   : %d" (count (keys user-set)))
+       ""
+       "Error entries:"
+       (join err-lines "\n")]
+      "\n")))
+
+; ---- validation helpers ----
+
+;;; Returns true when the string looks like an email address.
+(defn ^bool valid-email? [^string s]
+  (re/match "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" s))
+
+;;; Redact the local part of an email, keeping the domain.
+(defn ^string redact-email [^string s]
+  (re/replace "^[^@]+" s "***"))
+
+; ---- main ----
+
+(defn main []
+  (let [log-path    "/tmp/glisp-access.log"
+        report-path "/tmp/glisp-report.txt"]
+
+    (log/info "log parser starting" "log" log-path)
+
+    ; Write sample log to disk
+    (let [write-err (write-file log-path sample-log)]
+      (when (not= write-err nil)
+        (log/error "cannot write log file" "path" log-path "err" write-err)
+        (os/exit 1)))
+
+    (log/info "sample log written" "path" log-path)
+
+    ; Parse entries
+    (if-err [entries err] (load-log log-path)
+      (do
+        (log/error "load failed" "err" err)
+        (os/exit 1)
+        nil)
+      (do
+        (log/info "entries parsed"
+                  "total"  (count entries)
+                  "errors" (count (filter (fn [e] (= (get e "level") "ERROR")) entries))
+                  "warns"  (count (filter (fn [e] (= (get e "level") "WARN")) entries)))
+
+        ; Log each error entry as a structured warning
+        (doseq [e (filter (fn [e] (= (get e "level") "ERROR")) entries)]
+          (log/warn "error event"
+                    "user"   (get e "user")
+                    "action" (get e "action")
+                    "status" (get e "status")))
+
+        ; Demonstrate email validation and redaction
+        (let [emails ["alice@example.com" "not-an-email" "bob@corp.io"]]
+          (doseq [addr emails]
+            (if (valid-email? (str addr))
+              (log/debug "valid email" "addr" addr "redacted" (redact-email (str addr)))
+              (log/warn "invalid email" "addr" addr))))
+
+        ; Write report
+        (let [report    (build-report entries)
+              write-err (write-file report-path report)]
+          (if (not= write-err nil)
+            (log/error "cannot write report" "path" report-path "err" write-err)
+            (do
+              (log/info "report written" "path" report-path)
+              (fmt/println "\n--- report ---")
+              (fmt/println report))))))))

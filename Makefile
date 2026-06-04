@@ -1,4 +1,4 @@
-.PHONY: all build build-lsp test test-update install clean fmt fmt-glsp examples examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-notes-api examples-concurrency
+.PHONY: all build build-lsp test test-update install clean fmt fmt-glsp examples examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-notes-api examples-concurrency examples-logparser
 
 BIN     := glisp
 BIN_LSP := glisp-lsp
@@ -23,7 +23,7 @@ install:
 
 clean:
 	rm -f $(BIN) $(BIN_LSP)
-	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency
+	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency examples/logparser/logparser
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
 	rm -f examples/notes-api/glisp_runtime.go examples/notes-api/main.go examples/notes-api/handlers.go examples/notes-api/db.go examples/notes-api/helpers.go
 	find . -name "*.go.out" -delete
@@ -35,11 +35,11 @@ fmt-glsp: build
 	find examples -name '*.glsp' | xargs ./$(BIN) fmt
 
 examples-clean:
-	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency
+	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency examples/logparser/logparser
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
 	rm -f examples/notes-api/glisp_runtime.go examples/notes-api/main.go examples/notes-api/handlers.go examples/notes-api/db.go examples/notes-api/helpers.go
 
-examples: examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency
+examples: examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser
 
 examples-tour: build
 	./$(BIN) build -o examples/tour/tour examples/tour/main.glsp
@@ -64,3 +64,6 @@ examples-notes-api: build
 
 examples-concurrency: build
 	./$(BIN) build -o examples/concurrency/concurrency examples/concurrency/main.glsp
+
+examples-logparser: build
+	./$(BIN) build -o examples/logparser/logparser examples/logparser/main.glsp

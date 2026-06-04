@@ -1014,6 +1014,68 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "difference":
 			e.needImport("_set")
 			return e.emitRuntimeCall("_glispSetDifference", n.Args, 2)
+		// File I/O
+		case "read-file":
+			e.needImport("_file")
+			return e.emitRuntimeCall("_glispReadFile", n.Args, 1)
+		case "write-file":
+			e.needImport("_file")
+			return e.emitRuntimeCall("_glispWriteFile", n.Args, 2)
+		case "append-file":
+			e.needImport("_file")
+			return e.emitRuntimeCall("_glispAppendFile", n.Args, 2)
+		case "file-exists?":
+			e.needImport("_file")
+			return e.emitRuntimeCall("_glispFileExists", n.Args, 1)
+		case "list-dir":
+			e.needImport("_file")
+			return e.emitRuntimeCall("_glispListDir", n.Args, 1)
+		case "mkdir":
+			e.needImport("_file")
+			return e.emitRuntimeCall("_glispMkdir", n.Args, 1)
+		// Regex
+		case "re/match":
+			e.needImport("regexp")
+			return e.emitRuntimeCall("_glispReMatch", n.Args, 2)
+		case "re/find":
+			e.needImport("regexp")
+			return e.emitRuntimeCall("_glispReFind", n.Args, 2)
+		case "re/find-all":
+			e.needImport("regexp")
+			return e.emitRuntimeCall("_glispReFindAll", n.Args, 2)
+		case "re/replace":
+			e.needImport("regexp")
+			return e.emitRuntimeCall("_glispReReplace", n.Args, 3)
+		case "re/split":
+			e.needImport("regexp")
+			return e.emitRuntimeCall("_glispReSplit", n.Args, 2)
+		// Structured logging (log/slog) — void in Go, IIFE wrapper in expression position
+		case "log/info", "log/debug", "log/warn", "log/error":
+			e.write("func() any { ")
+			if err := e.emitSlogCall(sym.Name, n.Args); err != nil {
+				return err
+			}
+			e.write("; return nil }()")
+			return nil
+		// Error wrapping
+		case "wrap-error":
+			if len(n.Args) != 2 {
+				return fmt.Errorf("wrap-error requires 2 arguments (msg err), got %d", len(n.Args))
+			}
+			e.needImport("fmt")
+			e.write("fmt.Errorf(\"%s: %w\", ")
+			if err := e.emitExpr(n.Args[0]); err != nil {
+				return err
+			}
+			e.write(", ")
+			if err := e.emitExpr(n.Args[1]); err != nil {
+				return err
+			}
+			e.write(")")
+			return nil
+		case "errors/is?":
+			e.needImport("errors")
+			return e.emitRuntimeCall("errors.Is", n.Args, 2)
 		}
 	}
 
@@ -1134,6 +1196,33 @@ func (e *Emitter) emitStr(args []ast.Node) error {
 			return err
 		}
 		e.write(")")
+	}
+	e.write(")")
+	return nil
+}
+
+// emitSlogCall emits a raw slog.Info/Warn/Error/Debug call (no IIFE, no return).
+// Used in statement and return position.
+func (e *Emitter) emitSlogCall(fn string, args []ast.Node) error {
+	e.needImport("log/slog")
+	if len(args) < 1 {
+		return fmt.Errorf("%s requires at least 1 argument (message)", fn)
+	}
+	goFn := map[string]string{
+		"log/info":  "slog.Info",
+		"log/debug": "slog.Debug",
+		"log/warn":  "slog.Warn",
+		"log/error": "slog.Error",
+	}[fn]
+	e.write(goFn + "(")
+	if err := e.emitExpr(args[0]); err != nil {
+		return err
+	}
+	for _, arg := range args[1:] {
+		e.write(", ")
+		if err := e.emitExpr(arg); err != nil {
+			return err
+		}
 	}
 	e.write(")")
 	return nil

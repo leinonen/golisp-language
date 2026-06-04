@@ -267,6 +267,48 @@ Features that make the language enjoyable to use, not just functional.
 
 ---
 
+## Phase 10 — Robust Applications
+
+Building blocks that close the gap between a toy language and one you'd stake production on.
+
+### 10a. File I/O ✓
+- [x] `read-file` — `(read-file path)` → `[string error]` — wraps `os.ReadFile`
+- [x] `write-file` — `(write-file path content)` → `error` — wraps `os.WriteFile`
+- [x] `append-file` — `(append-file path content)` → `error` — open with `O_APPEND|O_CREATE|O_WRONLY`
+- [x] `file-exists?` — `(file-exists? path)` → `bool` — `os.Stat` + `os.IsNotExist`
+- [x] `list-dir` — `(list-dir path)` → `[[]string error]` — wraps `os.ReadDir`
+- [x] `mkdir` — `(mkdir path)` → `error` — wraps `os.MkdirAll`
+
+### 10b. Structured logging ✓
+- [x] `log/info`, `log/debug`, `log/warn`, `log/error` — variadic key-value pairs after message string; backed by Go 1.21 `log/slog`. Void like `fmt/println` — direct call in statement/return position, IIFE wrapper in expression position. No import needed.
+
+### 10c. Regex ✓
+- [x] `re/match` — `(re/match pattern s)` → `bool` — wraps `regexp.MatchString`; panics on invalid pattern
+- [x] `re/find` — `(re/find pattern s)` → `any` — leftmost match or nil
+- [x] `re/find-all` — `(re/find-all pattern s)` → `[]any` — all non-overlapping matches
+- [x] `re/replace` — `(re/replace pattern s repl)` → `string` — `regexp.ReplaceAllString`
+- [x] `re/split` — `(re/split pattern s)` → `[]any` — `regexp.Split`
+
+### 10d. Error wrapping ✓
+- [x] `wrap-error` — `(wrap-error msg err)` → `error` — wraps with `fmt.Errorf("%s: %w", msg, err)` for proper Go error chains
+- [x] `errors/is?` — `(errors/is? err target)` → `bool` — wraps `errors.Is` for unwrapping chains
+
+### 10e. atom — shared mutable state
+- [ ] `(atom init)` — create an atom wrapping init value; backed by `struct { mu sync.Mutex; val any }`
+- [ ] `(swap! a f)` — atomically update with f; `a.mu.Lock(); a.val = f(a.val); a.mu.Unlock()`
+- [ ] `(reset! a v)` — unconditional set
+- [ ] `@a` (or `(deref a)`) — read current value without locking (for uncontended reads)
+
+### 10f. with-open
+- [ ] `(with-open [f (os/Open path)] body...)` — wraps body in `defer f.Close()`; safe resource cleanup for files, HTTP responses, and anything with a `Close()` method
+
+### 10g. Context propagation
+- [ ] `(ctx/background)` — `context.Background()`
+- [ ] `(ctx/with-timeout ctx ms)` → `[ctx cancel error]` — `context.WithTimeout`
+- [ ] `(ctx/cancel! cancel-fn)` — call the cancel function returned by `with-timeout`
+
+---
+
 ## Order of Attack
 
 Items 1–9 are v1 blockers: a stranger can't write a real program or install glisp without them. Items 10+ are post-v1.
@@ -290,3 +332,5 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 15 | ~~**8.5: Concurrency ergonomics**~~ ✓ | `go-val`, `par`, `for-chan`, `recv-ok!`, `with-lock`, `:timeout` in `select!` |
 | 16 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
 | 17 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |
+| 18 | ~~**10a–d: File I/O, slog, regex, error wrapping**~~ ✓ | Essential for any real-world program |
+| 19 | **10e–g: `atom`, `with-open`, context propagation** | Ergonomics for shared state and resource safety |

@@ -287,4 +287,29 @@ var builtinDocs = map[string]BuiltinDoc{
 	"assert-false": {Sig: "(assert-false expr)", Doc: "Fail the test when expr is not false."},
 	"assert-nil":   {Sig: "(assert-nil expr)", Doc: "Fail the test when expr is not nil."},
 	"assert-err":   {Sig: "(assert-err expr)", Doc: "Fail the test when expr does not return an error."},
+
+	// File I/O
+	"read-file":    {Sig: "(read-file path)              →  [string error]", Doc: "Read the entire file at path and return its contents as a string."},
+	"write-file":   {Sig: "(write-file path content)     →  error", Doc: "Write content to path, creating or truncating the file."},
+	"append-file":  {Sig: "(append-file path content)    →  error", Doc: "Append content to path, creating the file if it does not exist."},
+	"file-exists?": {Sig: "(file-exists? path)           →  bool", Doc: "Return true if a file or directory exists at path."},
+	"list-dir":     {Sig: "(list-dir path)               →  [[]string error]", Doc: "Return the names of entries in the directory at path."},
+	"mkdir":        {Sig: "(mkdir path)                  →  error", Doc: "Create path and any missing parent directories."},
+
+	// Regex
+	"re/match":    {Sig: "(re/match pattern s)           →  bool", Doc: "Return true if s matches the regular expression pattern. Panics on invalid pattern."},
+	"re/find":     {Sig: "(re/find pattern s)            →  any", Doc: "Return the leftmost match of pattern in s, or nil if no match."},
+	"re/find-all": {Sig: "(re/find-all pattern s)        →  []any", Doc: "Return all non-overlapping matches of pattern in s."},
+	"re/replace":  {Sig: "(re/replace pattern s repl)    →  string", Doc: "Replace all matches of pattern in s with repl."},
+	"re/split":    {Sig: "(re/split pattern s)           →  []any", Doc: "Split s into substrings separated by matches of pattern."},
+
+	// Structured logging (log/slog)
+	"log/info":  {Sig: "(log/info msg k v ...)  →  nil", Doc: "Log a message at INFO level with optional key-value pairs."},
+	"log/debug": {Sig: "(log/debug msg k v ...) →  nil", Doc: "Log a message at DEBUG level with optional key-value pairs."},
+	"log/warn":  {Sig: "(log/warn msg k v ...)  →  nil", Doc: "Log a message at WARN level with optional key-value pairs."},
+	"log/error": {Sig: "(log/error msg k v ...) →  nil", Doc: "Log a message at ERROR level with optional key-value pairs."},
+
+	// Error wrapping
+	"wrap-error":  {Sig: "(wrap-error msg err)   →  error", Doc: "Wrap err with a context message: returns an error whose message is \"msg: err\"."},
+	"errors/is?":  {Sig: "(errors/is? err target) →  bool", Doc: "Return true if err or any error in its chain matches target."},
 }

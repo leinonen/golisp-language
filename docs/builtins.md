@@ -216,13 +216,120 @@ Goroutines, channels, and synchronisation. `sync` and `time` imports are added a
 
 | Form | Returns | Description |
 |---|---|---|
-| `(println & args)` | — | Print args to stdout with newline |
-| `(print & args)` | — | Print args to stdout without newline |
+| `(fmt/println & args)` | — | Print args to stdout with newline |
+| `(fmt/print & args)` | — | Print args to stdout without newline |
+
+## File I/O
+
+No import required. All file operations work with plain strings for paths and content.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(read-file path)` | `[string error]` | Read entire file as a string |
+| `(write-file path content)` | `error` | Write content to file, creating or truncating |
+| `(append-file path content)` | `error` | Append content to file, creating if absent |
+| `(file-exists? path)` | `bool` | True when a file or directory exists at path |
+| `(list-dir path)` | `[[]string error]` | Names of entries in a directory |
+| `(mkdir path)` | `error` | Create directory and all missing parents |
+
+```clojure
+; Read a config file, handling missing file gracefully
+(if-err [content err] (read-file "config.json")
+  (fmt/println "no config:" err)
+  (process-config content))
+
+; Write then check error directly (write-file returns error, not [val error])
+(let [err (write-file "/tmp/out.txt" result)]
+  (when (not= err nil)
+    (log/error "write failed" "err" err)))
+
+; List migrations directory
+(if-err [files err] (list-dir "migrations/")
+  (fmt/println "cannot read migrations:" err)
+  (doseq [f files] (fmt/println "migration:" f)))
+```
+
+## Logging
+
+Structured logging via Go's `log/slog`. No import required. Each call takes a message string followed by zero or more key-value attribute pairs.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(log/info msg k v ...)` | — | Log at INFO level |
+| `(log/debug msg k v ...)` | — | Log at DEBUG level |
+| `(log/warn msg k v ...)` | — | Log at WARN level |
+| `(log/error msg k v ...)` | — | Log at ERROR level |
+
+```clojure
+; Simple message
+(log/info "server started" "port" 8080)
+
+; Multiple attributes
+(log/info "request" "method" method "path" path "status" 200 "ms" elapsed)
+
+; In statement position — direct slog call, no wrapper
+(log/warn "slow query" "sql" q "ms" 1420)
+
+; Error with wrapped error
+(log/error "db failed" "op" "query" "err" err)
+```
+
+Default output is text to stderr. To switch to JSON or configure a custom handler, use `slog.SetDefault` via Go interop.
+
+## Regex
+
+RE2-syntax regular expressions via Go's `regexp` package. No import required. Patterns are compiled at call time; `regexp.MustCompile` is used internally — an invalid pattern panics.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(re/match pattern s)` | `bool` | True when s matches pattern |
+| `(re/find pattern s)` | `any` | Leftmost match, or nil if none |
+| `(re/find-all pattern s)` | `[]any` | All non-overlapping matches |
+| `(re/replace pattern s repl)` | `string` | Replace all matches with repl |
+| `(re/split pattern s)` | `[]any` | Split s on pattern |
+
+```clojure
+; Validate email
+(re/match "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" email)
+
+; Extract first number from a string
+(re/find "\\d+" "order-42-confirmed")    ; → "42"
+
+; All words
+(re/find-all "\\w+" "hello world foo")   ; → ["hello" "world" "foo"]
+
+; Normalise whitespace
+(re/replace "\\s+" text " ")
+
+; Parse CSV (simple, no quoted fields)
+(re/split "," "alice,bob,carol")         ; → ["alice" "bob" "carol"]
+```
+
+**RE2 note**: Go uses RE2 syntax — no lookaheads, lookbehinds, or backreferences. Use `regexp.Compile` via Go interop if you need error-checked compilation at startup.
 
 ## Errors and types
 
 | Form | Returns | Description |
 |---|---|---|
 | `(error msg)` | error | Create a new error |
+| `(wrap-error msg err)` | error | Wrap err with context: message becomes `"msg: err"` |
+| `(errors/is? err target)` | bool | True when err or any error in its chain matches target |
 | `(nil? x)` | bool | True when x is nil |
 | `(as ^T x)` | T | Type assertion; panics if x is not T |
+
+```clojure
+; Sentinel errors
+(def ErrNotFound (error "not found"))
+(def ErrForbidden (error "forbidden"))
+
+; Wrap with context as errors travel up the call stack
+(defn ^[any error] get-user [^int id]
+  (if-err [row err] (db-query-one conn "SELECT * FROM users WHERE id=$1" [id])
+    (wrap-error "get-user" err)
+    [row nil]))
+
+; Unwrap chain to check cause
+(if (errors/is? err ErrNotFound)
+  (web/json-response 404 {"error" "user not found"})
+  (web/json-response 500 {"error" "internal error"}))
+```

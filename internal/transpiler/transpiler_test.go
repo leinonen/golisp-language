@@ -580,6 +580,26 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(ns main (:import [fmt]) (:require [github.com/user/lib])) (defn f [] (fmt/println (lib/greet "World")))`,
 			wantSub: `"fmt"`,
 		},
+		{
+			name:    "anon fn single arg",
+			src:     `(def f #(+ % 1))`,
+			wantSub: "func(_anonP1 any) any",
+		},
+		{
+			name:    "anon fn two args",
+			src:     `(def f #(+ %1 %2))`,
+			wantSub: "func(_anonP1 any, _anonP2 any) any",
+		},
+		{
+			name:    "anon fn with map",
+			src:     `(defn doubled [xs] (map #(* % 2) xs))`,
+			wantSub: "_glispMap(func(_anonP1 any) any",
+		},
+		{
+			name:    "anon fn rest arg",
+			src:     `(def f #(count %&))`,
+			wantSub: "func(_anonPRest ...any) any",
+		},
 	}
 
 	for _, tt := range tests {

@@ -14,6 +14,7 @@ const (
 	TokenLBrace                    // {
 	TokenRBrace                    // }
 	TokenHashLBrace                // #{
+	TokenHashLParen                // #(
 
 	// Literals
 	TokenNil
@@ -41,7 +42,8 @@ var tokenTypeNames = map[TokenType]string{
 	TokenRBracket:  "]",
 	TokenLBrace:    "{",
 	TokenRBrace:    "}",
-	TokenHashLBrace: "#{",
+	TokenHashLBrace:  "#{",
+	TokenHashLParen:  "#(",
 	TokenNil:       "nil",
 	TokenTrue:      "true",
 	TokenFalse:     "false",

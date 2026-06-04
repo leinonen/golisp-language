@@ -202,6 +202,8 @@ func (p *parser) parseExprInner() (ast.Node, error) {
 		return p.parseMap()
 	case lexer.TokenHashLBrace:
 		return p.parseSet()
+	case lexer.TokenHashLParen:
+		return p.parseAnonFn()
 	case lexer.TokenQuote:
 		return p.parseQuote()
 	case lexer.TokenNil:

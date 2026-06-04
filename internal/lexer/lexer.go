@@ -130,6 +130,11 @@ func (l *lexer) nextToken() (Token, error) {
 		l.advance()
 		return Token{Type: TokenHashLBrace, Text: "#{", Line: line, Column: col}, nil
 
+	case ch == '#' && l.peekAt(1) == '(':
+		l.advance()
+		l.advance()
+		return Token{Type: TokenHashLParen, Text: "#(", Line: line, Column: col}, nil
+
 	case ch == '\'':
 		l.advance()
 		return Token{Type: TokenQuote, Text: "'", Line: line, Column: col}, nil

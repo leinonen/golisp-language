@@ -2,7 +2,7 @@ module golisp
 
 go 1.25.5
 
-require github.com/leinonen/glispdb v0.0.0
+require github.com/leinonen/glispdb v0.1.0
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -12,4 +12,4 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 )
 
-replace github.com/leinonen/glispdb v0.0.0 => /home/leinonen/code/glispdb
+replace github.com/leinonen/glispdb v0.1.0 => /home/leinonen/.glisp/pkg/mod/github.com/leinonen/glispdb@v0.1.0

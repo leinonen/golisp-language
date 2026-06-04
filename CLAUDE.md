@@ -197,10 +197,10 @@ glisp build <dir/>                   auto-fetches missing deps from glisp.mod be
 **Wrapping a Go package** — modules can declare Go package dependencies with `go-require`. `glisp get` propagates them into both the module's own `go.mod` and the project's `go.mod`:
 
 ```
-module github.com/user/glisp-pgx
+module github.com/leinonen/pgxdb
 
 go-require (
-  github.com/jackc/pgx/v5 v5.7.0
+  github.com/jackc/pgx/v5 v5.7.2
 )
 ```
 

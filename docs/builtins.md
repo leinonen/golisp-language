@@ -136,6 +136,81 @@ Sets are unordered collections of unique values. Literal syntax: `#{1 2 3}`. Bac
 |---|---|
 | `(doseq [x coll] body...)` | Evaluate body for each element in coll |
 | `(dotimes [i n] body...)` | Evaluate body n times with i bound to 0..n-1 |
+| `(for-chan [x ch] body...)` | Evaluate body for each value received from channel `ch`; stops when `ch` is closed |
+
+## Concurrency
+
+Goroutines, channels, and synchronisation. `sync` and `time` imports are added automatically when needed — no `(:import [sync])` required.
+
+### Channels
+
+| Form | Returns | Description |
+|---|---|---|
+| `(chan ^T)` | `chan T` | Create an unbuffered channel of element type T |
+| `(chan ^T n)` | `chan T` | Create a buffered channel with capacity n |
+| `(send! ch val)` | — | Send val on channel ch (`ch <- val`) |
+| `(recv! ch)` | T | Receive one value from ch (`<-ch`) |
+| `(recv-ok! ch)` | `[]any` | Receive with closed-channel detection; returns `[val ok]`. Use `[[val ok] (recv-ok! ch)]` to destructure. Check ok with `(= ok true)` — it is `any`, not `bool`. |
+| `(close! ch)` | — | Close the channel |
+
+### Goroutines
+
+| Form | Returns | Description |
+|---|---|---|
+| `(go body...)` | — | Run body in a new goroutine; no result |
+| `(go-val body...)` | `chan any` | Run body in a goroutine; returns a buffered channel. Call `(recv! ch)` to block until the result arrives. |
+| `(par expr1 expr2 ...)` | — | Run each expression in its own goroutine, then block until all finish (`sync.WaitGroup`). Use when you want fire-and-wait parallelism with no result collection. |
+
+### Select
+
+```clojure
+(select!
+  ([val ch1]        body...)   ; receive case — binds val
+  ([(send! ch2 v)]  body...)   ; send case
+  (:timeout 5000    body...)   ; fires after 5000 ms
+  (:default         body...))  ; non-blocking fallback
+```
+
+### Synchronisation
+
+| Form | Returns | Description |
+|---|---|---|
+| `(with-lock mu body...)` | any | Execute body inside a mutex critical section. Emits `mu.Lock() / defer mu.Unlock()` inside an IIFE so unlock is guaranteed even on panic. `mu` must be a `sync.Mutex` or `sync.RWMutex` value. |
+| `(defer expr)` | — | Defer expr until the enclosing function returns |
+
+```clojure
+; Future pattern: submit work, collect later
+(def result (go-val (expensive-computation x)))
+; ... other work ...
+(recv! result)   ; blocks until the goroutine finishes
+
+; Parallel startup
+(par
+  (init-cache)
+  (connect-db)
+  (start-metrics))
+
+; Drain a channel until closed
+(for-chan [item results-ch]
+  (process item))
+
+; Closed-channel detection
+(let [[val ok] (recv-ok! ch)]
+  (if (= ok true)
+    (process val)
+    (fmt/println "channel closed")))
+
+; Mutex-protected counter
+(def mu (sync/Mutex. {}))
+(defn safe-log [^string msg]
+  (with-lock mu
+    (fmt/println msg)))
+
+; Select with timeout
+(select!
+  ([msg ch] (handle msg))
+  (:timeout 1000 (fmt/println "timed out")))
+```
 
 ## I/O
 

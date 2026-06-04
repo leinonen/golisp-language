@@ -114,8 +114,15 @@ var builtinDocs = map[string]BuiltinDoc{
 	"as":    {Sig: "(as ^T x)     →  T  (type assertion)", Doc: "Assert that x is of type T. Panics if the assertion fails."},
 
 	// Iteration
-	"doseq":   {Sig: "(doseq [x coll] body...)", Doc: "Evaluate body for each element x in coll. Returns nil."},
-	"dotimes": {Sig: "(dotimes [i n] body...)", Doc: "Evaluate body n times with i bound to 0, 1, ..., n-1. Returns nil."},
+	"doseq":    {Sig: "(doseq [x coll] body...)", Doc: "Evaluate body for each element x in coll. Returns nil."},
+	"dotimes":  {Sig: "(dotimes [i n] body...)", Doc: "Evaluate body n times with i bound to 0, 1, ..., n-1. Returns nil."},
+	"for-chan": {Sig: "(for-chan [x ch] body...)", Doc: "Range over channel ch until it is closed, binding each received value to x."},
+
+	// Concurrency
+	"go-val":    {Sig: "(go-val body...)  →  chan any", Doc: "Run body in a goroutine; return a buffered chan any immediately. Use (recv! ch) to block until the result arrives. Like Clojure's future."},
+	"par":       {Sig: "(par expr1 expr2 ...)", Doc: "Run each expression in its own goroutine and block until all finish (sync.WaitGroup). No result collection — use go-val + recv! for that."},
+	"recv-ok!":  {Sig: "(recv-ok! ch)  →  [val ok]", Doc: "Comma-ok channel receive. Returns []any{val, ok}. Destructure with [[val ok] (recv-ok! ch)]. Check ok with (= ok true) — it is any, not bool."},
+	"with-lock": {Sig: "(with-lock mu body...)", Doc: "Execute body inside a mutex critical section. Emits mu.Lock()/defer mu.Unlock() inside an IIFE, so unlock is guaranteed even on panic."},
 
 	// OS
 	"os/env": {Sig: "(os/env name)  →  string\n(os/env name default)  →  string", Doc: "Read environment variable. Returns empty string if unset. With default, returns default when the variable is unset."},

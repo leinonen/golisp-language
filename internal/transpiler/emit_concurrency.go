@@ -74,13 +74,150 @@ func (e *Emitter) emitCloseStmt(n *ast.CloseStmt) error {
 	return nil
 }
 
+// emitGoValExpr: (go-val body...) → IIFE creating a buffered chan any, firing a
+// goroutine that sends the result, returning the channel for later recv!.
+func (e *Emitter) emitGoValExpr(n *ast.GoValExpr) error {
+	e.write("func() chan any {")
+	e.nl()
+	e.push()
+	e.line("_ch := make(chan any, 1)")
+	e.writeIndent()
+	e.write("go func() {")
+	e.nl()
+	e.push()
+	e.writeIndent()
+	e.write("_ch <- func() any {")
+	e.nl()
+	e.push()
+	if err := e.emitBody(n.Body, true); err != nil {
+		return err
+	}
+	e.pop()
+	e.line("}()")
+	e.pop()
+	e.line("}()")
+	e.line("return _ch")
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// emitParStmt: (par body1 body2 ...) → sync.WaitGroup block, all bodies run in
+// parallel goroutines, blocks until all complete.
+func (e *Emitter) emitParStmt(n *ast.ParStmt) error {
+	e.needImport("sync")
+	e.write("{")
+	e.nl()
+	e.push()
+	e.line("var _wg sync.WaitGroup")
+	e.writeIndent()
+	e.writef("_wg.Add(%d)", len(n.Bodies))
+	e.nl()
+	for _, body := range n.Bodies {
+		e.writeIndent()
+		e.write("go func() {")
+		e.nl()
+		e.push()
+		e.line("defer _wg.Done()")
+		if err := e.emitStmtNode(body); err != nil {
+			return err
+		}
+		e.pop()
+		e.line("}()")
+	}
+	e.line("_wg.Wait()")
+	e.pop()
+	e.writeIndent()
+	e.write("}")
+	return nil
+}
+
+// emitForChanStmt: (for-chan [x ch] body...) → for x := range ch { body }
+// Iterates until the channel is closed.
+func (e *Emitter) emitForChanStmt(n *ast.ForChanStmt) error {
+	goName := identToGo(n.Binding.Name)
+	e.writef("for %s := range ", goName)
+	if err := e.emitExpr(n.Chan); err != nil {
+		return err
+	}
+	e.write(" {")
+	e.nl()
+	e.push()
+	if err := e.emitBody(n.Body, false); err != nil {
+		return err
+	}
+	e.pop()
+	e.writeIndent()
+	e.write("}")
+	return nil
+}
+
+// emitRecvOkExpr: (recv-ok! ch) → []any{val, ok} from comma-ok channel receive.
+// Use with [[val ok] (recv-ok! ch)] destructuring in let.
+func (e *Emitter) emitRecvOkExpr(n *ast.RecvOkExpr) error {
+	e.write("func() []any { _v, _ok := <-")
+	if err := e.emitExpr(n.Chan); err != nil {
+		return err
+	}
+	e.write("; return []any{_v, _ok} }()")
+	return nil
+}
+
+// emitWithLockExpr: (with-lock mu body...) → IIFE with Lock()/defer Unlock().
+func (e *Emitter) emitWithLockExpr(n *ast.WithLockExpr) error {
+	e.needImport("sync")
+	e.write("func() any {")
+	e.nl()
+	e.push()
+	e.writeIndent()
+	if err := e.emitExpr(n.Mutex); err != nil {
+		return err
+	}
+	e.write(".Lock()")
+	e.nl()
+	e.writeIndent()
+	e.write("defer ")
+	if err := e.emitExpr(n.Mutex); err != nil {
+		return err
+	}
+	e.write(".Unlock()")
+	e.nl()
+	if err := e.emitBody(n.Body, true); err != nil {
+		return err
+	}
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
 // emitSelectStmt emits a select statement.
 func (e *Emitter) emitSelectStmt(n *ast.SelectStmt) error {
+	for _, sc := range n.Cases {
+		if sc.IsTimeout {
+			e.needImport("time")
+			break
+		}
+	}
 	e.write("select {")
 	e.nl()
 	for _, sc := range n.Cases {
 		if sc.IsDefault {
 			e.line("default:")
+			e.push()
+			if err := e.emitBody(sc.Body, false); err != nil {
+				return err
+			}
+			e.pop()
+		} else if sc.IsTimeout {
+			e.writeIndent()
+			e.write("case <-time.After(")
+			if err := e.emitExpr(sc.TimeoutMs); err != nil {
+				return err
+			}
+			e.write(" * time.Millisecond):")
+			e.nl()
 			e.push()
 			if err := e.emitBody(sc.Body, false); err != nil {
 				return err

@@ -81,9 +81,11 @@ type RequireSpec struct {
 type SelectCase struct {
 	IsDefault bool
 	IsSend    bool
+	IsTimeout bool
 	Binding   string // variable name for recv binding (may be "")
 	ChanExpr  Node
 	SendVal   Node
+	TimeoutMs Node // for :timeout case — duration in milliseconds
 	Body      []Node
 }
 
@@ -517,6 +519,69 @@ func (n *SelectStmt) nodeMarker()    {}
 func (n *SelectStmt) Pos() Position  { return n.Pos_ }
 func NewSelectStmt(pos Position, cases []SelectCase) *SelectStmt {
 	return &SelectStmt{Pos_: pos, Cases: cases}
+}
+
+// GoValExpr: (go-val body...) → IIFE that fires a goroutine and returns chan any
+type GoValExpr struct {
+	Pos_ Position
+	Body []Node
+}
+
+func (n *GoValExpr) nodeMarker()   {}
+func (n *GoValExpr) Pos() Position { return n.Pos_ }
+func NewGoValExpr(pos Position, body []Node) *GoValExpr {
+	return &GoValExpr{Pos_: pos, Body: body}
+}
+
+// ParStmt: (par body1 body2 ...) → sync.WaitGroup parallel execution
+type ParStmt struct {
+	Pos_   Position
+	Bodies []Node
+}
+
+func (n *ParStmt) nodeMarker()   {}
+func (n *ParStmt) Pos() Position { return n.Pos_ }
+func NewParStmt(pos Position, bodies []Node) *ParStmt {
+	return &ParStmt{Pos_: pos, Bodies: bodies}
+}
+
+// ForChanStmt: (for-chan [x ch] body...) → for x := range ch { body }
+type ForChanStmt struct {
+	Pos_    Position
+	Binding *Symbol
+	Chan    Node
+	Body    []Node
+}
+
+func (n *ForChanStmt) nodeMarker()   {}
+func (n *ForChanStmt) Pos() Position { return n.Pos_ }
+func NewForChanStmt(pos Position, binding *Symbol, ch Node, body []Node) *ForChanStmt {
+	return &ForChanStmt{Pos_: pos, Binding: binding, Chan: ch, Body: body}
+}
+
+// RecvOkExpr: (recv-ok! ch) → []any{val, ok} from comma-ok channel receive
+type RecvOkExpr struct {
+	Pos_ Position
+	Chan Node
+}
+
+func (n *RecvOkExpr) nodeMarker()   {}
+func (n *RecvOkExpr) Pos() Position { return n.Pos_ }
+func NewRecvOkExpr(pos Position, ch Node) *RecvOkExpr {
+	return &RecvOkExpr{Pos_: pos, Chan: ch}
+}
+
+// WithLockExpr: (with-lock mu body...) → IIFE with Lock()/defer Unlock()
+type WithLockExpr struct {
+	Pos_  Position
+	Mutex Node
+	Body  []Node
+}
+
+func (n *WithLockExpr) nodeMarker()   {}
+func (n *WithLockExpr) Pos() Position { return n.Pos_ }
+func NewWithLockExpr(pos Position, mutex Node, body []Node) *WithLockExpr {
+	return &WithLockExpr{Pos_: pos, Mutex: mutex, Body: body}
 }
 
 // LoopExpr: (loop [bindings...] body...)

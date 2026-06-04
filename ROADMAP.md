@@ -240,6 +240,20 @@ Map-based query construction; compiles to parameterized SQL.
 
 ---
 
+## Phase 8.5 — Concurrency Ergonomics
+
+Higher-level concurrency primitives so common Go patterns don't require verbose interop. All six forms auto-import the packages they need (`sync`, `time`).
+
+- [x] `go-val` — `(go-val body...)` → IIFE returning `chan any`; goroutine sends result. Collect with `(recv! ch)`. Parallel to Clojure's `future`.
+- [x] `par` — `(par e1 e2 ...)` → `sync.WaitGroup` block; all bodies run in parallel goroutines; blocks until all finish.
+- [x] `for-chan` — `(for-chan [x ch] body...)` → `for x := range ch`; iterate until channel is closed. Distinct from `doseq` which emits `for _, x := range` (index-based).
+- [x] `recv-ok!` — `(recv-ok! ch)` → `[]any{val, ok}` via inline IIFE. Use with `[[val ok] (recv-ok! ch)]` destructuring; check `(= ok true)` since `ok` is `any`.
+- [x] `with-lock` — `(with-lock mu body...)` → IIFE with `mu.Lock()` / `defer mu.Unlock()`. Unlock guaranteed even on panic.
+- [x] `:timeout ms` in `select!` — `(:timeout 5000 body...)` case → `case <-time.After(5000 * time.Millisecond):`.
+- [x] `doseq` fix — now uses `_glispToSlice(coll)` instead of `coll.([]any)` assertion; works when collection is already `[]any` (result of `map`, `filter`, literal `let` binding).
+
+---
+
 ## Phase 9 — Fun & Power Features
 
 Features that make the language enjoyable to use, not just functional.
@@ -273,5 +287,6 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 12 | **7b: `group-by` / `zipmap` / `partition` / `frequencies` / `rename-keys`** | Fill remaining collection gaps |
 | 13 | **4c: Source maps** | Debug Go panics in `.glsp` terms |
 | 14 | **8: Database (postgres)** | Next major capability unlock for real applications |
-| 15 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
-| 16 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |
+| 15 | ~~**8.5: Concurrency ergonomics**~~ ✓ | `go-val`, `par`, `for-chan`, `recv-ok!`, `with-lock`, `:timeout` in `select!` |
+| 16 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
+| 17 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |

@@ -198,7 +198,7 @@ func (e *Emitter) emitImports() error {
 	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
 	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
 	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true}
-	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "sort", "testing", "encoding/json", "net/http", "io", "os"} {
+	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "sort", "testing", "encoding/json", "net/http", "io", "os", "sync", "time"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
 				continue
@@ -303,6 +303,8 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitDoExpr(v)
 	case *ast.GoStmt:
 		return e.emitGoStmt(v)
+	case *ast.GoValExpr:
+		return e.emitGoValExpr(v)
 	case *ast.DeferStmt:
 		return e.emitDeferStmt(v)
 	case *ast.ChanExpr:
@@ -311,10 +313,14 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitSendStmt(v)
 	case *ast.RecvExpr:
 		return e.emitRecvExpr(v)
+	case *ast.RecvOkExpr:
+		return e.emitRecvOkExpr(v)
 	case *ast.CloseStmt:
 		return e.emitCloseStmt(v)
 	case *ast.SelectStmt:
 		return e.emitSelectStmt(v)
+	case *ast.WithLockExpr:
+		return e.emitWithLockExpr(v)
 	case *ast.LoopExpr:
 		return e.emitLoopExpr(v, false)
 	case *ast.RecurExpr:
@@ -376,6 +382,20 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 	case *ast.GoStmt:
 		e.writeIndent()
 		return e.emitGoStmt(v)
+	case *ast.ParStmt:
+		e.writeIndent()
+		if err := e.emitParStmt(v); err != nil {
+			return err
+		}
+		e.nl()
+		return nil
+	case *ast.ForChanStmt:
+		e.writeIndent()
+		if err := e.emitForChanStmt(v); err != nil {
+			return err
+		}
+		e.nl()
+		return nil
 	case *ast.DeferStmt:
 		e.writeIndent()
 		return e.emitDeferStmt(v)
@@ -538,13 +558,34 @@ func (e *Emitter) emitBody(body []ast.Node, inReturn bool) error {
 }
 
 // emitReturnNode emits a node in return position.
-// Certain statement-like nodes (GoStmt, DeferStmt, SendStmt, CloseStmt) are not
-// returned even in tail position — they're just emitted as statements.
+// Certain statement-like nodes (GoStmt, DeferStmt, SendStmt, CloseStmt, SelectStmt)
+// are not returned even in tail position — they're just emitted as statements.
 func (e *Emitter) emitReturnNode(n ast.Node) error {
 	switch v := n.(type) {
+	case *ast.SelectStmt:
+		e.writeIndent()
+		if err := e.emitSelectStmt(v); err != nil {
+			return err
+		}
+		e.nl()
+		return nil
 	case *ast.GoStmt:
 		e.writeIndent()
 		return e.emitGoStmt(v)
+	case *ast.ParStmt:
+		e.writeIndent()
+		if err := e.emitParStmt(v); err != nil {
+			return err
+		}
+		e.nl()
+		return nil
+	case *ast.ForChanStmt:
+		e.writeIndent()
+		if err := e.emitForChanStmt(v); err != nil {
+			return err
+		}
+		e.nl()
+		return nil
 	case *ast.DeferStmt:
 		e.writeIndent()
 		return e.emitDeferStmt(v)

@@ -363,6 +363,10 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseDo(pos)
 		case "go":
 			return p.parseGo(pos)
+		case "go-val":
+			return p.parseGoVal(pos)
+		case "par":
+			return p.parsePar(pos)
 		case "defer":
 			return p.parseDefer(pos)
 		case "chan":
@@ -371,10 +375,16 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseSend(pos)
 		case "recv!":
 			return p.parseRecv(pos)
+		case "recv-ok!":
+			return p.parseRecvOk(pos)
 		case "close!":
 			return p.parseClose(pos)
 		case "select!":
 			return p.parseSelect(pos)
+		case "for-chan":
+			return p.parseForChan(pos)
+		case "with-lock":
+			return p.parseWithLock(pos)
 		case "loop":
 			return p.parseLoop(pos)
 		case "recur":
@@ -973,6 +983,89 @@ func (p *parser) parseClose(pos ast.Position) (*ast.CloseStmt, error) {
 	return ast.NewCloseStmt(pos, ch), nil
 }
 
+func (p *parser) parseGoVal(pos ast.Position) (*ast.GoValExpr, error) {
+	p.advance() // "go-val"
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewGoValExpr(pos, body), nil
+}
+
+func (p *parser) parsePar(pos ast.Position) (*ast.ParStmt, error) {
+	p.advance() // "par"
+	var bodies []ast.Node
+	for p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF {
+		node, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		bodies = append(bodies, node)
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewParStmt(pos, bodies), nil
+}
+
+func (p *parser) parseRecvOk(pos ast.Position) (*ast.RecvOkExpr, error) {
+	p.advance() // "recv-ok!"
+	ch, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewRecvOkExpr(pos, ch), nil
+}
+
+func (p *parser) parseForChan(pos ast.Position) (*ast.ForChanStmt, error) {
+	p.advance() // "for-chan"
+	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+		return nil, err
+	}
+	bindTok, err := p.expect(lexer.TokenSymbol)
+	if err != nil {
+		return nil, err
+	}
+	ch, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRBracket); err != nil {
+		return nil, err
+	}
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	sym := ast.NewSymbol(p.mkpos(bindTok), bindTok.Text)
+	return ast.NewForChanStmt(pos, sym, ch, body), nil
+}
+
+func (p *parser) parseWithLock(pos ast.Position) (*ast.WithLockExpr, error) {
+	p.advance() // "with-lock"
+	mu, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewWithLockExpr(pos, mu, body), nil
+}
+
 func (p *parser) parseSelect(pos ast.Position) (*ast.SelectStmt, error) {
 	p.advance() // "select!"
 	var cases []ast.SelectCase
@@ -997,15 +1090,33 @@ func (p *parser) parseSelect(pos ast.Position) (*ast.SelectStmt, error) {
 
 func (p *parser) parseSelectCase() (ast.SelectCase, error) {
 	var sc ast.SelectCase
-	if p.peekType() == lexer.TokenKeyword && p.peek().Text == "default" {
-		p.advance()
-		body, err := p.parseBody()
-		if err != nil {
-			return sc, err
+	if p.peekType() == lexer.TokenKeyword {
+		kw := p.peek().Text
+		if kw == "default" {
+			p.advance()
+			body, err := p.parseBody()
+			if err != nil {
+				return sc, err
+			}
+			sc.IsDefault = true
+			sc.Body = body
+			return sc, nil
 		}
-		sc.IsDefault = true
-		sc.Body = body
-		return sc, nil
+		if kw == "timeout" {
+			p.advance() // :timeout
+			ms, err := p.parseExpr()
+			if err != nil {
+				return sc, err
+			}
+			body, err := p.parseBody()
+			if err != nil {
+				return sc, err
+			}
+			sc.IsTimeout = true
+			sc.TimeoutMs = ms
+			sc.Body = body
+			return sc, nil
+		}
 	}
 	if _, err := p.expect(lexer.TokenLBracket); err != nil {
 		return sc, err

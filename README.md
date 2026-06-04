@@ -53,6 +53,24 @@ glisp test    file.glsp         # run deftest cases
 (let [ch (chan ^int 1)] (send! ch 42) (recv! ch))
 (.Write w data)   ; method call
 (.-Field obj)     ; field access
+
+; Concurrency
+(def result (go-val (expensive-computation x)))  ; future → chan any
+(recv! result)                                    ; block for result
+
+(par                      ; parallel + WaitGroup
+  (init-cache)
+  (connect-db))
+
+(for-chan [msg ch]        ; range until closed
+  (process msg))
+
+(with-lock mu             ; mutex critical section
+  (fmt/println "safe"))
+
+(select!                  ; select with timeout
+  ([msg ch] (handle msg))
+  (:timeout 1000 (fmt/println "timed out")))
 ```
 
 ## Web servers

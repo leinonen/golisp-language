@@ -1481,11 +1481,11 @@ func (e *Emitter) emitDoseq(args []ast.Node) error {
 	e.nl()
 	e.push()
 	e.writeIndent()
-	e.writef("for _, %s := range ", goName)
+	e.writef("for _, %s := range _glispToSlice(", goName)
 	if err := e.emitExpr(bv.Elements[1]); err != nil {
 		return err
 	}
-	e.write(".([]any) {")
+	e.write(") {")
 	e.nl()
 	e.push()
 	for _, stmt := range args[1:] {

@@ -102,6 +102,36 @@ func TestTranspileSnippets(t *testing.T) {
 			wantSub: "<-ch",
 		},
 		{
+			name:    "go-val",
+			src:     `(defn compute [] (go-val (+ 1 2)))`,
+			wantSub: "make(chan any, 1)",
+		},
+		{
+			name:    "par",
+			src:     `(defn run [] (par (fmt/println "a") (fmt/println "b")))`,
+			wantSub: "sync.WaitGroup",
+		},
+		{
+			name:    "for-chan",
+			src:     `(defn drain [^(chan string) ch] (for-chan [x ch] (fmt/println x)))`,
+			wantSub: "for x := range",
+		},
+		{
+			name:    "recv-ok",
+			src:     `(defn try-recv [^(chan int) ch] (let [[v ok] (recv-ok! ch)] ok))`,
+			wantSub: "_v, _ok := <-",
+		},
+		{
+			name:    "with-lock",
+			src:     `(defn safe [] (with-lock mu (fmt/println "locked")))`,
+			wantSub: ".Lock()",
+		},
+		{
+			name:    "select timeout",
+			src:     `(defn wait [^(chan int) ch] (select! ([v ch] v) (:timeout 1000 nil)))`,
+			wantSub: "time.After(",
+		},
+		{
 			name:    "method call",
 			src:     `(defn greet [^*Writer w] (.Write w "hi"))`,
 			wantSub: "w.Write(",

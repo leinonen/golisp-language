@@ -163,6 +163,27 @@ Go `math` package. Add `math` to your `ns` import.
 
 ---
 
+## sync
+
+Go `sync` package. Add `sync` to your `ns` import — **or** use `with-lock`, which auto-imports it.
+
+| Form | Description |
+|---|---|
+| `(sync/Mutex. {})` | Create a new mutex (value type — use a pointer `^*sync/Mutex` when sharing across goroutines) |
+| `(sync/RWMutex. {})` | Create a read/write mutex |
+| `(sync/WaitGroup. {})` | Create a WaitGroup; prefer `(par ...)` unless you need dynamic goroutine counts |
+| `(.Lock mu)` | Acquire exclusive lock |
+| `(.Unlock mu)` | Release lock |
+| `(.RLock mu)` | Acquire read lock (RWMutex only) |
+| `(.RUnlock mu)` | Release read lock |
+| `(.Add wg n)` | Add n to WaitGroup counter |
+| `(.Done wg)` | Decrement WaitGroup counter by 1 |
+| `(.Wait wg)` | Block until WaitGroup counter reaches 0 |
+
+For most locking needs, prefer `(with-lock mu body...)` — it emits Lock/defer-Unlock correctly.
+
+---
+
 ## time
 
 Go `time` package. Add `time` to your `ns` import.

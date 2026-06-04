@@ -955,16 +955,16 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "replace":
 			return e.emitReplace(n.Args)
 		case "split":
-			e.needImport("strings")
+			e.needImport("_strruntime") // signals runtime to include string helpers; not a per-file import
 			return e.emitRuntimeCall("_glispSplit", n.Args, 2)
 		case "join":
-			e.needImport("strings")
+			e.needImport("_strruntime")
 			return e.emitRuntimeCall("_glispJoin", n.Args, 2)
 		case "blank?":
-			e.needImport("strings")
+			e.needImport("_strruntime")
 			return e.emitRuntimeCall("_glispIsBlank", n.Args, 1)
 		case "capitalize":
-			e.needImport("strings")
+			e.needImport("_strruntime")
 			return e.emitRuntimeCall("_glispCapitalize", n.Args, 1)
 		case "panic":
 			if len(n.Args) != 1 {
@@ -1558,7 +1558,8 @@ func (e *Emitter) emitFloat64Conv(args []ast.Node) error {
 	if len(args) != 1 {
 		return fmt.Errorf("float64 requires 1 argument")
 	}
-	e.write("float64(")
+	// Use _glispToFloat64 so it works on any (e.g. values from map/filter/nth).
+	e.write("_glispToFloat64(")
 	if err := e.emitExpr(args[0]); err != nil {
 		return err
 	}

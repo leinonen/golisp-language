@@ -192,6 +192,13 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			e.needImport("fmt")
 			e.needImport("regexp")
 		}
+		// String runtime helpers (_glispJoin, _glispSplit, etc.) use the strings
+		// package internally. In single-file mode they are inlined in the same file,
+		// so we must import strings here. In multi-file mode the runtime file handles
+		// its own import; _strruntime does NOT add a per-file strings import.
+		if e.builtinImports["_strruntime"] {
+			e.needImport("strings")
+		}
 	}
 	if err := e.emitImports(); err != nil {
 		return err
@@ -206,7 +213,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["sort"] {
 			e.write(glispSortRuntime)
 		}
-		if e.builtinImports["strings"] {
+		if e.builtinImports["strings"] || e.builtinImports["_strruntime"] {
 			e.write(glispStrRuntime)
 		}
 		if e.builtinImports["encoding/json"] {
@@ -343,7 +350,11 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 	case *ast.IntLit:
 		e.writef("%d", v.Value)
 	case *ast.FloatLit:
-		e.writef("%g", v.Value)
+		s := fmt.Sprintf("%g", v.Value)
+		if !strings.ContainsAny(s, ".e") {
+			s += ".0"
+		}
+		e.write(s)
 	case *ast.StringLit:
 		e.writef("%q", v.Value)
 	case *ast.KeywordLit:

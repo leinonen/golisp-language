@@ -17,8 +17,11 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	if builtins["sort"] {
 		addImport("sort")
 	}
-	if builtins["strings"] || builtins["net/http"] {
+	if builtins["strings"] || builtins["_strruntime"] || builtins["net/http"] {
 		addImport("strings")
+	}
+	if builtins["strings"] || builtins["_strruntime"] {
+		addImport("fmt") // _glispJoin uses fmt.Sprintf for non-string elements
 	}
 	if builtins["encoding/json"] {
 		addImport("encoding/json")
@@ -251,6 +254,18 @@ func _glispToInt(v any) int {
 		return int(n)
 	}
 	return 0
+}
+
+func _glispToFloat64(v any) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	}
+	return 0.0
 }
 
 func _glispToString(v any) string {
@@ -947,15 +962,17 @@ func _glispSplit(s any, sep any) []any {
 	return result
 }
 
-func _glispJoin(coll any, sep any) string {
+func _glispJoin(sep any, coll any) string {
 	s := _glispToSlice(coll)
 	parts := make([]string, len(s))
 	for i, v := range s {
 		if str, ok := v.(string); ok {
 			parts[i] = str
+		} else {
+			parts[i] = fmt.Sprintf("%v", v)
 		}
 	}
-	return strings.Join(parts, sep.(string))
+	return strings.Join(parts, fmt.Sprintf("%v", sep))
 }
 
 func _glispIsBlank(s any) bool {
@@ -1027,7 +1044,7 @@ func _glispHttpDo(method, url, body, headers any) (map[string]any, error) {
 		respHeaders[k] = resp.Header.Get(k)
 	}
 	return map[string]any{
-		"status":  int64(resp.StatusCode),
+		"status":  resp.StatusCode,
 		"headers": respHeaders,
 		"body":    string(bodyBytes),
 	}, nil

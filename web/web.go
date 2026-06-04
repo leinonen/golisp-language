@@ -137,6 +137,30 @@ func JsonResponse(status int, body any) Response {
 	}
 }
 
+func HtmlResponse(status int, body string) Response {
+	return map[string]any{
+		"status":  status,
+		"headers": map[string]any{"Content-Type": "text/html; charset=utf-8"},
+		"body":    body,
+	}
+}
+
+func TextResponse(status int, body string) Response {
+	return map[string]any{
+		"status":  status,
+		"headers": map[string]any{"Content-Type": "text/plain; charset=utf-8"},
+		"body":    body,
+	}
+}
+
+func Redirect(location string) Response {
+	return map[string]any{
+		"status":  302,
+		"headers": map[string]any{"Location": location},
+		"body":    "",
+	}
+}
+
 // Serve starts an HTTP server on the given address with the given handler.
 func Serve(addr string, h Handler) error {
 	return http.ListenAndServe(addr, RingToHTTP(h))

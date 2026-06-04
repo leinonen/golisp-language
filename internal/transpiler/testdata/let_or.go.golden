@@ -200,6 +200,18 @@ func _glispToInt(v any) int {
 	return 0
 }
 
+func _glispToFloat64(v any) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	}
+	return 0.0
+}
+
 func _glispToString(v any) string {
 	if s, ok := v.(string); ok {
 		return s

@@ -1,5 +1,4 @@
-(ns main
-  (:import [fmt]))
+(ns main)
 
 (defn ^any parse-body [^any req]
   (let-or [body (get req "body")  "missing body"

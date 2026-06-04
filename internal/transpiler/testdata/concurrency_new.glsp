@@ -1,5 +1,4 @@
-(ns main
-  (:import [fmt]))
+(ns main)
 
 ; go-val: goroutine returning a future channel
 (defn ^(chan any) start-task [^int x]

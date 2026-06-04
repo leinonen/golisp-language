@@ -1,5 +1,4 @@
 (ns main
-  (:import [fmt])
   (:require [github.com/leinonen/glispdb]))
 
 ;;; db-connect opens a connection, creates tables if needed, and returns [conn error].

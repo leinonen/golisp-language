@@ -4,8 +4,7 @@
 ;               destructuring (map and sequential), keyword lookup (:key m),
 ;               panic/recover, format, parse-int, parse-float, repeat, interpose
 
-(ns main
-  (:import [fmt]))
+(ns main)
 
 ; --- Control flow ---
 

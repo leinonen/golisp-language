@@ -1,4 +1,4 @@
-(ns main (:import [fmt]))
+(ns main)
 
 (defn main []
   (fmt/println (greet "World"))

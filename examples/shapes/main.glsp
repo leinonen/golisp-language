@@ -2,8 +2,7 @@
 ; Each shape type implements the Shape interface independently;
 ; print-shape dispatches through the interface without knowing the concrete type.
 
-(ns main
-  (:import [fmt math]))
+(ns main)
 
 (definterface Shape
   (Area [] ^float64)

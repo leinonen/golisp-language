@@ -1,4 +1,4 @@
-(ns main (:import [fmt]))
+(ns main)
 
 ;;; Returns a greeting string for the given name.
 (defn ^string greet [^string name]

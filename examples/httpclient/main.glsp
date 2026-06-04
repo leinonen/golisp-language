@@ -1,7 +1,7 @@
 ; HTTP client example
 ; Demonstrates: http/get, http/post, http/put, http/delete, http/request, if-err, json/decode
 ; Uses httpbin.org — a free HTTP echo service for testing.
-(ns main (:import [fmt]))
+(ns main)
 
 ;;; Decode the "body" field of an HTTP response map, or nil on error.
 (defn ^any decode-resp [^any resp]

@@ -1,5 +1,5 @@
 (ns main
-  (:import [fmt golisp/web]))
+  (:import [golisp/web]))
 
 (defn main []
   (let [db-url (os/env "DATABASE_URL" "postgres://notes:notes@localhost:5432/notes")

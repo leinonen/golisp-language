@@ -1,4 +1,4 @@
-(ns main (:import [fmt golisp/web]))
+(ns main (:import [golisp/web]))
 
 (def tasks
   [{"id" "1" "title" "Buy groceries" "done" false "priority" "low"}

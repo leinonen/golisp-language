@@ -4,7 +4,7 @@
 ;   select-keys, rename-keys, group-by, frequencies, into, concat, mapcat,
 ;   take-while, drop-while, zipmap, partition, partition-by
 
-(ns main (:import [fmt]))
+(ns main)
 
 (def products
   [{:id 1 :name "Widget A"   :category "hardware"    :price 999  :stock 50  :supplier {:name "AcmeCo"   :tier 1}}

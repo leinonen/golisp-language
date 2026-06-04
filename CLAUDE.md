@@ -40,6 +40,8 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 **Two-pass emission**: declarations emitted to a side buffer first so built-in import needs (`fmt`, `errors`, `encoding/json`, …) are discovered before writing the package header. See `emitFile` in `transpiler.go`.
 
+**Auto-import of stdlib packages**: No stdlib package ever needs a user `(:import […])` declaration. The `Emitter` tracks two maps: `builtinImports` (set by explicit `needImport` calls in built-in form handlers — used to gate runtime helper blocks) and `directImports` (set by `emitExpr` → `*ast.Symbol` for any `pkg/fn` symbol the user writes directly, and by `emitStructLitExpr` for struct type names). `emitImports` emits `builtinImports` with `runtimeOnlyPkgs` filtering (multi-file mode), then emits ALL `directImports` unconditionally. `isModuleAlias` prevents emitting a bare `import "web"` when the user has declared `golisp/web` as a module import — only packages whose alias matches no entry in `e.imports` / `e.requires` go into `directImports`. Result: `(:import […])` in `ns` is only needed for external module packages (e.g. `golisp/web`, `github.com/jackc/pgx/v5`).
+
 **Destructuring**: `LetBinding.Pattern` is `*Symbol`, `*VectorLit` (sequential: `[[a b] coll]` → `_glispGet(tmp, int64(i))`), or `*MapLit` (map: `[{k :key} m]` → `_glispGet(tmp, "key")`). `Param.Pattern` (non-nil) enables the same in `fn`/`defn`/`defmethod` params — a temp name `_pN` is used in the Go signature and bindings are emitted at the top of the function body. Both forms use the existing `_glispGet` runtime helper. A `_` destructure element is skipped (emitting `_ := …` is illegal Go).
 
 **`if-let` / `when-let`**: `(if-let [pat expr] then else?)` / `(when-let [pat expr] body...)` (`emit_expr.go`). Binds `pat` (single symbol, or a `_glispGet`-based destructure pattern) from `expr`, then branches on **`!= nil`** (nil-guard, matching `nil?`). Truthy branch gets the bindings in scope; destructured names are emitted *inside* that branch only, so they don't leak into the else/nil branch. `if-let` with no else and `when-let`'s false case return `nil`. Constraint: binding a non-nilable concrete type (e.g. a raw `int`) won't compile against `!= nil` — bind `any`-typed values (map lookups, find-fns).
@@ -159,10 +161,10 @@ require (
 )
 ```
 
-**ns syntax** — `:require` for glisp modules (alongside existing `:import` for Go stdlib):
+**ns syntax** — `:require` for glisp modules; `:import` only for external module packages (stdlib is auto-imported):
 ```clojure
 (ns main
-  (:import [fmt])
+  (:import [golisp/web])
   (:require [github.com/user/mathlib]))
 ```
 The qualifier in glisp code is the last path segment: `(mathlib/add 3 4)`.
@@ -217,7 +219,7 @@ In the module's `.glsp` files, import the Go package via `:import` (not `:requir
 ```
 
 Key rules for Go-wrapping modules:
-- Use `(:import [...])` for Go packages; `(:require [...])` only for other glisp modules
+- Use `(:import [...])` for external/vendor Go packages (stdlib is auto-imported; no declaration needed); `(:require [...])` only for other glisp modules
 - Return opaque Go types as `any`; callers type-assert with `(as ^*pkg/Type val)` when methods are needed
 - Type annotation syntax for pointer-to-external-type: `^*pgx/Conn` → `*pgx.Conn` (slash→dot via `qualifiedTypeToGo`)
 - The package qualifier comes from the last path segment: `(:import [github.com/jackc/pgx/v5])` → qualifier is `pgx`

@@ -1,5 +1,5 @@
 (ns main
-  (:import [strconv golisp/web]))
+  (:import [golisp/web]))
 
 (defn ^web/Handler make-health []
   (fn [^web/Request req] ^web/Response

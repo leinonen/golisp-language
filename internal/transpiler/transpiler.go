@@ -3,6 +3,7 @@ package transpiler
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"golisp/internal/ast"
@@ -76,8 +77,11 @@ type Emitter struct {
 	loopBindings []string
 	// loopInReturn: true when the current loop is in tail/return position
 	loopInReturn bool
-	// builtinImports tracks which built-in packages are needed
+	// builtinImports tracks which built-in packages are needed (runtime-backed forms)
 	builtinImports map[string]bool
+	// directImports tracks packages referenced directly via qualified symbols (os/exit,
+	// math/Pi, etc.) — emitted unconditionally, no runtime-only filtering.
+	directImports map[string]bool
 	// emitRuntime controls whether runtime helpers are appended to the output.
 	// True by default; set false for multi-file builds that use a shared runtime file.
 	emitRuntime bool
@@ -90,8 +94,38 @@ func (e *Emitter) needImport(pkg string) {
 	e.builtinImports[pkg] = true
 }
 
+// isModuleAlias returns true if alias matches the last path segment of any
+// user-declared import or require (e.g. "web" matches "golisp/web").
+// Used to avoid emitting a bare import "web" when the real path is "golisp/web".
+func (e *Emitter) isModuleAlias(alias string) bool {
+	for _, imp := range e.imports {
+		seg := imp.Path
+		if idx := strings.LastIndex(imp.Path, "/"); idx >= 0 {
+			seg = imp.Path[idx+1:]
+		}
+		if seg == alias {
+			return true
+		}
+	}
+	for _, req := range e.requires {
+		seg := req.Path
+		if idx := strings.LastIndex(req.Path, "/"); idx >= 0 {
+			seg = req.Path[idx+1:]
+		}
+		if seg == alias {
+			return true
+		}
+	}
+	return false
+}
+
 func newEmitter() *Emitter {
-	return &Emitter{pkg: "main", emitRuntime: true}
+	return &Emitter{
+		pkg:           "main",
+		emitRuntime:   true,
+		builtinImports: map[string]bool{},
+		directImports:  map[string]bool{},
+	}
 }
 
 func (e *Emitter) fresh(prefix string) string {
@@ -141,8 +175,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	e.linef("package %s", e.pkg)
 	e.nl()
 
-	// Merge builtin import needs from decl pass
+	// Merge import needs from decl pass
 	e.builtinImports = declEmitter.builtinImports
+	e.directImports = declEmitter.directImports
 	// Runtimes that use fmt/os: mark those imports needed in single-file mode only.
 	// RuntimeSource handles them for multi-file.
 	if e.emitRuntime {
@@ -223,6 +258,30 @@ func (e *Emitter) emitImports() error {
 			allImports = append(allImports, ast.ImportSpec{Path: pkg})
 		}
 	}
+	// Add packages referenced directly via qualified symbols (math/Pi, os/exit, etc.).
+	// Emitted unconditionally — these are real user-code references, not runtime-helper-backed.
+	{
+		pkgs := make([]string, 0, len(e.directImports))
+		for pkg := range e.directImports {
+			pkgs = append(pkgs, pkg)
+		}
+		sort.Strings(pkgs)
+		for _, pkg := range pkgs {
+			if e.hasImport(pkg) {
+				continue
+			}
+			already := false
+			for _, ai := range allImports {
+				if ai.Path == pkg {
+					already = true
+					break
+				}
+			}
+			if !already {
+				allImports = append(allImports, ast.ImportSpec{Path: pkg})
+			}
+		}
+	}
 	allImports = append(allImports, e.imports...)
 	for _, req := range e.requires {
 		if req.Alias != "" {
@@ -291,9 +350,13 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		e.writef("%q", v.Value)
 	case *ast.Symbol:
 		goName := identToGo(v.Name)
-		// Auto-import well-known stdlib packages used via qualified names (fmt/Println etc.)
+		// Track packages used directly via qualified names (math/Pi, os/exit, etc.).
+		// Skip aliases that resolve to module imports (e.g. "web" → "golisp/web").
 		if idx := strings.Index(v.Name, "/"); idx > 0 {
-			e.needImport(v.Name[:idx])
+			pkg := v.Name[:idx]
+			if !e.isModuleAlias(pkg) {
+				e.directImports[pkg] = true
+			}
 		}
 		e.write(goName)
 	case *ast.VectorLit:

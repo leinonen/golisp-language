@@ -1,7 +1,7 @@
 ; Log parser example
 ; Demonstrates: file I/O, regex, structured logging (log/slog), error wrapping
 
-(ns main (:import [fmt os]))
+(ns main)
 
 ; ---- sample data ----
 

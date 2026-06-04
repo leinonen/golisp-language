@@ -78,7 +78,7 @@ glisp test    file.glsp         # run deftest cases
 Handlers are `Request → Response` (both aliases for `map[string]any`).
 
 ```clojure
-(ns main (:import [fmt golisp/web]))
+(ns main (:import [golisp/web]))
 
 (defn ^web/Response handler [^web/Request req]
   (web/json-response 200 {"message" "hello"}))

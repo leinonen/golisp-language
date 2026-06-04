@@ -2,10 +2,7 @@
 
 Package-prefixed functions available in glisp. Naming convention: lowercase with hyphens in glisp source (`fmt/println`, `strings/has-prefix`); the transpiler auto-converts to Go PascalCase (`fmt.Println`, `strings.HasPrefix`).
 
-Two kinds exist:
-
-- **Transpiler built-ins** — special forms dispatched by symbol name in the transpiler (`json/*`, `http/*`, `os/env`). No import declaration needed; the runtime helper is emitted automatically.
-- **Go package calls** — plain Go package calls with automatic case conversion (`fmt/*`, `os/*`, `strings/*`, `strconv/*`, `sort/*`). Add the package to your `ns` import when calling these.
+**No import declarations needed for stdlib packages.** The transpiler tracks every package-qualified symbol you reference (`math/pi`, `os/exit`, `strconv/atoi`, …) and emits the correct `import` automatically. Only declare `(:import […])` for external module packages like `golisp/web`.
 
 ---
 
@@ -68,7 +65,7 @@ Transpiler built-in. No import needed. Returns `string`.
 
 ## fmt
 
-Go `fmt` package. Add `fmt` to your `ns` import.
+Go `fmt` package. Auto-imported.
 
 | Form | Returns | Description |
 |---|---|---|
@@ -84,7 +81,7 @@ Go `fmt` package. Add `fmt` to your `ns` import.
 
 ## os
 
-Go `os` package. Add `os` to your `ns` import. Prefer `os/env` for environment variables.
+Go `os` package. Auto-imported. Prefer `os/env` for environment variables.
 
 | Form | Returns | Description |
 |---|---|---|
@@ -95,7 +92,7 @@ Go `os` package. Add `os` to your `ns` import. Prefer `os/env` for environment v
 
 ## strconv
 
-Go `strconv` package. Add `strconv` to your `ns` import.
+Go `strconv` package. Auto-imported.
 
 | Form | Returns | Description |
 |---|---|---|
@@ -110,7 +107,7 @@ Go `strconv` package. Add `strconv` to your `ns` import.
 
 ## strings
 
-Go `strings` package. Add `strings` to your `ns` import. Glisp also provides simpler wrappers — see [builtins.md](builtins.md).
+Go `strings` package. Auto-imported. Glisp also provides simpler wrappers — see [builtins.md](builtins.md).
 
 | Form | Returns | Description |
 |---|---|---|
@@ -135,7 +132,7 @@ Go `strings` package. Add `strings` to your `ns` import. Glisp also provides sim
 
 ## sort
 
-Go `sort` package. Add `sort` to your `ns` import. Glisp also provides `sort-by` — see [builtins.md](builtins.md).
+Go `sort` package. Auto-imported. Glisp also provides `sort-by` — see [builtins.md](builtins.md).
 
 | Form | Description |
 |---|---|
@@ -147,7 +144,7 @@ Go `sort` package. Add `sort` to your `ns` import. Glisp also provides `sort-by`
 
 ## math
 
-Go `math` package. Add `math` to your `ns` import.
+Go `math` package. Auto-imported.
 
 | Form | Returns | Description |
 |---|---|---|
@@ -165,7 +162,7 @@ Go `math` package. Add `math` to your `ns` import.
 
 ## sync
 
-Go `sync` package. Add `sync` to your `ns` import — **or** use `with-lock`, which auto-imports it.
+Go `sync` package. Auto-imported whenever `sync/Mutex.`, `sync/WaitGroup.`, etc. are used directly. `par` and `with-lock` also auto-import it.
 
 | Form | Description |
 |---|---|
@@ -186,7 +183,7 @@ For most locking needs, prefer `(with-lock mu body...)` — it emits Lock/defer-
 
 ## time
 
-Go `time` package. Add `time` to your `ns` import.
+Go `time` package. Auto-imported.
 
 | Form | Returns | Description |
 |---|---|---|
@@ -203,7 +200,7 @@ Go `time` package. Add `time` to your `ns` import.
 
 ## log
 
-Go `log` package. Add `log` to your `ns` import.
+Go `log` package. Auto-imported.
 
 | Form | Description |
 |---|---|

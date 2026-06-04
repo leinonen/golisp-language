@@ -2,6 +2,7 @@ package transpiler
 
 import (
 	"fmt"
+	"strings"
 
 	"golisp/internal/ast"
 )
@@ -352,6 +353,12 @@ func (e *Emitter) emitFieldAccessExpr(n *ast.FieldAccessExpr) error {
 // emitStructLitExpr: (TypeName. {:field val}) → TypeName{Field: val}
 func (e *Emitter) emitStructLitExpr(n *ast.StructLitExpr) error {
 	typeName := identToGo(n.TypeName)
+	if idx := strings.Index(n.TypeName, "/"); idx > 0 {
+		pkg := n.TypeName[:idx]
+		if !e.isModuleAlias(pkg) {
+			e.directImports[pkg] = true
+		}
+	}
 	e.writef("%s{", typeName)
 	for i, pair := range n.Fields {
 		if i > 0 {

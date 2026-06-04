@@ -7,8 +7,7 @@
 ;;;   with-lock   — mutex-protected critical section (IIFE with Lock/defer Unlock)
 ;;;   :timeout    — select! case that fires after N milliseconds
 
-(ns main
-  (:import [fmt sync time]))
+(ns main)
 
 ; ── shared log mutex ──────────────────────────────────────────────
 ; with-lock ensures log lines from concurrent goroutines don't interleave.

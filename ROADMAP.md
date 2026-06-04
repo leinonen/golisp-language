@@ -83,10 +83,10 @@
 
 ### 4b. REPL
 - [x] `glisp repl` — read form, transpile, run via `go run`, print result
-- [ ] Readline history and editing (up-arrow, ctrl-a/e, etc.)
+- [x] Readline history and editing (up-arrow, ctrl-a/e, etc.)
 - [ ] Side-effect-free def persistence — snapshot accumulated state as values, not source, so `def` side effects don't re-run on each subsequent eval
-- [ ] Multi-value expression support — expressions returning `(values a b)` or Go multi-return should print all values instead of failing to compile
-- [ ] String-aware paren balancing — current depth counter is confused by `(` / `)` inside string literals
+- [x] Multi-value expression support — multi-return expressions print all values via variadic `fmt.Println`; errors from assignment mismatch show a `if-err` hint
+- [x] String-aware paren balancing — depth counter skips `;` comments and string contents
 
 ### 4c. Source maps
 - [ ] Emit `// glsp:line:col` comments on generated lines

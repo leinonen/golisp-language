@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/chzyer/readline"
+	"golang.org/x/term"
+
 	"golisp/internal/ast"
 	"golisp/internal/lsp"
 	"golisp/internal/parser"
@@ -47,6 +50,19 @@ func (s *Session) Eval(input string) (string, bool, error) {
 
 	out, err := runGoSource(goSrc)
 	if err != nil {
+		// Multi-return in single-value context — retry as statement and show a hint.
+		if isMultiReturnError(err.Error()) {
+			stmtProg := buildProgramStmt(s.defs, input)
+			if stmtGoSrc, stmtErr := transpiler.Transpile(stmtProg); stmtErr == nil {
+				if _, runErr := runGoSource(stmtGoSrc); runErr == nil {
+					hint := "; multi-return — use (if-err ...) or (let [[a b] ...]) to capture values"
+					if decl {
+						s.defs = append(s.defs, input)
+					}
+					return hint, decl, nil
+				}
+			}
+		}
 		return "", decl, err
 	}
 
@@ -59,11 +75,61 @@ func (s *Session) Eval(input string) (string, bool, error) {
 
 // Run is the interactive REPL loop.
 func Run(in io.Reader, out io.Writer) {
-	r := bufio.NewReader(in)
 	s := New()
-
 	fmt.Fprintln(out, "glisp REPL  (ctrl-d to exit)")
 
+	if f, ok := in.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+		runWithReadline(s, out)
+	} else {
+		runWithBufio(s, bufio.NewReader(in), out)
+	}
+}
+
+func runWithReadline(s *Session, out io.Writer) {
+	histFile := ""
+	if home, err := os.UserHomeDir(); err == nil {
+		histFile = filepath.Join(home, ".glisp_history")
+	}
+
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:      "=> ",
+		HistoryFile: histFile,
+	})
+	if err != nil {
+		// Fall back to bufio if readline init fails.
+		runWithBufio(s, bufio.NewReader(os.Stdin), out)
+		return
+	}
+	defer rl.Close()
+
+	for {
+		input, err := readExprRL(rl)
+		if err == readline.ErrInterrupt {
+			continue
+		}
+		if err == io.EOF {
+			fmt.Fprintln(out, "\nBye!")
+			return
+		}
+		if err != nil {
+			fmt.Fprintf(out, "error: %v\n", err)
+			continue
+		}
+
+		input = strings.TrimSpace(input)
+		if input == "" {
+			continue
+		}
+
+		if handleBuiltin(s, input, out) {
+			continue
+		}
+
+		evalAndPrint(s, input, out)
+	}
+}
+
+func runWithBufio(s *Session, r *bufio.Reader, out io.Writer) {
 	for {
 		input, err := readExpr(r, out)
 		if err == io.EOF {
@@ -80,29 +146,41 @@ func Run(in io.Reader, out io.Writer) {
 			continue
 		}
 
-		if name, ok := parseDocCall(input); ok {
-			if bd, found := lsp.BuiltinDocs[name]; found {
-				fmt.Fprintf(out, "%s\n  %s\n", bd.Sig, bd.Doc)
-			} else {
-				fmt.Fprintf(out, "no doc for %q\n", name)
-			}
+		if handleBuiltin(s, input, out) {
 			continue
 		}
 
-		result, isDecl, err := s.Eval(input)
-		if err != nil {
-			fmt.Fprintf(out, "error: %v\n", err)
-			continue
-		}
+		evalAndPrint(s, input, out)
+	}
+}
 
-		if isDecl {
-			nodes, _ := parser.ParseString(input)
-			if len(nodes) > 0 {
-				fmt.Fprintf(out, "=> %s\n", declName(nodes[0]))
-			}
-		} else if result != "" {
-			fmt.Fprintf(out, "%s\n", result)
+// handleBuiltin processes special REPL commands like (doc name). Returns true if handled.
+func handleBuiltin(s *Session, input string, out io.Writer) bool {
+	if name, ok := parseDocCall(input); ok {
+		if bd, found := lsp.BuiltinDocs[name]; found {
+			fmt.Fprintf(out, "%s\n  %s\n", bd.Sig, bd.Doc)
+		} else {
+			fmt.Fprintf(out, "no doc for %q\n", name)
 		}
+		return true
+	}
+	return false
+}
+
+func evalAndPrint(s *Session, input string, out io.Writer) {
+	result, isDecl, err := s.Eval(input)
+	if err != nil {
+		fmt.Fprintf(out, "error: %v\n", err)
+		return
+	}
+
+	if isDecl {
+		nodes, _ := parser.ParseString(input)
+		if len(nodes) > 0 {
+			fmt.Fprintf(out, "=> %s\n", declName(nodes[0]))
+		}
+	} else if result != "" {
+		fmt.Fprintf(out, "%s\n", result)
 	}
 }
 
@@ -121,6 +199,21 @@ func buildProgram(defs []string, input string, isDecl bool) string {
 		b.WriteString(input)
 		b.WriteString("))\n")
 	}
+	return b.String()
+}
+
+// buildProgramStmt emits the expression as a bare statement (no println wrapper).
+// Used as a fallback for multi-return expressions.
+func buildProgramStmt(defs []string, input string) string {
+	var b strings.Builder
+	b.WriteString("(ns main)\n")
+	for _, d := range defs {
+		b.WriteString(d)
+		b.WriteByte('\n')
+	}
+	b.WriteString("(defn -main []\n  ")
+	b.WriteString(input)
+	b.WriteString(")\n")
 	return b.String()
 }
 
@@ -170,6 +263,31 @@ func declName(n ast.Node) string {
 		return v.Name
 	}
 	return ""
+}
+
+// readExprRL reads a balanced expression using a readline instance.
+func readExprRL(rl *readline.Instance) (string, error) {
+	var lines []string
+	depth := 0
+	rl.SetPrompt("=> ")
+
+	for {
+		line, err := rl.Readline()
+		if err != nil {
+			return "", err
+		}
+		lines = append(lines, line)
+		depth += parenDepth(line)
+
+		trimmed := strings.TrimSpace(strings.Join(lines, ""))
+		if trimmed != "" && depth <= 0 {
+			break
+		}
+		rl.SetPrompt(".. ")
+	}
+
+	rl.SetPrompt("=> ")
+	return strings.Join(lines, "\n"), nil
 }
 
 // readExpr reads a balanced parenthetical expression from r, printing prompts to w.
@@ -223,7 +341,15 @@ func parseDocCall(input string) (string, bool) {
 	return name, true
 }
 
-// parenDepth counts the net open-bracket depth of a line, skipping string literals.
+// isMultiReturnError reports whether a Go compile error is caused by a multi-return expression
+// used where a single value is expected.
+func isMultiReturnError(msg string) bool {
+	return strings.Contains(msg, "multiple-value") ||
+		strings.Contains(msg, "assignment mismatch") ||
+		strings.Contains(msg, "used in value context")
+}
+
+// parenDepth counts the net open-bracket depth of a line, skipping string literals and comments.
 func parenDepth(s string) int {
 	depth := 0
 	inStr := false
@@ -243,6 +369,9 @@ func parenDepth(s string) int {
 		}
 		if inStr {
 			continue
+		}
+		if c == ';' {
+			break
 		}
 		switch c {
 		case '(', '[', '{':

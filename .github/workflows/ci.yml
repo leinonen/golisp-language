@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Drop local replace directives
+        run: go mod edit -dropreplace github.com/leinonen/glispdb
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: go build ./cmd/glisp ./cmd/glisp-lsp
+
+      - name: Test
+        run: go test $(go list ./... | grep -v golisp/examples)
+
+      - name: Build examples
+        run: |
+          make examples-tour \
+               examples-api \
+               examples-shapes \
+               examples-multifile \
+               examples-httpclient \
+               examples-data \
+               examples-concurrency \
+               examples-logparser

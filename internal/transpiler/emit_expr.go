@@ -870,6 +870,56 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "partition-by":
 			e.needImport("data")
 			return e.emitRuntimeCall("_glispPartitionBy", n.Args, 2)
+		// sequence conveniences
+		case "distinct":
+			return e.emitRuntimeCall("_glispDistinct", n.Args, 1)
+		case "remove":
+			return e.emitRuntimeCall("_glispRemove", n.Args, 2)
+		case "keep":
+			return e.emitRuntimeCall("_glispKeep", n.Args, 2)
+		case "split-at":
+			return e.emitRuntimeCall("_glispSplitAt", n.Args, 2)
+		case "split-with":
+			return e.emitRuntimeCall("_glispSplitWith", n.Args, 2)
+		case "interleave":
+			return e.emitVariadicRuntimeCall("_glispInterleave", n.Args)
+		case "not-any?":
+			return e.emitRuntimeCall("_glispNotAny", n.Args, 2)
+		// numeric predicates and arithmetic
+		case "even?":
+			return e.emitRuntimeCall("_glispIsEven", n.Args, 1)
+		case "odd?":
+			return e.emitRuntimeCall("_glispIsOdd", n.Args, 1)
+		case "pos?":
+			return e.emitRuntimeCall("_glispIsPos", n.Args, 1)
+		case "neg?":
+			return e.emitRuntimeCall("_glispIsNeg", n.Args, 1)
+		case "zero?":
+			return e.emitRuntimeCall("_glispIsZero", n.Args, 1)
+		case "inc":
+			return e.emitRuntimeCall("_glispInc", n.Args, 1)
+		case "dec":
+			return e.emitRuntimeCall("_glispDec", n.Args, 1)
+		// sort conveniences
+		case "sort":
+			e.needImport("sort")
+			return e.emitRuntimeCall("_glispSort", n.Args, 1)
+		case "min-key":
+			e.needImport("sort")
+			return e.emitVariadicRuntimeCall("_glispMinKey", n.Args)
+		case "max-key":
+			e.needImport("sort")
+			return e.emitVariadicRuntimeCall("_glispMaxKey", n.Args)
+		// map conveniences
+		case "map-vals":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispMapVals", n.Args, 2)
+		case "map-keys":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispMapKeys", n.Args, 2)
+		case "reduce-kv":
+			e.needImport("data")
+			return e.emitRuntimeCall("_glispReduceKV", n.Args, 3)
 		// 2c: higher-order utilities
 		case "complement":
 			return e.emitRuntimeCall("_glispComplement", n.Args, 1)
@@ -910,6 +960,12 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "join":
 			e.needImport("strings")
 			return e.emitRuntimeCall("_glispJoin", n.Args, 2)
+		case "blank?":
+			e.needImport("strings")
+			return e.emitRuntimeCall("_glispIsBlank", n.Args, 1)
+		case "capitalize":
+			e.needImport("strings")
+			return e.emitRuntimeCall("_glispCapitalize", n.Args, 1)
 		case "panic":
 			if len(n.Args) != 1 {
 				return fmt.Errorf("panic: expected 1 argument, got %d at %s", len(n.Args), n.Pos())

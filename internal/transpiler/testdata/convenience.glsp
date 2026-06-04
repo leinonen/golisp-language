@@ -1,0 +1,69 @@
+(ns main)
+
+;; numeric predicates
+(defn ^bool check-numeric []
+  (and (even? 4) (odd? 3) (pos? 1) (neg? -1) (zero? 0)))
+
+;; inc / dec
+(defn ^any count-up [^any n]
+  (inc n))
+
+(defn ^any count-down [^any n]
+  (dec n))
+
+;; distinct
+(defn ^[]any dedup-nums []
+  (distinct [1 2 1 3 2 4]))
+
+;; remove
+(defn ^[]any filter-evens [^[]any nums]
+  (remove (fn [x] (even? x)) nums))
+
+;; keep
+(defn ^[]any safe-parse [^[]any strs]
+  (keep (fn [s] (if (starts-with? (string s) "x") nil s)) strs))
+
+;; split-at
+(defn ^[]any split-list [^[]any coll]
+  (split-at 2 coll))
+
+;; split-with
+(defn ^[]any split-positives [^[]any nums]
+  (split-with (fn [x] (pos? x)) nums))
+
+;; interleave
+(defn ^[]any weave []
+  (interleave [1 2 3] ["a" "b" "c"]))
+
+;; not-any?
+(defn ^bool all-positive [^[]any nums]
+  (not-any? (fn [x] (neg? x)) nums))
+
+;; sort
+(defn ^[]any sorted-nums [^[]any nums]
+  (sort nums))
+
+;; min-key / max-key
+(defn ^any shortest []
+  (min-key (fn [s] (count s)) "abc" "de" "f"))
+
+(defn ^any longest []
+  (max-key (fn [s] (count s)) "abc" "de" "f"))
+
+;; blank? / capitalize
+(defn ^bool is-blank [^string s]
+  (blank? s))
+
+(defn ^string cap-word [^string s]
+  (capitalize s))
+
+;; map-vals / map-keys
+(defn ^map[string]any double-vals [^map[string]any m]
+  (map-vals (fn [v] (* (int v) 2)) m))
+
+(defn ^map[string]any upper-keys [^map[string]any m]
+  (map-keys (fn [k] (upper-case (string k))) m))
+
+;; reduce-kv
+(defn ^[]any kv-pairs [^map[string]any m]
+  (reduce-kv (fn [acc k v] (conj acc [k v])) [] m))

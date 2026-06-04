@@ -50,6 +50,9 @@ var builtinDocs = map[string]BuiltinDoc{
 	"some":      {Sig: "(some pred coll)      →  any", Doc: "Return the first element of coll for which pred is truthy, or nil."},
 	"every?":    {Sig: "(every? pred coll)    →  bool", Doc: "True when pred returns true for every element of coll."},
 	"sort-by":   {Sig: "(sort-by f coll)      →  []any", Doc: "Sort coll by the value returned by f for each element."},
+	"sort":      {Sig: "(sort coll)           →  []any", Doc: "Sort coll in natural order (int/float64/string)."},
+	"min-key":   {Sig: "(min-key f x y & more)  →  any", Doc: "Return the element with the smallest (f elem) value."},
+	"max-key":   {Sig: "(max-key f x y & more)  →  any", Doc: "Return the element with the largest (f elem) value."},
 	"flatten":   {Sig: "(flatten coll)        →  []any", Doc: "Recursively flatten nested slices into a single slice."},
 	"range":     {Sig: "(range n) or (range start end)  →  []int", Doc: "Integer slice from 0 to n (exclusive), or from start to end."},
 	"take":      {Sig: "(take n coll)         →  []any", Doc: "Return the first n elements of coll."},
@@ -74,6 +77,16 @@ var builtinDocs = map[string]BuiltinDoc{
 	"zipmap":       {Sig: "(zipmap keys vals)         →  map",    Doc: "Build a map from two sequences."},
 	"partition":    {Sig: "(partition n coll)         →  []any",  Doc: "Split coll into chunks of size n (incomplete last chunk is dropped)."},
 	"partition-by": {Sig: "(partition-by f coll)      →  []any",  Doc: "Split coll at each change in (f item)."},
+	"distinct":     {Sig: "(distinct coll)            →  []any",  Doc: "Remove duplicate elements from coll, preserving order."},
+	"remove":       {Sig: "(remove pred coll)         →  []any",  Doc: "Return elements of coll for which pred returns false/nil (inverse of filter)."},
+	"keep":         {Sig: "(keep f coll)              →  []any",  Doc: "Map f over coll, dropping nil results."},
+	"split-at":     {Sig: "(split-at n coll)          →  [[before] [after]]", Doc: "Split coll into [[first n] [rest]] at index n."},
+	"split-with":   {Sig: "(split-with pred coll)     →  [[taken] [rest]]", Doc: "Split coll into [[take-while pred] [drop-while pred]]."},
+	"interleave":   {Sig: "(interleave & colls)       →  []any",  Doc: "Interleave elements of colls; stops at the shortest."},
+	"not-any?":     {Sig: "(not-any? pred coll)       →  bool",   Doc: "True when pred returns false/nil for every element of coll."},
+	"map-vals":     {Sig: "(map-vals f m)             →  map",    Doc: "Return m with f applied to each value."},
+	"map-keys":     {Sig: "(map-keys f m)             →  map",    Doc: "Return m with f applied to each key (f must return a string)."},
+	"reduce-kv":    {Sig: "(reduce-kv f init m)       →  any",    Doc: "Reduce map m with a 3-arg fn (fn acc k v)."},
 
 	// Sets
 	"union":        {Sig: "(union s1 s2)              →  set",   Doc: "Return a set containing all elements of s1 and s2."},
@@ -104,8 +117,19 @@ var builtinDocs = map[string]BuiltinDoc{
 	"format":       {Sig: "(format fmt & args)       →  string", Doc: "Format string using fmt.Sprintf directives (e.g. %s, %d, %v)."},
 	"parse-int":    {Sig: "(parse-int s)             →  [int error]", Doc: "Parse string s as a base-10 integer. Returns (int, error) — use with if-err."},
 	"parse-float":  {Sig: "(parse-float s)           →  [float64 error]", Doc: "Parse string s as a 64-bit float. Returns (float64, error) — use with if-err."},
-	"repeat":       {Sig: "(repeat n val)            →  []any", Doc: "Return a slice of n copies of val."},
-	"interpose":    {Sig: "(interpose sep coll)       →  []any", Doc: "Return a new seq with sep inserted between each element of coll."},
+	"repeat":     {Sig: "(repeat n val)            →  []any",   Doc: "Return a slice of n copies of val."},
+	"interpose":  {Sig: "(interpose sep coll)       →  []any",   Doc: "Return a new seq with sep inserted between each element of coll."},
+	"blank?":     {Sig: "(blank? s)                →  bool",    Doc: "True when s is nil or contains only whitespace."},
+	"capitalize": {Sig: "(capitalize s)            →  string",  Doc: "Return s with the first character uppercased and the rest lowercased."},
+
+	// Numeric predicates and arithmetic
+	"even?": {Sig: "(even? n)  →  bool", Doc: "True when n is even."},
+	"odd?":  {Sig: "(odd? n)   →  bool", Doc: "True when n is odd."},
+	"pos?":  {Sig: "(pos? n)   →  bool", Doc: "True when n is positive (> 0)."},
+	"neg?":  {Sig: "(neg? n)   →  bool", Doc: "True when n is negative (< 0)."},
+	"zero?": {Sig: "(zero? n)  →  bool", Doc: "True when n is zero."},
+	"inc":   {Sig: "(inc n)    →  any",  Doc: "Increment n by 1. Preserves int/float64 type."},
+	"dec":   {Sig: "(dec n)    →  any",  Doc: "Decrement n by 1. Preserves int/float64 type."},
 
 	// Type / error
 	"int":   {Sig: "(int x)       →  int", Doc: "Convert x to int."},

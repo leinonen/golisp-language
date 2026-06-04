@@ -55,6 +55,16 @@ Core functions available in every glisp program without any import.
 | `(contains? coll x)` | bool | True when coll contains x (map, slice, set, string) |
 | `(some pred coll)` | any | First element where pred is truthy, or nil |
 | `(every? pred coll)` | bool | True when pred is truthy for every element |
+| `(not-any? pred coll)` | bool | True when pred is falsy for every element |
+| `(distinct coll)` | `[]any` | Remove duplicates, preserving order |
+| `(remove pred coll)` | `[]any` | Elements where pred is falsy (inverse of `filter`) |
+| `(keep f coll)` | `[]any` | Map f over coll, dropping nil results |
+| `(split-at n coll)` | `[[before] [after]]` | Split into first-n and rest |
+| `(split-with pred coll)` | `[[taken] [rest]]` | Split at first element where pred is falsy |
+| `(interleave & colls)` | `[]any` | Interleave elements from multiple sequences; stops at the shortest |
+| `(sort coll)` | `[]any` | Sort in natural order (int, float64, or string) |
+| `(min-key f x y & more)` | any | Element with the smallest `(f elem)` value |
+| `(max-key f x y & more)` | any | Element with the largest `(f elem)` value |
 
 ## Maps
 
@@ -66,6 +76,9 @@ Core functions available in every glisp program without any import.
 | `(merge m1 m2)` | map | Merge two maps; m2 keys overwrite m1 |
 | `(keys m)` | `[]any` | All keys |
 | `(vals m)` | `[]any` | All values |
+| `(map-vals f m)` | map | Return m with f applied to each value |
+| `(map-keys f m)` | map | Return m with f applied to each key (f must return a string) |
+| `(reduce-kv f init m)` | any | Reduce map m with `(f acc k v)` over each entry |
 
 ## Sets
 
@@ -101,6 +114,8 @@ Sets are unordered collections of unique values. Literal syntax: `#{1 2 3}`. Bac
 | `(upper-case s)` | string | Uppercase |
 | `(lower-case s)` | string | Lowercase |
 | `(trim s)` | string | Strip leading/trailing whitespace |
+| `(blank? s)` | bool | True when s is nil or contains only whitespace |
+| `(capitalize s)` | string | Uppercase first character, lowercase the rest |
 | `(starts-with? s prefix)` | bool | True when s begins with prefix |
 | `(ends-with? s suffix)` | bool | True when s ends with suffix |
 | `(replace s old new)` | string | Replace all occurrences of old with new |
@@ -115,8 +130,16 @@ Sets are unordered collections of unique values. Literal syntax: `#{1 2 3}`. Bac
 | Form | Returns | Description |
 |---|---|---|
 | `(int x)` | int | Convert x to int |
+| `(float64 x)` | float64 | Convert x to float64 |
 | `(parse-int s)` | `[int error]` | Parse decimal integer string; use with `if-err` |
 | `(parse-float s)` | `[float64 error]` | Parse float string; use with `if-err` |
+| `(inc n)` | any | Increment n by 1; preserves int/float64 type |
+| `(dec n)` | any | Decrement n by 1; preserves int/float64 type |
+| `(even? n)` | bool | True when n is even |
+| `(odd? n)` | bool | True when n is odd |
+| `(pos? n)` | bool | True when n is positive (> 0) |
+| `(neg? n)` | bool | True when n is negative (< 0) |
+| `(zero? n)` | bool | True when n is zero |
 
 ## Higher-order functions
 

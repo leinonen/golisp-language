@@ -132,7 +132,7 @@ Go `strings` package. Auto-imported. Glisp also provides simpler wrappers — se
 
 ## sort
 
-Go `sort` package. Auto-imported. Glisp also provides `sort-by` — see [builtins.md](builtins.md).
+Go `sort` package. Auto-imported. Glisp also provides `sort`, `sort-by`, `min-key`, and `max-key` — see [builtins.md](builtins.md).
 
 | Form | Description |
 |---|---|

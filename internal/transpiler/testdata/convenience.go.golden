@@ -2,45 +2,102 @@ package main
 
 import (
 	"fmt"
-	"testing"
+	"sort"
+	"strings"
 )
 
-func add(a int, b int) int {
-	return (a + b)
+func checkNumeric() bool {
+	return (_glispIsEven(4) && _glispIsOdd(3) && _glispIsPos(1) && _glispIsNeg(-1) && _glispIsZero(0))
 }
 
-func greet(name string) string {
-	return (fmt.Sprintf("%v", "hello ") + fmt.Sprintf("%v", name))
+func countUp(n any) any {
+	return _glispInc(n)
 }
 
-func TestMathOps(t *testing.T) {
-	if (add(1, 2)) != (3) {
-		t.Errorf("assert= failed: expected %v, got %v", 3, add(1, 2))
-	}
-	if (add(0, 0)) != (0) {
-		t.Errorf("assert= failed: expected %v, got %v", 0, add(0, 0))
-	}
-	if (add(-1, 1)) != (0) {
-		t.Errorf("assert= failed: expected %v, got %v", 0, add(-1, 1))
-	}
-	if !(add(5, 5) > 9) {
-		t.Errorf("assert-true failed")
-	}
-	if add(1, 1) == 3 {
-		t.Errorf("assert-false failed")
-	}
+func countDown(n any) any {
+	return _glispDec(n)
 }
 
-func TestStringOps(t *testing.T) {
-	if (greet("world")) != ("hello world") {
-		t.Errorf("assert= failed: expected %v, got %v", "hello world", greet("world"))
-	}
-	if greet("x") == "hello y" {
-		t.Errorf("assert-false failed")
-	}
-	if (nil) != nil {
-		t.Errorf("assert-nil failed: got %v", nil)
-	}
+func dedupNums() []any {
+	return _glispDistinct([]any{1, 2, 1, 3, 2, 4})
+}
+
+func filterEvens(nums []any) []any {
+	return _glispRemove(func(x any) any {
+		return _glispIsEven(x)
+	}, nums)
+}
+
+func safeParse(strs []any) []any {
+	return _glispKeep(func(s any) any {
+		if strings.HasPrefix(_glispToString(string(s)), _glispToString("x")) {
+			return nil
+		} else {
+			return s
+		}
+	}, strs)
+}
+
+func splitList(coll []any) []any {
+	return _glispSplitAt(2, coll)
+}
+
+func splitPositives(nums []any) []any {
+	return _glispSplitWith(func(x any) any {
+		return _glispIsPos(x)
+	}, nums)
+}
+
+func weave() []any {
+	return _glispInterleave([]any{1, 2, 3}, []any{"a", "b", "c"})
+}
+
+func allPositive(nums []any) bool {
+	return _glispNotAny(func(x any) any {
+		return _glispIsNeg(x)
+	}, nums)
+}
+
+func sortedNums(nums []any) []any {
+	return _glispSort(nums)
+}
+
+func shortest() any {
+	return _glispMinKey(func(s any) any {
+		return _glispLen(s)
+	}, "abc", "de", "f")
+}
+
+func longest() any {
+	return _glispMaxKey(func(s any) any {
+		return _glispLen(s)
+	}, "abc", "de", "f")
+}
+
+func isBlank(s string) bool {
+	return _glispIsBlank(s)
+}
+
+func capWord(s string) string {
+	return _glispCapitalize(s)
+}
+
+func doubleVals(m map[string]any) map[string]any {
+	return _glispMapVals(func(v any) any {
+		return (_glispToInt(v) * 2)
+	}, m)
+}
+
+func upperKeys(m map[string]any) map[string]any {
+	return _glispMapKeys(func(k any) any {
+		return strings.ToUpper(_glispToString(string(k)))
+	}, m)
+}
+
+func kvPairs(m map[string]any) []any {
+	return _glispReduceKV(func(acc any, k any, v any) any {
+		return _glispConj(acc, []any{k, v})
+	}, []any{}, m)
 }
 
 // --- glisp runtime helpers (generated) ---
@@ -774,3 +831,291 @@ func _glispNotAny(pred any, coll any) bool {
 }
 
 // --- end glisp runtime helpers ---
+
+func _glispSortBy(f any, coll any) []any {
+	fn := f.(func(any) any)
+	s := _glispToSlice(coll)
+	result := make([]any, len(s))
+	copy(result, s)
+	sort.SliceStable(result, func(i, j int) bool {
+		ki := fn(result[i])
+		kj := fn(result[j])
+		switch a := ki.(type) {
+		case int:
+			if b, ok := kj.(int); ok {
+				return a < b
+			}
+		case int64:
+			if b, ok := kj.(int64); ok {
+				return a < b
+			}
+		case float64:
+			if b, ok := kj.(float64); ok {
+				return a < b
+			}
+		case string:
+			if b, ok := kj.(string); ok {
+				return a < b
+			}
+		}
+		return false
+	})
+	return result
+}
+
+func _glispSort(coll any) []any {
+	s := _glispToSlice(coll)
+	result := make([]any, len(s))
+	copy(result, s)
+	sort.SliceStable(result, func(i, j int) bool {
+		a, b := result[i], result[j]
+		switch av := a.(type) {
+		case int:
+			if bv, ok := b.(int); ok {
+				return av < bv
+			}
+		case float64:
+			if bv, ok := b.(float64); ok {
+				return av < bv
+			}
+		case string:
+			if bv, ok := b.(string); ok {
+				return av < bv
+			}
+		}
+		return false
+	})
+	return result
+}
+
+func _glispMinKey(f any, args ...any) any {
+	fn := f.(func(any) any)
+	if len(args) == 0 {
+		return nil
+	}
+	best := args[0]
+	bestVal := fn(best)
+	for _, a := range args[1:] {
+		v := fn(a)
+		switch bv := bestVal.(type) {
+		case int:
+			if av, ok := v.(int); ok && av < bv {
+				best, bestVal = a, v
+			}
+		case float64:
+			if av, ok := v.(float64); ok && av < bv {
+				best, bestVal = a, v
+			}
+		case string:
+			if av, ok := v.(string); ok && av < bv {
+				best, bestVal = a, v
+			}
+		}
+	}
+	return best
+}
+
+func _glispMaxKey(f any, args ...any) any {
+	fn := f.(func(any) any)
+	if len(args) == 0 {
+		return nil
+	}
+	best := args[0]
+	bestVal := fn(best)
+	for _, a := range args[1:] {
+		v := fn(a)
+		switch bv := bestVal.(type) {
+		case int:
+			if av, ok := v.(int); ok && av > bv {
+				best, bestVal = a, v
+			}
+		case float64:
+			if av, ok := v.(float64); ok && av > bv {
+				best, bestVal = a, v
+			}
+		case string:
+			if av, ok := v.(string); ok && av > bv {
+				best, bestVal = a, v
+			}
+		}
+	}
+	return best
+}
+
+func _glispSplit(s any, sep any) []any {
+	parts := strings.Split(s.(string), sep.(string))
+	result := make([]any, len(parts))
+	for i, p := range parts {
+		result[i] = p
+	}
+	return result
+}
+
+func _glispJoin(coll any, sep any) string {
+	s := _glispToSlice(coll)
+	parts := make([]string, len(s))
+	for i, v := range s {
+		if str, ok := v.(string); ok {
+			parts[i] = str
+		}
+	}
+	return strings.Join(parts, sep.(string))
+}
+
+func _glispIsBlank(s any) bool {
+	if s == nil {
+		return true
+	}
+	return strings.TrimSpace(s.(string)) == ""
+}
+
+func _glispCapitalize(s any) string {
+	str := s.(string)
+	if str == "" {
+		return str
+	}
+	r := []rune(str)
+	return strings.ToUpper(string(r[0:1])) + strings.ToLower(string(r[1:]))
+}
+
+func _glispAssocInSlice(m any, ks []any, v any) map[string]any {
+	result := map[string]any{}
+	if mm, ok := m.(map[string]any); ok {
+		for k, val := range mm {
+			result[k] = val
+		}
+	}
+	if len(ks) == 0 {
+		return result
+	}
+	key := ks[0].(string)
+	if len(ks) == 1 {
+		result[key] = v
+		return result
+	}
+	result[key] = _glispAssocInSlice(result[key], ks[1:], v)
+	return result
+}
+
+func _glispAssocIn(m any, keys any, v any) map[string]any {
+	return _glispAssocInSlice(m, _glispToSlice(keys), v)
+}
+
+func _glispUpdateIn(m any, keys any, f any) map[string]any {
+	fn := f.(func(any) any)
+	ks := _glispToSlice(keys)
+	return _glispAssocInSlice(m, ks, fn(_glispGetIn(m, keys)))
+}
+
+func _glispRenameKeys(m any, kmap any) map[string]any {
+	result := map[string]any{}
+	km, _ := kmap.(map[string]any)
+	if mm, ok := m.(map[string]any); ok {
+		for k, v := range mm {
+			if nk, found := km[k]; found {
+				result[fmt.Sprintf("%v", nk)] = v
+			} else {
+				result[k] = v
+			}
+		}
+	}
+	return result
+}
+
+func _glispGroupBy(f any, coll any) map[string]any {
+	result := map[string]any{}
+	for _, item := range _glispToSlice(coll) {
+		var key string
+		switch fn := f.(type) {
+		case func(any) any:
+			key = fmt.Sprintf("%v", fn(item))
+		case string:
+			key = fmt.Sprintf("%v", _glispGet(item, fn))
+		}
+		existing, _ := result[key].([]any)
+		result[key] = append(existing, item)
+	}
+	return result
+}
+
+func _glispFrequencies(coll any) map[string]any {
+	result := map[string]any{}
+	for _, item := range _glispToSlice(coll) {
+		key := fmt.Sprintf("%v", item)
+		count, _ := result[key].(int64)
+		result[key] = count + 1
+	}
+	return result
+}
+
+func _glispZipmap(keys any, vals any) map[string]any {
+	ks := _glispToSlice(keys)
+	vs := _glispToSlice(vals)
+	result := map[string]any{}
+	for i, k := range ks {
+		if i >= len(vs) {
+			break
+		}
+		result[fmt.Sprintf("%v", k)] = vs[i]
+	}
+	return result
+}
+
+func _glispPartitionBy(f any, coll any) []any {
+	fn := f.(func(any) any)
+	s := _glispToSlice(coll)
+	if len(s) == 0 {
+		return []any{}
+	}
+	var result []any
+	var chunk []any
+	prev := fmt.Sprintf("%v", fn(s[0]))
+	for _, item := range s {
+		cur := fmt.Sprintf("%v", fn(item))
+		if cur != prev {
+			result = append(result, chunk)
+			chunk = nil
+			prev = cur
+		}
+		chunk = append(chunk, item)
+	}
+	if len(chunk) > 0 {
+		result = append(result, chunk)
+	}
+	return result
+}
+
+func _glispMapVals(f any, m any) map[string]any {
+	fn := f.(func(any) any)
+	result := make(map[string]any)
+	if mm, ok := m.(map[string]any); ok {
+		for k, v := range mm {
+			result[k] = fn(v)
+		}
+	}
+	return result
+}
+
+func _glispMapKeys(f any, m any) map[string]any {
+	fn := f.(func(any) any)
+	result := make(map[string]any)
+	if mm, ok := m.(map[string]any); ok {
+		for k, v := range mm {
+			if nk, ok := fn(k).(string); ok {
+				result[nk] = v
+			}
+		}
+	}
+	return result
+}
+
+func _glispReduceKV(f any, init any, m any) any {
+	fn := f.(func(any, any, any) any)
+	acc := init
+	if mm, ok := m.(map[string]any); ok {
+		for k, v := range mm {
+			acc = fn(acc, k, v)
+		}
+	}
+	return acc
+}

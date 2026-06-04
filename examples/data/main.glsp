@@ -132,8 +132,9 @@
   ; --- partition-by ---
   ; run is any inside map callback — first/count work on it.
   (fmt/println "\n=== partition-by ===")
-  (let [cat-sorted (sort-by (fn [p] (get p "category")) products)
-        runs      (partition-by (fn [p] (get p "category")) cat-sorted)]
+  (let [runs (->> products
+               (sort-by (fn [p] (get p "category")))
+               (partition-by (fn [p] (get p "category"))))]
     (map (fn [run]
            (do
              (fmt/println " " (get-in (first run) ["category"]) "x" (count run) ":"

@@ -19,10 +19,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Drop local replace directives
-        run: go mod edit -dropreplace github.com/leinonen/glispdb
-
-      - name: Download dependencies
-        run: go mod download
+        run: go mod edit -dropreplace=github.com/leinonen/glispdb
 
       - name: Build
         run: go build ./cmd/glisp ./cmd/glisp-lsp

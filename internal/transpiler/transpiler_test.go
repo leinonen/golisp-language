@@ -132,6 +132,36 @@ func TestTranspileSnippets(t *testing.T) {
 			wantSub: "time.After(",
 		},
 		{
+			name:    "pipeline",
+			src:     `(defn pipe [^(chan any) ch] (pipeline [x ch] (* x 2)))`,
+			wantSub: "defer close(",
+		},
+		{
+			name:    "pipeline multi-stage",
+			src:     `(defn pipe [^(chan any) ch] (pipeline [x ch] (* x 2) (str x)))`,
+			wantSub: "_pipe2",
+		},
+		{
+			name:    "fan-out",
+			src:     `(defn work [^(chan any) ch] (fan-out 4 [item ch] (fmt/println item)))`,
+			wantSub: "sync.WaitGroup",
+		},
+		{
+			name:    "fan-out loop",
+			src:     `(defn work [^(chan any) ch] (fan-out 4 [item ch] (fmt/println item)))`,
+			wantSub: "_fanN",
+		},
+		{
+			name:    "fan-in",
+			src:     `(defn merge [^(chan any) a ^(chan any) b] (fan-in a b))`,
+			wantSub: "_fanInMerge",
+		},
+		{
+			name:    "fan-in close",
+			src:     `(defn merge [^(chan any) a ^(chan any) b] (fan-in a b))`,
+			wantSub: "close(_out)",
+		},
+		{
 			name:    "method call",
 			src:     `(defn greet [^*Writer w] (.Write w "hi"))`,
 			wantSub: "w.Write(",

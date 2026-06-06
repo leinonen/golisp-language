@@ -584,6 +584,47 @@ func NewWithLockExpr(pos Position, mutex Node, body []Node) *WithLockExpr {
 	return &WithLockExpr{Pos_: pos, Mutex: mutex, Body: body}
 }
 
+// PipelineExpr: (pipeline [x src-ch] stage1 stage2 ...) → chained goroutines returning chan any
+type PipelineExpr struct {
+	Pos_    Position
+	Binding *Symbol
+	Source  Node
+	Stages  []Node
+}
+
+func (n *PipelineExpr) nodeMarker()   {}
+func (n *PipelineExpr) Pos() Position { return n.Pos_ }
+func NewPipelineExpr(pos Position, binding *Symbol, source Node, stages []Node) *PipelineExpr {
+	return &PipelineExpr{Pos_: pos, Binding: binding, Source: source, Stages: stages}
+}
+
+// FanOutStmt: (fan-out n [item ch] body...) → n goroutines draining ch, blocks until done
+type FanOutStmt struct {
+	Pos_    Position
+	N       Node
+	Binding *Symbol
+	Chan    Node
+	Body    []Node
+}
+
+func (n *FanOutStmt) nodeMarker()   {}
+func (n *FanOutStmt) Pos() Position { return n.Pos_ }
+func NewFanOutStmt(pos Position, nWorkers Node, binding *Symbol, ch Node, body []Node) *FanOutStmt {
+	return &FanOutStmt{Pos_: pos, N: nWorkers, Binding: binding, Chan: ch, Body: body}
+}
+
+// FanInExpr: (fan-in ch1 ch2 ...) → merged chan any
+type FanInExpr struct {
+	Pos_  Position
+	Chans []Node
+}
+
+func (n *FanInExpr) nodeMarker()   {}
+func (n *FanInExpr) Pos() Position { return n.Pos_ }
+func NewFanInExpr(pos Position, chans []Node) *FanInExpr {
+	return &FanInExpr{Pos_: pos, Chans: chans}
+}
+
 // LoopExpr: (loop [bindings...] body...)
 type LoopExpr struct {
 	Pos_     Position

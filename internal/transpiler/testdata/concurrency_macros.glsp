@@ -1,0 +1,17 @@
+(ns main (:import [fmt]))
+
+(defn ^(chan any) double-stage [^(chan any) ch]
+  (pipeline [x ch]
+    (* x 2)))
+
+(defn ^(chan any) two-stage [^(chan any) ch]
+  (pipeline [x ch]
+    (* x 2)
+    (str x "-done")))
+
+(defn process-items [^(chan any) ch]
+  (fan-out 4 [item ch]
+    (fmt/println item)))
+
+(defn ^(chan any) merge-channels [^(chan any) a ^(chan any) b ^(chan any) c]
+  (fan-in a b c))

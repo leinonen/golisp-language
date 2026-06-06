@@ -387,6 +387,12 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseForChan(pos)
 		case "with-lock":
 			return p.parseWithLock(pos)
+		case "pipeline":
+			return p.parsePipeline(pos)
+		case "fan-out":
+			return p.parseFanOut(pos)
+		case "fan-in":
+			return p.parseFanIn(pos)
 		case "loop":
 			return p.parseLoop(pos)
 		case "recur":
@@ -1066,6 +1072,84 @@ func (p *parser) parseWithLock(pos ast.Position) (*ast.WithLockExpr, error) {
 		return nil, err
 	}
 	return ast.NewWithLockExpr(pos, mu, body), nil
+}
+
+func (p *parser) parsePipeline(pos ast.Position) (*ast.PipelineExpr, error) {
+	p.advance() // "pipeline"
+	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+		return nil, err
+	}
+	bindTok, err := p.expect(lexer.TokenSymbol)
+	if err != nil {
+		return nil, err
+	}
+	source, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRBracket); err != nil {
+		return nil, err
+	}
+	var stages []ast.Node
+	for p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF {
+		stage, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		stages = append(stages, stage)
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	sym := ast.NewSymbol(p.mkpos(bindTok), bindTok.Text)
+	return ast.NewPipelineExpr(pos, sym, source, stages), nil
+}
+
+func (p *parser) parseFanOut(pos ast.Position) (*ast.FanOutStmt, error) {
+	p.advance() // "fan-out"
+	n, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+		return nil, err
+	}
+	bindTok, err := p.expect(lexer.TokenSymbol)
+	if err != nil {
+		return nil, err
+	}
+	ch, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRBracket); err != nil {
+		return nil, err
+	}
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	sym := ast.NewSymbol(p.mkpos(bindTok), bindTok.Text)
+	return ast.NewFanOutStmt(pos, n, sym, ch, body), nil
+}
+
+func (p *parser) parseFanIn(pos ast.Position) (*ast.FanInExpr, error) {
+	p.advance() // "fan-in"
+	var chans []ast.Node
+	for p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF {
+		ch, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		chans = append(chans, ch)
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewFanInExpr(pos, chans), nil
 }
 
 func (p *parser) parseSelect(pos ast.Position) (*ast.SelectStmt, error) {

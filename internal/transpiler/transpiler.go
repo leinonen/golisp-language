@@ -412,6 +412,24 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitSelectStmt(v)
 	case *ast.WithLockExpr:
 		return e.emitWithLockExpr(v)
+	case *ast.PipelineExpr:
+		return e.emitPipelineExpr(v)
+	case *ast.FanInExpr:
+		return e.emitFanInExpr(v)
+	case *ast.FanOutStmt:
+		e.write("func() any {")
+		e.nl()
+		e.push()
+		e.writeIndent()
+		if err := e.emitFanOutStmt(v); err != nil {
+			return err
+		}
+		e.nl()
+		e.line("return nil")
+		e.pop()
+		e.writeIndent()
+		e.write("}()")
+		return nil
 	case *ast.LoopExpr:
 		return e.emitLoopExpr(v, false)
 	case *ast.RecurExpr:
@@ -483,6 +501,13 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 	case *ast.ForChanStmt:
 		e.writeIndent()
 		if err := e.emitForChanStmt(v); err != nil {
+			return err
+		}
+		e.nl()
+		return nil
+	case *ast.FanOutStmt:
+		e.writeIndent()
+		if err := e.emitFanOutStmt(v); err != nil {
 			return err
 		}
 		e.nl()
@@ -683,6 +708,13 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 	case *ast.ForChanStmt:
 		e.writeIndent()
 		if err := e.emitForChanStmt(v); err != nil {
+			return err
+		}
+		e.nl()
+		return nil
+	case *ast.FanOutStmt:
+		e.writeIndent()
+		if err := e.emitFanOutStmt(v); err != nil {
 			return err
 		}
 		e.nl()

@@ -1,4 +1,4 @@
-.PHONY: all build build-lsp test test-update install clean fmt fmt-glsp examples examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-notes-api examples-concurrency examples-logparser
+.PHONY: all build build-lsp test test-update install clean fmt fmt-glsp examples examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline
 
 BIN     := glisp
 BIN_LSP := glisp-lsp
@@ -39,7 +39,7 @@ examples-clean:
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
 	rm -f examples/notes-api/glisp_runtime.go examples/notes-api/main.go examples/notes-api/handlers.go examples/notes-api/db.go examples/notes-api/helpers.go
 
-examples: examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser
+examples: examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline
 
 examples-tour: build
 	./$(BIN) build -o examples/tour/tour examples/tour/main.glsp
@@ -67,3 +67,6 @@ examples-concurrency: build
 
 examples-logparser: build
 	./$(BIN) build -o examples/logparser/logparser examples/logparser/main.glsp
+
+examples-sec-pipeline: build
+	./$(BIN) build -o examples/sec-pipeline/sec-pipeline examples/sec-pipeline/main.glsp

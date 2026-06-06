@@ -314,6 +314,158 @@ func (e *Emitter) emitIfErrExprReturn(n *ast.IfErrExpr) error {
 	return e.emitReturnNode(n.OnOk)
 }
 
+// emitPipelineExpr: (pipeline [x src] stage1 stage2 ...) → IIFE chaining goroutines via channels.
+// Each stage reads from the previous channel, transforms x, sends to the next channel.
+// Returns the final chan any.
+func (e *Emitter) emitPipelineExpr(n *ast.PipelineExpr) error {
+	binding := identToGo(n.Binding.Name)
+	e.write("func() chan any {")
+	e.nl()
+	e.push()
+	e.writeIndent()
+	e.write("_pipe0 := ")
+	if err := e.emitExpr(n.Source); err != nil {
+		return err
+	}
+	e.nl()
+	for i, stage := range n.Stages {
+		inPipe := fmt.Sprintf("_pipe%d", i)
+		outPipe := fmt.Sprintf("_pipe%d", i+1)
+		e.writeIndent()
+		e.writef("%s := make(chan any)", outPipe)
+		e.nl()
+		e.writeIndent()
+		e.write("go func() {")
+		e.nl()
+		e.push()
+		e.writeIndent()
+		e.writef("defer close(%s)", outPipe)
+		e.nl()
+		e.writeIndent()
+		e.writef("for %s := range %s {", binding, inPipe)
+		e.nl()
+		e.push()
+		e.writeIndent()
+		e.writef("%s <- func() any { return ", outPipe)
+		if err := e.emitExpr(stage); err != nil {
+			return err
+		}
+		e.write(" }()")
+		e.nl()
+		e.pop()
+		e.line("}")
+		e.pop()
+		e.line("}()")
+	}
+	e.writeIndent()
+	e.writef("return _pipe%d", len(n.Stages))
+	e.nl()
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// emitFanOutStmt: (fan-out n [item ch] body...) → n goroutines draining ch via WaitGroup.
+// Blocks until ch is closed and all workers finish.
+func (e *Emitter) emitFanOutStmt(n *ast.FanOutStmt) error {
+	e.needImport("sync")
+	binding := identToGo(n.Binding.Name)
+	e.write("{")
+	e.nl()
+	e.push()
+	e.writeIndent()
+	e.write("_fanN := int(")
+	if err := e.emitExpr(n.N); err != nil {
+		return err
+	}
+	e.write(")")
+	e.nl()
+	e.line("var _wg sync.WaitGroup")
+	e.line("_wg.Add(_fanN)")
+	e.writeIndent()
+	e.write("for _fanI := 0; _fanI < _fanN; _fanI++ {")
+	e.nl()
+	e.push()
+	e.writeIndent()
+	e.write("go func() {")
+	e.nl()
+	e.push()
+	e.line("defer _wg.Done()")
+	e.writeIndent()
+	e.writef("for %s := range ", binding)
+	if err := e.emitExpr(n.Chan); err != nil {
+		return err
+	}
+	e.write(" {")
+	e.nl()
+	e.push()
+	if err := e.emitBody(n.Body, false); err != nil {
+		return err
+	}
+	e.pop()
+	e.line("}")
+	e.pop()
+	e.line("}()")
+	e.pop()
+	e.line("}")
+	e.line("_wg.Wait()")
+	e.pop()
+	e.writeIndent()
+	e.write("}")
+	return nil
+}
+
+// emitFanInExpr: (fan-in ch1 ch2 ...) → IIFE merging N chan any inputs into one chan any.
+// Input channels must be chan any. Closes output when all inputs are exhausted.
+func (e *Emitter) emitFanInExpr(n *ast.FanInExpr) error {
+	e.needImport("sync")
+	e.write("func() chan any {")
+	e.nl()
+	e.push()
+	e.line("_out := make(chan any)")
+	e.line("var _wg sync.WaitGroup")
+	e.writeIndent()
+	e.writef("_wg.Add(%d)", len(n.Chans))
+	e.nl()
+	e.writeIndent()
+	e.write("_fanInMerge := func(_c chan any) {")
+	e.nl()
+	e.push()
+	e.line("defer _wg.Done()")
+	e.writeIndent()
+	e.write("for _v := range _c {")
+	e.nl()
+	e.push()
+	e.line("_out <- _v")
+	e.pop()
+	e.line("}")
+	e.pop()
+	e.line("}")
+	for _, ch := range n.Chans {
+		e.writeIndent()
+		e.write("go _fanInMerge(")
+		if err := e.emitExpr(ch); err != nil {
+			return err
+		}
+		e.write(")")
+		e.nl()
+	}
+	e.writeIndent()
+	e.write("go func() {")
+	e.nl()
+	e.push()
+	e.line("_wg.Wait()")
+	e.line("close(_out)")
+	e.pop()
+	e.line("}()")
+	e.line("return _out")
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
 // emitTypeAssertExpr: (as ^T val) → val.(T)
 func (e *Emitter) emitTypeAssertExpr(n *ast.TypeAssertExpr) error {
 	if err := e.emitExpr(n.Value); err != nil {

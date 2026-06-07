@@ -16,7 +16,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/lexer/lexer.go` | Tokenizer; no `^` — types are positional |
 | `internal/parser/parser.go` | Tokens → AST nodes |
 | `internal/transpiler/transpiler.go` | `Emitter` struct, two-pass `emitFile`, dispatch |
-| `internal/transpiler/emit_decl.go` | `def`, `defn`, `defstruct`, `definterface`, `defmethod` |
+| `internal/transpiler/emit_decl.go` | `def`, `defn`, `defstruct`, `definterface`, `defmethod`, `deftype` |
 | `internal/transpiler/emit_expr.go` | `fn`, `let`, `if`, `cond`, `do`, built-ins |
 | `internal/transpiler/emit_concurrency.go` | `go`, `go-val`, `par`, `defer`, `chan`, `send!`, `recv!`, `recv-ok!`, `close!`, `select!` (+ `:timeout`), `for-chan`, `with-lock`, `if-err`, method/field/struct interop |
 | `internal/transpiler/emit_loop.go` | `loop`/`recur` → `for` |
@@ -54,7 +54,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 **Return position**: `emitReturnNode` handles tail-position nodes. `loop` in return position emits `return value` directly (no `any` temp var). The `loopInReturn bool` field tracks this.
 
-**Loop binding types**: Loop binding vars initialized with a collection literal (`[]`, `{}`, `#{}`) are declared as `var name any = init` so that recur can rebind them with any-returning helpers (e.g. `_glispConj` returns `any`). Scalar inits (`0`, `""`, etc.) keep `:=` so Go infers the concrete type and allows direct arithmetic.
+**Loop binding types**: An explicit `TypeAnnot` on a loop binding always wins — `(loop [xs []string []] ...)` emits `var xs []string = []string{}`. Without an annotation, the old rules apply: collection-init vars use `var name any = init` (so `recur` can rebind with `any`-returning helpers like `_glispConj`); scalar inits use `:=` for concrete Go inference. See `isBindingTypeStart()` in `parser.go` for the disambiguation heuristic (excludes `(` to avoid false positives with value expressions like `(fn ...)`).
 
 **`->` in identifiers**: `ring->handler` → `ringToHandler`. Pre-processed with `strings.ReplaceAll(s, "->", "-To-")` before camelCase conversion in `identToGo`.
 
@@ -71,6 +71,11 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `defstruct` | `(defstruct Circle radius float64)` |
 | `definterface` | `(definterface S (Area [] -> float64))` |
 | `def` (typed) | `(def x int 42)` |
+| `def` with typed collection | `(def xs []string ["a" "b"])` → `var xs []string = []string{"a", "b"}` |
+| `let` typed binding | `(let [x string "hello"] ...)` → `var x string = "hello"` |
+| `loop` typed binding | `(loop [xs []string [] n int 0] ...)` → `var xs []string = []string{}; var n int = 0` |
+| `deftype` named type | `(deftype UserId int)` → `type UserId int` |
+| `go-val` typed channel | `(go-val string body)` → returns `chan string` instead of `chan any` |
 | type assertion | `(as *Circle val)` |
 | channel type | `(chan any n)` or `(chan map[string]any n)` |
 | complex channel type | `(chan (chan any) n)` — parens around `chan T` types |

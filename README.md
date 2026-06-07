@@ -37,6 +37,26 @@ glisp doc     [name]            # show built-in docs (all if no name)
 (defn parse [s string] -> [string error] (values s nil))  ; multi-return
 (defn handler [req web/Request] -> web/Response ...)       ; package-qualified
 
+; Named types (deftype)
+(deftype UserId int)
+(deftype Email string)
+(defn send-email [to Email] -> error ...)
+
+; Typed let and loop bindings — annotation goes right after the name
+(let [name string "Alice"
+      xs   []int  [1 2 3]]
+  (str name " has " (len xs) " items"))
+
+(loop [i   int 0
+       acc []string []]        ; typed bindings, no any-boxing
+  (if (>= i 5)
+    acc
+    (recur (+ i 1) (conj acc (str i)))))
+
+; Typed collection literals — annotation propagates to literal
+(def months []string ["Jan" "Feb" "Mar"])
+(def scores map[string]int {"alice" 95 "bob" 80})
+
 ; Control flow
 (if cond then else)
 (cond (= x 1) "one"  (= x 2) "two"  :else "other")
@@ -61,8 +81,8 @@ glisp doc     [name]            # show built-in docs (all if no name)
 (.-Field obj)     ; field access
 
 ; Concurrency
-(def result (go-val (expensive-computation x)))  ; future → chan any
-(recv! result)                                    ; block for result
+(def result (go-val string (compute-name x)))  ; future → chan string (typed)
+(recv! result)                                  ; block for result — type-safe
 
 (par                      ; parallel + WaitGroup
   (init-cache)
@@ -216,7 +236,7 @@ The transpiler lives in `internal/transpiler/` and is split across several files
 | File | Role |
 |---|---|
 | `transpiler.go` | `Emitter` struct, two-pass `emitFile`, import resolution |
-| `emit_decl.go` | Top-level declarations: `def`, `defn`, `defstruct`, `definterface`, `defmethod` |
+| `emit_decl.go` | Top-level declarations: `def`, `defn`, `defstruct`, `definterface`, `defmethod`, `deftype` |
 | `emit_expr.go` | Expressions: `fn`, `let`, `if`, `cond`, `do`, `loop`/`recur`, built-ins |
 | `emit_concurrency.go` | Concurrency forms: `go`, `chan`, `send!`, `recv!`, `select!`, `par`, `with-lock`, … |
 | `emit_types.go` | Type annotation conversion: `identToGo`, `typeExprToGo`, `qualifiedTypeToGo` |

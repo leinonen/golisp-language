@@ -12,9 +12,10 @@ func (e *Emitter) emitDefDecl(n *ast.DefDecl) error {
 	e.lineDir(n.Pos_)
 	goName := identToGo(n.Name)
 	if n.TypeAnnot != nil {
+		typeStr := typeExprToGo(n.TypeAnnot.Text)
 		e.writeIndent()
-		e.writef("var %s %s = ", goName, typeExprToGo(n.TypeAnnot.Text))
-		if err := e.emitExpr(n.Value); err != nil {
+		e.writef("var %s %s = ", goName, typeStr)
+		if err := e.emitExprWithHint(n.Value, typeStr); err != nil {
 			return err
 		}
 		e.nl()
@@ -55,6 +56,13 @@ func (e *Emitter) emitDefnDecl(n *ast.DefnDecl) error {
 	}
 	e.pop()
 	e.line("}")
+	return nil
+}
+
+// emitDefTypeDecl emits: type Name BaseType
+func (e *Emitter) emitDefTypeDecl(n *ast.DefTypeDecl) error {
+	e.lineDir(n.Pos_)
+	e.linef("type %s %s", n.Name, typeExprToGo(n.BaseType.Text))
 	return nil
 }
 

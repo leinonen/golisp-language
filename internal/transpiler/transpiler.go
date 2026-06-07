@@ -382,6 +382,8 @@ func (e *Emitter) emitTopLevel(n ast.Node) error {
 		return e.emitDefDecl(v)
 	case *ast.DefnDecl:
 		return e.emitDefnDecl(v)
+	case *ast.DefTypeDecl:
+		return e.emitDefTypeDecl(v)
 	case *ast.StructDecl:
 		return e.emitStructDecl(v)
 	case *ast.InterfaceDecl:

@@ -1,10 +1,18 @@
 ; glisp language tour
-; Demonstrates: defn, type annotations, cond, switch, loop/recur, map/filter/reduce,
+; Demonstrates: defn, type annotations, typed let/loop bindings, deftype,
+;               cond, switch, loop/recur, map/filter/reduce,
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
 ;               destructuring (map and sequential), keyword lookup (:key m),
 ;               panic/recover, format, parse-int, parse-float, repeat, interpose
 
 (ns main)
+
+; --- Named types (deftype) ---
+
+; deftype emits a Go named type, giving semantic meaning to primitives.
+; type Score int / type Label string — usable anywhere the base type is.
+(deftype Score int)
+(deftype Label string)
 
 ; --- Control flow ---
 
@@ -49,8 +57,10 @@
 ; --- Tail-recursive loop ---
 
 ;;; Returns the nth Fibonacci number using tail-recursive loop/recur.
+; Typed loop bindings: var i int, var a int, var b int — no any-boxing.
+; Arithmetic on concrete ints stays int throughout; recur values match.
 (defn fib [n int] -> int
-  (loop [i n a 0 b 1]
+  (loop [i int n  a int 0  b int 1]
     (if (<= i 0) a (recur (- i 1) b (+ a b)))))
 
 ; --- Higher-order functions ---
@@ -64,19 +74,28 @@
 
 ; --- Concurrent class analysis ---
 
+; Typed def: names is []string, not []any. Go catches element-type mismatches.
+(def months []string ["Jan" "Feb" "Mar" "Apr" "May" "Jun"
+                      "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"])
+
 (defn main []
 
   ; Panic and recover
   (fmt/println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)
 
-  ; Fibonacci via loop/recur
+  ; Fibonacci via typed loop/recur (i, a, b are int — no any-boxing)
   (let [fibs (map (fn [n] (fib (int n))) (range 10))]
     (fmt/println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))
 
-  ; String processing
-  (let [words (long-words "the quick brown fox jumps over the lazy dog")]
-    (fmt/println "long words:" (join words ", ")))
+  ; Typed let binding: sep is string, not any
+  (let [sep string ", "
+        words (long-words "the quick brown fox jumps over the lazy dog")]
+    (fmt/println "long words:" (join words sep)))
+
+  ; Typed def: months []string — element access needs no type cast
+  (let [q1 string (join (take 3 months) "/")]
+    (fmt/println "Q1:" q1))
 
   ; format, parse-int, parse-float, repeat, interpose
   (fmt/println (format "grade for 87: %s (score: %d)" (grade 87) 87))

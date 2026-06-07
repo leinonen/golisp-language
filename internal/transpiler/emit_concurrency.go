@@ -75,19 +75,24 @@ func (e *Emitter) emitCloseStmt(n *ast.CloseStmt) error {
 	return nil
 }
 
-// emitGoValExpr: (go-val body...) → IIFE creating a buffered chan any, firing a
+// emitGoValExpr: (go-val [T] body...) → IIFE creating a buffered chan T, firing a
 // goroutine that sends the result, returning the channel for later recv!.
+// When ElemType is nil, the channel element type defaults to any.
 func (e *Emitter) emitGoValExpr(n *ast.GoValExpr) error {
-	e.write("func() chan any {")
+	elemType := "any"
+	if n.ElemType != nil {
+		elemType = typeExprToGo(n.ElemType.Text)
+	}
+	e.writef("func() chan %s {", elemType)
 	e.nl()
 	e.push()
-	e.line("_ch := make(chan any, 1)")
+	e.linef("_ch := make(chan %s, 1)", elemType)
 	e.writeIndent()
 	e.write("go func() {")
 	e.nl()
 	e.push()
 	e.writeIndent()
-	e.write("_ch <- func() any {")
+	e.writef("_ch <- func() %s {", elemType)
 	e.nl()
 	e.push()
 	if err := e.emitBody(n.Body, true); err != nil {

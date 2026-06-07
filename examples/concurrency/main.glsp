@@ -1,6 +1,6 @@
 ;;; Concurrent job runner
-;;; Demonstrates all 6 new concurrency primitives:
-;;;   go-val      — launch a goroutine that returns a result via chan any
+;;; Demonstrates all 6 concurrency primitives plus typed go-val and typed channels:
+;;;   go-val      — launch a goroutine that returns a result via chan T (typed)
 ;;;   par         — run independent tasks in parallel, wait for all
 ;;;   for-chan     — range over a channel until it is closed
 ;;;   recv-ok!    — comma-ok receive to detect a closed channel
@@ -28,14 +28,16 @@
     (time/sleep (* 30 time/Millisecond)))
   (str "ok:" job))
 
-; go-val: submit job as a future — returns chan any immediately.
-(defn submit [job string] -> (chan any)
-  (go-val (process job)))
+; go-val with element type: returns chan string instead of chan any.
+; The element type annotation flows through to make/send/recv all typed.
+(defn submit [job string] -> (chan string)
+  (go-val string (process job)))
 
 ; ── collect results from a closed channel ─────────────────────────
 ; recv-ok! returns [value ok]; loop/recur accumulates values until closed.
+; Accepts chan string — the typed channel produced by go-val.
 
-(defn collect [ch (chan any)] -> []any
+(defn collect [ch (chan string)] -> []any
   (loop [acc []]
     (let [[val ok] (recv-ok! ch)]
       (if (= ok true)
@@ -66,7 +68,7 @@
       (fmt/println "── awaiting results (100ms timeout) ")
       (doseq [w work]
         (let [job    (str (:job w))
-              future (as (chan any) (:future w))]
+              future (as (chan string) (:future w))]
           (select!
             ([result future]
              (send! out result)
@@ -84,12 +86,12 @@
         (when (not= r nil)
           (fmt/println "    →" r)))
 
-      ; 5. recv-ok! — demonstrate manual channel drain via collect.
-      ;    Fill a fresh channel with job names and collect them into a vector.
+      ; 5. recv-ok! — demonstrate manual channel drain via typed collect.
+      ;    Fill a typed chan string with job names and collect into []string.
       (fmt/println "── collect via recv-ok! ─────────────")
-      (let [buf (chan any (len jobs))]
+      (let [buf (chan string (len jobs))]
         (doseq [j jobs]
-          (send! buf j))
+          (send! buf (str j)))
         (close! buf)
         (let [names (collect buf)]
           (fmt/println "    job count:" (len names))

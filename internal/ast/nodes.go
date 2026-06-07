@@ -267,6 +267,20 @@ func NewInterfaceDecl(pos Position, name string, methods []InterfaceMethod) *Int
 	return &InterfaceDecl{Pos_: pos, Name: name, Methods: methods}
 }
 
+// DefTypeDecl: (deftype Name BaseType) → type Name BaseType
+// Allows defining named types and type aliases for domain modeling.
+type DefTypeDecl struct {
+	Pos_     Position
+	Name     string
+	BaseType *TypeExpr
+}
+
+func (n *DefTypeDecl) nodeMarker()   {}
+func (n *DefTypeDecl) Pos() Position { return n.Pos_ }
+func NewDefTypeDecl(pos Position, name string, baseType *TypeExpr) *DefTypeDecl {
+	return &DefTypeDecl{Pos_: pos, Name: name, BaseType: baseType}
+}
+
 // MethodDecl: (defmethod ^*ReceiverType name [receiver params...] ^RetType body...)
 type MethodDecl struct {
 	Pos_         Position
@@ -521,16 +535,18 @@ func NewSelectStmt(pos Position, cases []SelectCase) *SelectStmt {
 	return &SelectStmt{Pos_: pos, Cases: cases}
 }
 
-// GoValExpr: (go-val body...) → IIFE that fires a goroutine and returns chan any
+// GoValExpr: (go-val [ElemType] body...) → IIFE that fires a goroutine and returns chan T
+// ElemType is optional; when nil the channel element type defaults to any.
 type GoValExpr struct {
-	Pos_ Position
-	Body []Node
+	Pos_     Position
+	ElemType *TypeExpr // optional: (go-val string body...) → chan string
+	Body     []Node
 }
 
 func (n *GoValExpr) nodeMarker()   {}
 func (n *GoValExpr) Pos() Position { return n.Pos_ }
-func NewGoValExpr(pos Position, body []Node) *GoValExpr {
-	return &GoValExpr{Pos_: pos, Body: body}
+func NewGoValExpr(pos Position, elemType *TypeExpr, body []Node) *GoValExpr {
+	return &GoValExpr{Pos_: pos, ElemType: elemType, Body: body}
 }
 
 // ParStmt: (par body1 body2 ...) → sync.WaitGroup parallel execution

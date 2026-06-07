@@ -986,7 +986,7 @@ func _glispSplit(s any, sep any) []any {
 	return result
 }
 
-func _glispJoin(sep any, coll any) string {
+func _glispJoin(coll any, sep any) string {
 	s := _glispToSlice(coll)
 	parts := make([]string, len(s))
 	for i, v := range s {

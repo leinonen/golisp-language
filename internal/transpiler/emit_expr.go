@@ -20,7 +20,12 @@ func (e *Emitter) emitVectorLit(n *ast.VectorLit) error {
 			typeStr = t
 		}
 	}
-	e.writef("[]%s{", typeStr)
+	return e.emitVectorLitElem(n, typeStr)
+}
+
+// emitVectorLitElem emits []elemType{...} with an explicit element type override.
+func (e *Emitter) emitVectorLitElem(n *ast.VectorLit, elemType string) error {
+	e.writef("[]%s{", elemType)
 	for i, el := range n.Elements {
 		if i > 0 {
 			e.write(", ")
@@ -33,12 +38,26 @@ func (e *Emitter) emitVectorLit(n *ast.VectorLit) error {
 	return nil
 }
 
-// emitMapLit emits map[string]any{...} or map[K]V{...}
-func (e *Emitter) emitMapLit(n *ast.MapLit) error {
-	mapType := "map[string]any"
-	if n.TypeAnnot != nil {
-		mapType = typeExprToGo(n.TypeAnnot.Text)
+// emitExprWithHint emits an expression, using typeHint to type collection literals.
+// For VectorLit: hint "[]T" → []T{...} instead of []any{...}.
+// For MapLit: hint "map[K]V" → map[K]V{...} instead of map[string]any{...}.
+// All other nodes fall through to plain emitExpr.
+func (e *Emitter) emitExprWithHint(n ast.Node, hint string) error {
+	switch v := n.(type) {
+	case *ast.VectorLit:
+		if strings.HasPrefix(hint, "[]") {
+			return e.emitVectorLitElem(v, hint[2:])
+		}
+	case *ast.MapLit:
+		if strings.HasPrefix(hint, "map[") {
+			return e.emitMapLitTyped(v, hint)
+		}
 	}
+	return e.emitExpr(n)
+}
+
+// emitMapLitTyped emits a map literal with an explicit map type string.
+func (e *Emitter) emitMapLitTyped(n *ast.MapLit, mapType string) error {
 	e.writef("%s{", mapType)
 	for i, pair := range n.Pairs {
 		if i > 0 {
@@ -54,6 +73,15 @@ func (e *Emitter) emitMapLit(n *ast.MapLit) error {
 	}
 	e.write("}")
 	return nil
+}
+
+// emitMapLit emits map[string]any{...} or map[K]V{...}
+func (e *Emitter) emitMapLit(n *ast.MapLit) error {
+	mapType := "map[string]any"
+	if n.TypeAnnot != nil {
+		mapType = typeExprToGo(n.TypeAnnot.Text)
+	}
+	return e.emitMapLitTyped(n, mapType)
 }
 
 // emitSetLit emits map[any]struct{}{...}
@@ -237,11 +265,14 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 			e.writeIndent()
 			if typeStr != "" {
 				e.writef("var %s %s = ", goName, typeStr)
+				if err := e.emitExprWithHint(b.Value, typeStr); err != nil {
+					return err
+				}
 			} else {
 				e.writef("%s := ", goName)
-			}
-			if err := e.emitExpr(b.Value); err != nil {
-				return err
+				if err := e.emitExpr(b.Value); err != nil {
+					return err
+				}
 			}
 			e.nl()
 		case *ast.VectorLit:

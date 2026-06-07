@@ -110,6 +110,46 @@ func (p *parser) peek() lexer.Token {
 	return p.tokens[p.pos]
 }
 
+func (p *parser) peekAt(offset int) lexer.Token {
+	i := p.pos + offset
+	if i >= len(p.tokens) {
+		return lexer.Token{Type: lexer.TokenEOF}
+	}
+	return p.tokens[i]
+}
+
+// isBindingTypeStart is like isTypeExprStart but used in let/loop binding position
+// where we must disambiguate type annotations from value expressions.
+//
+// Key ambiguities:
+//   - "[]" is an empty vector literal; "[]string" is a slice type.
+//     Tokens: both start with '[' ']', but "[]string" has a type symbol after ']'.
+//   - "(chan int 10)" is channel creation (value); "(chan T)" could be a type but
+//     is indistinguishable from a 3-token (chan T cap) form — exclude '(' entirely.
+func (p *parser) isBindingTypeStart() bool {
+	switch p.peekType() {
+	case lexer.TokenLBracket:
+		// Only "[]T" slice types are useful as binding annotations.
+		// "[]T" tokenizes as '[' ']' typeSymbol.
+		// "[]" alone tokenizes as '[' ']' (end), "['a' 'b']" has non-] after '['.
+		if p.peekAt(1).Type != lexer.TokenRBracket {
+			return false // not "[]..." form — could be [a b] vector
+		}
+		// '[' ']' is followed by something — type if that something is a type symbol
+		t := p.peekAt(2)
+		if t.Type == lexer.TokenSymbol {
+			return isTypeSymbol(t.Text)
+		}
+		if t.Type == lexer.TokenLBracket {
+			return true // [][]T nested slice
+		}
+		return false
+	case lexer.TokenSymbol:
+		return isTypeSymbol(p.peek().Text)
+	}
+	return false
+}
+
 func (p *parser) peekType() lexer.TokenType { return p.peek().Type }
 
 func (p *parser) advance() lexer.Token {
@@ -339,6 +379,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseDef(pos)
 		case "defn":
 			return p.parseDefn(pos)
+		case "deftype":
+			return p.parseDeftype(pos)
 		case "defstruct":
 			return p.parseDefstruct(pos)
 		case "definterface":
@@ -633,6 +675,22 @@ func (p *parser) parseDefn(pos ast.Position) (*ast.DefnDecl, error) {
 	return ast.NewDefnDecl(pos, nameTok.Text, params, retType, doc, body), nil
 }
 
+func (p *parser) parseDeftype(pos ast.Position) (*ast.DefTypeDecl, error) {
+	p.advance() // "deftype"
+	nameTok, err := p.expect(lexer.TokenSymbol)
+	if err != nil {
+		return nil, err
+	}
+	baseType, err := p.parseTypeExpr()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewDefTypeDecl(pos, nameTok.Text, baseType), nil
+}
+
 func (p *parser) parseDefstruct(pos ast.Position) (*ast.StructDecl, error) {
 	p.advance() // "defstruct"
 	nameTok, err := p.expect(lexer.TokenSymbol)
@@ -799,11 +857,20 @@ func (p *parser) parseLet(pos ast.Position) (*ast.LetExpr, error) {
 			}
 			pattern = ast.NewSymbol(p.mkpos(symTok), symTok.Text)
 		}
+		// Optional type annotation between name and value: (let [x string "hello"] ...)
+		var annot *ast.TypeExpr
+		if _, ok := pattern.(*ast.Symbol); ok && p.isBindingTypeStart() {
+			t, err := p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
+			annot = t
+		}
 		val, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
-		bindings = append(bindings, ast.LetBinding{Pattern: pattern, Value: val})
+		bindings = append(bindings, ast.LetBinding{Pattern: pattern, TypeAnnot: annot, Value: val})
 	}
 	if _, err := p.expect(lexer.TokenRBracket); err != nil {
 		return nil, err
@@ -1008,6 +1075,15 @@ func (p *parser) parseClose(pos ast.Position) (*ast.CloseStmt, error) {
 
 func (p *parser) parseGoVal(pos ast.Position) (*ast.GoValExpr, error) {
 	p.advance() // "go-val"
+	// Optional element type: (go-val string body...) → chan string
+	var elemType *ast.TypeExpr
+	if p.isBindingTypeStart() {
+		t, err := p.parseTypeExpr()
+		if err != nil {
+			return nil, err
+		}
+		elemType = t
+	}
 	body, err := p.parseBody()
 	if err != nil {
 		return nil, err
@@ -1015,7 +1091,7 @@ func (p *parser) parseGoVal(pos ast.Position) (*ast.GoValExpr, error) {
 	if _, err := p.expect(lexer.TokenRParen); err != nil {
 		return nil, err
 	}
-	return ast.NewGoValExpr(pos, body), nil
+	return ast.NewGoValExpr(pos, elemType, body), nil
 }
 
 func (p *parser) parsePar(pos ast.Position) (*ast.ParStmt, error) {
@@ -1279,12 +1355,21 @@ func (p *parser) parseLoop(pos ast.Position) (*ast.LoopExpr, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Optional type annotation: (loop [xs []string [] n int 0] ...)
+		var annot *ast.TypeExpr
+		if p.isBindingTypeStart() {
+			t, err := p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
+			annot = t
+		}
 		val, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
 		pat := ast.NewSymbol(p.mkpos(symTok), symTok.Text)
-		bindings = append(bindings, ast.LetBinding{Pattern: pat, Value: val})
+		bindings = append(bindings, ast.LetBinding{Pattern: pat, TypeAnnot: annot, Value: val})
 	}
 	if _, err := p.expect(lexer.TokenRBracket); err != nil {
 		return nil, err

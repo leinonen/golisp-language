@@ -48,18 +48,28 @@ func (e *Emitter) emitLoopBlock(n *ast.LoopExpr, retVar string, inReturn bool) e
 	}
 
 	// Emit initial bindings.
-	// Collection inits (vector/map/set) use `var name any = ...` so that recur can
-	// rebind them with any-returning helpers (e.g. _glispConj returns any).
-	// Scalar inits keep `:=` so Go can infer numeric types and allow direct arithmetic.
+	// Explicit TypeAnnot: emit `var name T = expr` — caller guarantees recur values match T.
+	// Collection inits without annotation use `var name any = ...` so recur can rebind
+	// with any-returning helpers (e.g. _glispConj returns any).
+	// Scalar inits keep `:=` so Go infers the concrete type for direct arithmetic.
 	for i, b := range n.Bindings {
 		e.writeIndent()
-		if isCollectionNode(b.Value) {
+		if b.TypeAnnot != nil {
+			typeStr := typeExprToGo(b.TypeAnnot.Text)
+			e.writef("var %s %s = ", bindingNames[i], typeStr)
+			if err := e.emitExprWithHint(b.Value, typeStr); err != nil {
+				return err
+			}
+		} else if isCollectionNode(b.Value) {
 			e.writef("var %s any = ", bindingNames[i])
+			if err := e.emitExpr(b.Value); err != nil {
+				return err
+			}
 		} else {
 			e.writef("%s := ", bindingNames[i])
-		}
-		if err := e.emitExpr(b.Value); err != nil {
-			return err
+			if err := e.emitExpr(b.Value); err != nil {
+				return err
+			}
 		}
 		e.nl()
 	}

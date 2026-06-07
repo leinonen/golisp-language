@@ -185,6 +185,8 @@ func format(n ast.Node, indent int) string {
 		return formatDefn(v, indent)
 	case *ast.NSDecl:
 		return formatNS(v, indent)
+	case *ast.DefTypeDecl:
+		return ind(indent) + inline(v)
 	case *ast.StructDecl:
 		return formatStruct(v, indent)
 	case *ast.InterfaceDecl:
@@ -408,6 +410,17 @@ func inline(n ast.Node) string {
 		return "(definterface " + v.Name + " ...)"
 	case *ast.MethodDecl:
 		return "(defmethod " + v.ReceiverType.Text + " " + v.Name + " ...)"
+	case *ast.DefTypeDecl:
+		return "(deftype " + v.Name + " " + v.BaseType.Text + ")"
+	case *ast.GoValExpr:
+		parts := []string{"go-val"}
+		if v.ElemType != nil {
+			parts = append(parts, v.ElemType.Text)
+		}
+		for _, b := range v.Body {
+			parts = append(parts, inline(b))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.DefTestDecl:
 		parts := []string{"deftest", v.Name}
 		for _, b := range v.Body {
@@ -441,6 +454,9 @@ func inlineParams(params []ast.Param) string {
 }
 
 func inlineLetBinding(b ast.LetBinding) string {
+	if b.TypeAnnot != nil {
+		return inline(b.Pattern) + " " + b.TypeAnnot.Text + " " + inline(b.Value)
+	}
 	return inline(b.Pattern) + " " + inline(b.Value)
 }
 

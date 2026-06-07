@@ -1,0 +1,40 @@
+.PHONY: examples examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline
+
+BIN ?= glisp
+
+examples-clean:
+	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency examples/logparser/logparser examples/sec-pipeline/sec-pipeline
+	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
+	rm -f examples/notes-api/glisp_runtime.go examples/notes-api/main.go examples/notes-api/handlers.go examples/notes-api/db.go examples/notes-api/helpers.go
+
+examples: examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline
+
+examples-tour:
+	./$(BIN) build -o examples/tour/tour examples/tour/main.glsp
+
+examples-api:
+	./$(BIN) build -o examples/api/api examples/api/main.glsp
+
+examples-shapes:
+	./$(BIN) build -o examples/shapes/shapes examples/shapes/main.glsp
+
+examples-multifile:
+	./$(BIN) build -o examples/multifile/multifile examples/multifile/
+
+examples-httpclient:
+	./$(BIN) build -o examples/httpclient/httpclient examples/httpclient/main.glsp
+
+examples-data:
+	./$(BIN) build -o examples/data/data examples/data/main.glsp
+
+examples-notes-api:
+	./$(BIN) build -o examples/notes-api/notes-api examples/notes-api/
+
+examples-concurrency:
+	./$(BIN) build -o examples/concurrency/concurrency examples/concurrency/main.glsp
+
+examples-logparser:
+	./$(BIN) build -o examples/logparser/logparser examples/logparser/main.glsp
+
+examples-sec-pipeline:
+	./$(BIN) build -o examples/sec-pipeline/sec-pipeline examples/sec-pipeline/main.glsp

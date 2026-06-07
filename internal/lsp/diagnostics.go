@@ -1,16 +1,20 @@
 package lsp
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"golisp/internal/lexer"
 	"golisp/internal/parser"
+	"golisp/internal/transpiler"
 )
 
-// Diagnostics runs the glisp lexer and parser on source and returns LSP diagnostics.
+// Diagnostics runs the glisp lexer, parser, and transpiler on source and returns
+// LSP diagnostics. filename is the .glsp file path (used for error position context).
 // Returns nil (not empty slice) when source is clean.
-func Diagnostics(source string) []Diagnostic {
+func Diagnostics(source, filename string) []Diagnostic {
 	tokens, err := lexer.Tokenize(source)
 	if err != nil {
 		return []Diagnostic{errorToDiagnostic(err.Error())}
@@ -19,6 +23,17 @@ func Diagnostics(source string) []Diagnostic {
 	if err != nil {
 		return []Diagnostic{errorToDiagnostic(err.Error())}
 	}
+
+	// Run the transpiler to catch semantic glisp errors (unsupported forms, etc.).
+	_, terr := transpiler.TranspileFile(source, filename)
+	if terr != nil {
+		var te *transpiler.TranspileError
+		if errors.As(terr, &te) {
+			return []Diagnostic{atPosToDiagnostic(te.Err.Error())}
+		}
+		return []Diagnostic{errorToDiagnostic(terr.Error())}
+	}
+
 	return nil
 }
 
@@ -54,6 +69,30 @@ func errorToDiagnostic(msg string) Diagnostic {
 		Source:   "glisp",
 		Message:  message,
 	}
+}
+
+// atPosToDiagnostic parses a transpiler error in "message at line:col" or
+// "message at file:line:col" format (1-based). Falls back to position 0:0 when
+// no position info is present.
+func atPosToDiagnostic(msg string) Diagnostic {
+	if idx := strings.LastIndex(msg, " at "); idx >= 0 {
+		posStr := msg[idx+4:]
+		parts := strings.Split(posStr, ":")
+		if len(parts) >= 2 {
+			l, err1 := strconv.Atoi(parts[len(parts)-2])
+			c, err2 := strconv.Atoi(parts[len(parts)-1])
+			if err1 == nil && err2 == nil {
+				pos := Position{Line: max0(l - 1), Character: max0(c - 1)}
+				return Diagnostic{
+					Range:    Range{Start: pos, End: pos},
+					Severity: SeverityError,
+					Source:   "glisp",
+					Message:  msg[:idx],
+				}
+			}
+		}
+	}
+	return Diagnostic{Severity: SeverityError, Source: "glisp", Message: msg}
 }
 
 func max0(n int) int {

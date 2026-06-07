@@ -119,6 +119,13 @@ func _glispToSlice(v any) []any {
 	if s, ok := v.([]any); ok {
 		return s
 	}
+	if s, ok := v.([]string); ok {
+		result := make([]any, len(s))
+		for i, str := range s {
+			result[i] = str
+		}
+		return result
+	}
 	return nil
 }
 
@@ -145,6 +152,8 @@ func _glispLen(v any) int {
 	}
 	switch c := v.(type) {
 	case []any:
+		return len(c)
+	case []string:
 		return len(c)
 	case map[string]any:
 		return len(c)
@@ -173,7 +182,7 @@ func _glispRest(v any) []any {
 }
 
 func _glispNth(v any, i any) any {
-	return v.([]any)[_glispToInt(i)]
+	return _glispToSlice(v)[_glispToInt(i)]
 }
 
 func _glispToInt(v any) int {

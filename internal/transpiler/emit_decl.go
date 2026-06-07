@@ -9,6 +9,7 @@ import (
 
 // emitDefDecl emits: var Name Type = Value
 func (e *Emitter) emitDefDecl(n *ast.DefDecl) error {
+	e.lineDir(n.Pos_)
 	goName := identToGo(n.Name)
 	if n.TypeAnnot != nil {
 		e.writeIndent()
@@ -30,6 +31,7 @@ func (e *Emitter) emitDefDecl(n *ast.DefDecl) error {
 
 // emitDefnDecl emits a function declaration.
 func (e *Emitter) emitDefnDecl(n *ast.DefnDecl) error {
+	e.lineDir(n.Pos_)
 	goName := identToGo(n.Name)
 	sigParts, destructs, err := e.buildParamSig(n.Params)
 	if err != nil {
@@ -58,6 +60,7 @@ func (e *Emitter) emitDefnDecl(n *ast.DefnDecl) error {
 
 // emitStructDecl emits a struct type declaration.
 func (e *Emitter) emitStructDecl(n *ast.StructDecl) error {
+	e.lineDir(n.Pos_)
 	e.writeIndent()
 	e.writef("type %s struct {", n.Name)
 	e.nl()
@@ -81,6 +84,7 @@ func (e *Emitter) emitStructDecl(n *ast.StructDecl) error {
 
 // emitInterfaceDecl emits an interface type declaration.
 func (e *Emitter) emitInterfaceDecl(n *ast.InterfaceDecl) error {
+	e.lineDir(n.Pos_)
 	e.writeIndent()
 	e.writef("type %s interface {", n.Name)
 	e.nl()
@@ -104,6 +108,7 @@ func (e *Emitter) emitInterfaceDecl(n *ast.InterfaceDecl) error {
 
 // emitMethodDecl emits a method with a receiver.
 func (e *Emitter) emitMethodDecl(n *ast.MethodDecl) error {
+	e.lineDir(n.Pos_)
 	receiverType := typeExprToGo(n.ReceiverType.Text)
 	goName := identToGo(n.Name)
 	sigParts, destructs, err := e.buildParamSig(n.Params)

@@ -61,6 +61,42 @@ func TranspileNoRuntime(src string) (string, map[string]bool, error) {
 	return e.buf.String(), e.builtinImports, nil
 }
 
+// TranspileFile is like Transpile but embeds //line directives so go build
+// error messages report .glsp file locations instead of generated .go locations.
+func TranspileFile(src, filename string) (string, error) {
+	tokens, err := lexer.Tokenize(src)
+	if err != nil {
+		return "", &ParseError{Err: err}
+	}
+	nodes, err := parser.ParseSourceFile(tokens, src, filename)
+	if err != nil {
+		return "", &ParseError{Err: err}
+	}
+	e := newEmitter()
+	if err := e.emitFile(nodes); err != nil {
+		return "", &TranspileError{Err: err}
+	}
+	return e.buf.String(), nil
+}
+
+// TranspileNoRuntimeFile is like TranspileNoRuntime but embeds //line directives.
+func TranspileNoRuntimeFile(src, filename string) (string, map[string]bool, error) {
+	tokens, err := lexer.Tokenize(src)
+	if err != nil {
+		return "", nil, &ParseError{Err: err}
+	}
+	nodes, err := parser.ParseSourceFile(tokens, src, filename)
+	if err != nil {
+		return "", nil, &ParseError{Err: err}
+	}
+	e := newEmitter()
+	e.emitRuntime = false
+	if err := e.emitFile(nodes); err != nil {
+		return "", nil, &TranspileError{Err: err}
+	}
+	return e.buf.String(), e.builtinImports, nil
+}
+
 // Emitter accumulates Go source text with indentation tracking.
 type Emitter struct {
 	buf     strings.Builder
@@ -141,6 +177,16 @@ func (e *Emitter) line(s string)                     { e.writeIndent(); e.write(
 func (e *Emitter) linef(f string, a ...any)          { e.writeIndent(); e.writef(f, a...); e.nl() }
 func (e *Emitter) push()                             { e.indent++ }
 func (e *Emitter) pop()                              { e.indent-- }
+
+// lineDir emits a //line directive at column 0 so the Go compiler attributes
+// the next line to pos in the original .glsp source (for error messages).
+// No-op when pos.File == "" — all existing Transpile/TranspileNoRuntime paths.
+func (e *Emitter) lineDir(pos ast.Position) {
+	if pos.File == "" {
+		return
+	}
+	fmt.Fprintf(&e.buf, "//line %s:%d\n", pos.File, pos.Line)
+}
 
 // emitFile emits the full Go file: package, imports, declarations, runtime helpers.
 // We use a two-pass approach: emit declarations into a temp buffer first to
@@ -464,6 +510,7 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 // let/if/cond/do/when are emitted as Go blocks; loops/goroutines as-is.
 // This avoids the need to wrap them in IIFEs when their value is discarded.
 func (e *Emitter) emitStmtNode(n ast.Node) error {
+	e.lineDir(n.Pos())
 	switch v := n.(type) {
 	case *ast.LetExpr:
 		return e.emitLetStmt(v)
@@ -687,6 +734,7 @@ func (e *Emitter) emitBody(body []ast.Node, inReturn bool) error {
 // Certain statement-like nodes (GoStmt, DeferStmt, SendStmt, CloseStmt, SelectStmt)
 // are not returned even in tail position — they're just emitted as statements.
 func (e *Emitter) emitReturnNode(n ast.Node) error {
+	e.lineDir(n.Pos())
 	switch v := n.(type) {
 	case *ast.SelectStmt:
 		e.writeIndent()

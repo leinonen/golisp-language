@@ -79,10 +79,27 @@ func ParseSource(tokens []lexer.Token, src string) ([]ast.Node, error) {
 	return p.parseAll()
 }
 
+// ParseSourceFile is like ParseSource but also sets Position.File on every node.
+func ParseSourceFile(tokens []lexer.Token, src, filename string) ([]ast.Node, error) {
+	p := &parser{tokens: tokens, src: src, filename: filename}
+	return p.parseAll()
+}
+
+// ParseStringFile is like ParseString but also sets Position.File on every node.
+func ParseStringFile(src, filename string) ([]ast.Node, error) {
+	tokens, err := lexer.Tokenize(src)
+	if err != nil {
+		return nil, err
+	}
+	p := &parser{tokens: tokens, src: src, filename: filename}
+	return p.parseAll()
+}
+
 type parser struct {
 	tokens     []lexer.Token
 	pos        int
 	src        string // original source text for error context; may be empty
+	filename   string // source file path; when set, Position.File is populated
 	pendingDoc string // set by ;;; doc comment, consumed by parseDefn/parseDefmethod
 }
 
@@ -137,7 +154,7 @@ func (p *parser) sourceContext(line, col int) string {
 }
 
 func (p *parser) mkpos(tok lexer.Token) ast.Position {
-	return ast.Position{Line: tok.Line, Column: tok.Column}
+	return ast.Position{File: p.filename, Line: tok.Line, Column: tok.Column}
 }
 
 // ---------- top-level ----------

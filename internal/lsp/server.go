@@ -251,7 +251,8 @@ func (s *Server) handleRename(req *Request) *Response {
 }
 
 func (s *Server) diagNotif(uri, source string) *Notification {
-	diags := Diagnostics(source)
+	filename := strings.TrimPrefix(uri, "file://")
+	diags := Diagnostics(source, filename)
 	if diags == nil {
 		diags = []Diagnostic{}
 	}

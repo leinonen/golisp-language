@@ -21,7 +21,12 @@ func Compile(srcPath string, outPath string) error {
 		return fmt.Errorf("read %s: %w", srcPath, err)
 	}
 
-	goSrc, err := transpiler.Transpile(string(src))
+	absSrcPath, err := filepath.Abs(srcPath)
+	if err != nil {
+		return fmt.Errorf("abs path %s: %w", srcPath, err)
+	}
+
+	goSrc, err := transpiler.TranspileFile(string(src), absSrcPath)
 	if err != nil {
 		var pe *transpiler.ParseError
 		var te *transpiler.TranspileError
@@ -200,7 +205,8 @@ func compileDir(srcDir string, outBin string, build bool) error {
 			return fmt.Errorf("read %s: %w", srcPath, err)
 		}
 
-		goSrc, builtins, err := transpiler.TranspileNoRuntime(string(src))
+		absSrcPath, _ := filepath.Abs(srcPath)
+		goSrc, builtins, err := transpiler.TranspileNoRuntimeFile(string(src), absSrcPath)
 		if err != nil {
 			var pe *transpiler.ParseError
 			var te *transpiler.TranspileError

@@ -10,7 +10,7 @@ import (
 
 func TestDiagnostics_clean(t *testing.T) {
 	src := `(defn ^int add [^int a ^int b] (+ a b))`
-	if d := Diagnostics(src); d != nil {
+	if d := Diagnostics(src, ""); d != nil {
 		t.Errorf("expected nil diagnostics, got %v", d)
 	}
 }
@@ -18,7 +18,7 @@ func TestDiagnostics_clean(t *testing.T) {
 func TestDiagnostics_lexError(t *testing.T) {
 	// '@' is not a valid glisp character
 	src := "(defn bad [] @x)"
-	diags := Diagnostics(src)
+	diags := Diagnostics(src, "")
 	if len(diags) == 0 {
 		t.Fatal("expected at least one diagnostic")
 	}
@@ -33,7 +33,7 @@ func TestDiagnostics_lexError(t *testing.T) {
 func TestDiagnostics_parseError(t *testing.T) {
 	// Missing closing paren
 	src := "(defn add [] (+ 1 2)"
-	diags := Diagnostics(src)
+	diags := Diagnostics(src, "")
 	if len(diags) == 0 {
 		t.Fatal("expected at least one diagnostic")
 	}
@@ -45,12 +45,50 @@ func TestDiagnostics_parseError(t *testing.T) {
 func TestDiagnostics_lineCol(t *testing.T) {
 	// Error on line 2 (1-based) → LSP line 1 (0-based)
 	src := "(def x 1)\n(def y @bad)"
-	diags := Diagnostics(src)
+	diags := Diagnostics(src, "")
 	if len(diags) == 0 {
 		t.Fatal("expected diagnostic")
 	}
 	if diags[0].Range.Start.Line != 1 {
 		t.Errorf("expected LSP line 1, got %d", diags[0].Range.Start.Line)
+	}
+}
+
+func TestDiagnostics_transpileError(t *testing.T) {
+	// panic with wrong arg count — transpiler catches this
+	src := "(defn bad [] (panic 1 2 3))"
+	diags := Diagnostics(src, "")
+	if len(diags) == 0 {
+		t.Fatal("expected transpile diagnostic")
+	}
+	if diags[0].Severity != SeverityError {
+		t.Errorf("expected error severity, got %d", diags[0].Severity)
+	}
+	if diags[0].Source != "glisp" {
+		t.Errorf("expected source 'glisp', got %q", diags[0].Source)
+	}
+}
+
+func TestAtPosToDiagnostic_withPos(t *testing.T) {
+	d := atPosToDiagnostic("unsupported expression: *ast.Foo at 5:3")
+	if d.Range.Start.Line != 4 {
+		t.Errorf("line: want 4, got %d", d.Range.Start.Line)
+	}
+	if d.Range.Start.Character != 2 {
+		t.Errorf("char: want 2, got %d", d.Range.Start.Character)
+	}
+	if d.Message != "unsupported expression: *ast.Foo" {
+		t.Errorf("message: %q", d.Message)
+	}
+}
+
+func TestAtPosToDiagnostic_noPos(t *testing.T) {
+	d := atPosToDiagnostic("some error without position")
+	if d.Range.Start.Line != 0 || d.Range.Start.Character != 0 {
+		t.Errorf("expected 0:0, got %d:%d", d.Range.Start.Line, d.Range.Start.Character)
+	}
+	if d.Message != "some error without position" {
+		t.Errorf("message: %q", d.Message)
 	}
 }
 
@@ -610,4 +648,34 @@ func TestSymbolAtPosition(t *testing.T) {
 				c.src, c.line, c.col, got, c.want)
 		}
 	}
+}
+
+func TestDiagnostics_transpileErrorLine(t *testing.T) {
+    // panic on line 4 (1-based) → LSP line 3 (0-based)
+    src := "(ns main)\n\n(defn bad []\n  (panic 1 2 3))"
+    diags := Diagnostics(src, "/fake/file.glsp")
+    if len(diags) == 0 {
+        t.Fatal("expected diagnostic")
+    }
+    t.Logf("diag: line=%d char=%d msg=%q", diags[0].Range.Start.Line, diags[0].Range.Start.Character, diags[0].Message)
+    if diags[0].Range.Start.Line != 3 {
+        t.Errorf("want LSP line 3 (source line 4), got %d", diags[0].Range.Start.Line)
+    }
+}
+
+func TestDiagnostics_transpileError_exactMsg(t *testing.T) {
+    // Check the exact error message and position for a known transpile error
+    // "panic" on line 5 col 3 of a file with specific indentation
+    src := "(ns main)\n\n(defn bad []\n  ; comment\n  (panic 1 2))"
+    // line 5 = "  (panic 1 2))"
+    diags := Diagnostics(src, "/tmp/myfile.glsp")
+    if len(diags) == 0 {
+        t.Fatal("expected diagnostic")
+    }
+    d := diags[0]
+    t.Logf("line=%d (expect 4), char=%d, msg=%q", d.Range.Start.Line, d.Range.Start.Character, d.Message)
+    // (panic ...) is on source line 5 (1-based) → LSP line 4 (0-based)
+    if d.Range.Start.Line != 4 {
+        t.Errorf("want LSP line 4 (source line 5), got %d", d.Range.Start.Line)
+    }
 }

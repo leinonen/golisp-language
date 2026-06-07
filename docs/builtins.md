@@ -170,8 +170,8 @@ Goroutines, channels, and synchronisation. `sync` and `time` imports are added a
 
 | Form | Returns | Description |
 |---|---|---|
-| `(chan ^T)` | `chan T` | Create an unbuffered channel of element type T |
-| `(chan ^T n)` | `chan T` | Create a buffered channel with capacity n |
+| `(chan T)` | `chan T` | Create an unbuffered channel of element type T |
+| `(chan T n)` | `chan T` | Create a buffered channel with capacity n |
 | `(send! ch val)` | — | Send val on channel ch (`ch <- val`) |
 | `(recv! ch)` | T | Receive one value from ch (`<-ch`) |
 | `(recv-ok! ch)` | `[]any` | Receive with closed-channel detection; returns `[val ok]`. Use `[[val ok] (recv-ok! ch)]` to destructure. Check ok with `(= ok true)` — it is `any`, not `bool`. |
@@ -226,7 +226,7 @@ Goroutines, channels, and synchronisation. `sync` and `time` imports are added a
 
 ; Mutex-protected counter
 (def mu (sync/Mutex. {}))
-(defn safe-log [^string msg]
+(defn safe-log [msg string]
   (with-lock mu
     (fmt/println msg)))
 
@@ -347,22 +347,22 @@ Pass `context.Context` to Go APIs that support cancellation and deadlines. No im
 
 ```clojure
 ; Timeout example — always call cancel! to release resources
-(defn ^any fetch-with-deadline [^string url]
+(defn fetch-with-deadline [url string] -> any
   (let [[ctx cancel] (ctx/with-timeout (ctx/background) 3000)]
     (defer (ctx/cancel! cancel))
     (http/get url)))
 
 ; Cancellation — cancel from another goroutine
-(defn ^any run-with-cancel []
+(defn run-with-cancel [] -> any
   (let [[ctx cancel] (ctx/with-cancel (ctx/background))]
     (go (do (fmt/println "working...") (ctx/cancel! cancel)))
     ctx))
 
 ; Context values — propagate request-scoped data
-(defn ^any with-user [^any ctx ^string user]
+(defn with-user [ctx any user string] -> any
   (ctx/with-value ctx "user" user))
 
-(defn ^any get-user [^any ctx]
+(defn get-user [ctx any] -> any
   (ctx/value ctx "user"))
 ```
 
@@ -374,7 +374,7 @@ Pass `context.Context` to Go APIs that support cancellation and deadlines. No im
 | `(wrap-error msg err)` | error | Wrap err with context: message becomes `"msg: err"` |
 | `(errors/is? err target)` | bool | True when err or any error in its chain matches target |
 | `(nil? x)` | bool | True when x is nil |
-| `(as ^T x)` | T | Type assertion; panics if x is not T |
+| `(as T x)` | T | Type assertion; panics if x is not T |
 
 ```clojure
 ; Sentinel errors
@@ -382,7 +382,7 @@ Pass `context.Context` to Go APIs that support cancellation and deadlines. No im
 (def ErrForbidden (error "forbidden"))
 
 ; Wrap with context as errors travel up the call stack
-(defn ^[any error] get-user [^int id]
+(defn get-user [id int] -> [any error]
   (if-err [row err] (db-query-one conn "SELECT * FROM users WHERE id=$1" [id])
     (wrap-error "get-user" err)
     [row nil]))

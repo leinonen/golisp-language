@@ -1,5 +1,5 @@
-(defn ^int double [^int x]
+(defn double [x int] -> int
   (* x 2))
 
-(defn ^string greet [^string name]
+(defn greet [name string] -> string
   (str "Hello, " name "!"))

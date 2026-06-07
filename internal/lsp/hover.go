@@ -89,7 +89,7 @@ func buildSymbolTable(nodes []ast.Node) map[string]HoverResult {
 
 func formatMethodSig(n *ast.MethodDecl) string {
 	var sb strings.Builder
-	sb.WriteString("(defmethod ^")
+	sb.WriteString("(defmethod ")
 	sb.WriteString(n.ReceiverType.Text)
 	sb.WriteString(" ")
 	sb.WriteString(n.Name)
@@ -97,20 +97,19 @@ func formatMethodSig(n *ast.MethodDecl) string {
 	sb.WriteString(n.ReceiverName)
 	for _, p := range n.Params {
 		sb.WriteString(" ")
-		if p.TypeAnnot != nil {
-			sb.WriteString("^")
-			sb.WriteString(p.TypeAnnot.Text)
-			sb.WriteString(" ")
-		}
 		if p.Pattern != nil {
 			sb.WriteString(formatPatternSig(p.Pattern))
 		} else {
 			sb.WriteString(p.Name)
 		}
+		if p.TypeAnnot != nil {
+			sb.WriteString(" ")
+			sb.WriteString(p.TypeAnnot.Text)
+		}
 	}
 	sb.WriteString("]")
 	if n.ReturnType != nil {
-		sb.WriteString(" ^")
+		sb.WriteString(" -> ")
 		sb.WriteString(n.ReturnType.Text)
 	}
 	sb.WriteString(")")
@@ -120,20 +119,10 @@ func formatMethodSig(n *ast.MethodDecl) string {
 func formatDefnSig(n *ast.DefnDecl) string {
 	var sb strings.Builder
 	sb.WriteString("(defn ")
-	if n.ReturnType != nil {
-		sb.WriteString("^")
-		sb.WriteString(n.ReturnType.Text)
-		sb.WriteString(" ")
-	}
 	sb.WriteString(n.Name)
 	sb.WriteString(" [")
 	for i, p := range n.Params {
 		if i > 0 {
-			sb.WriteString(" ")
-		}
-		if p.TypeAnnot != nil {
-			sb.WriteString("^")
-			sb.WriteString(p.TypeAnnot.Text)
 			sb.WriteString(" ")
 		}
 		if p.IsRest {
@@ -144,8 +133,17 @@ func formatDefnSig(n *ast.DefnDecl) string {
 		} else {
 			sb.WriteString(p.Name)
 		}
+		if p.TypeAnnot != nil {
+			sb.WriteString(" ")
+			sb.WriteString(p.TypeAnnot.Text)
+		}
 	}
-	sb.WriteString("])")
+	sb.WriteString("]")
+	if n.ReturnType != nil {
+		sb.WriteString(" -> ")
+		sb.WriteString(n.ReturnType.Text)
+	}
+	sb.WriteString(")")
 	return sb.String()
 }
 
@@ -176,7 +174,7 @@ func formatPatternSig(pattern ast.Node) string {
 
 func formatDefSig(n *ast.DefDecl) string {
 	if n.TypeAnnot != nil {
-		return fmt.Sprintf("(def ^%s %s)", n.TypeAnnot.Text, n.Name)
+		return fmt.Sprintf("(def %s %s)", n.Name, n.TypeAnnot.Text)
 	}
 	return fmt.Sprintf("(def %s)", n.Name)
 }

@@ -166,7 +166,7 @@ Go `sync` package. Auto-imported whenever `sync/Mutex.`, `sync/WaitGroup.`, etc.
 
 | Form | Description |
 |---|---|
-| `(sync/Mutex. {})` | Create a new mutex (value type — use a pointer `^*sync/Mutex` when sharing across goroutines) |
+| `(sync/Mutex. {})` | Create a new mutex (value type — use a pointer `*sync/Mutex` when sharing across goroutines) |
 | `(sync/RWMutex. {})` | Create a read/write mutex |
 | `(sync/WaitGroup. {})` | Create a WaitGroup; prefer `(par ...)` unless you need dynamic goroutine counts |
 | `(.Lock mu)` | Acquire exclusive lock |

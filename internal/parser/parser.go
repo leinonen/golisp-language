@@ -183,30 +183,7 @@ func (p *parser) parseAll() ([]ast.Node, error) {
 // ---------- expression dispatch ----------
 
 func (p *parser) parseExpr() (ast.Node, error) {
-	// Consume an optional leading type annotation.
-	var annot *ast.TypeExpr
-	if p.peekType() == lexer.TokenTypeAnnot {
-		tok := p.advance()
-		annot = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
-	}
-
-	node, err := p.parseExprInner()
-	if err != nil {
-		return nil, err
-	}
-
-	// Attach annotation to collections (typed vector/map literals).
-	if annot != nil {
-		switch v := node.(type) {
-		case *ast.VectorLit:
-			v.TypeAnnot = annot
-		case *ast.MapLit:
-			v.TypeAnnot = annot
-		case *ast.Symbol:
-			v.TypeAnnot = annot
-		}
-	}
-	return node, nil
+	return p.parseExprInner()
 }
 
 func (p *parser) parseExprInner() (ast.Node, error) {
@@ -584,14 +561,23 @@ func (p *parser) parseRequireList() ([]ast.RequireSpec, error) {
 
 func (p *parser) parseDef(pos ast.Position) (*ast.DefDecl, error) {
 	p.advance() // "def"
-	var annot *ast.TypeExpr
-	if p.peekType() == lexer.TokenTypeAnnot {
-		tok := p.advance()
-		annot = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
-	}
 	nameTok, err := p.expect(lexer.TokenSymbol)
 	if err != nil {
 		return nil, err
+	}
+	// (def name type value) — 3-arg form with optional type annotation
+	// If next token looks like a type and isn't the last thing before ), read it as the type.
+	var annot *ast.TypeExpr
+	if p.isTypeExprStart() && p.peekType() != lexer.TokenRParen {
+		// Save position to allow backtracking if needed
+		savedPos := p.pos
+		t, err := p.parseTypeExpr()
+		if err != nil || p.peekType() == lexer.TokenRParen {
+			// No value would follow — treat as no type annotation, restore
+			p.pos = savedPos
+		} else {
+			annot = t
+		}
 	}
 	val, err := p.parseExpr()
 	if err != nil {
@@ -616,11 +602,6 @@ func extractDoc(body []ast.Node) (doc string, rest []ast.Node) {
 
 func (p *parser) parseDefn(pos ast.Position) (*ast.DefnDecl, error) {
 	p.advance() // "defn"
-	var retType *ast.TypeExpr
-	if p.peekType() == lexer.TokenTypeAnnot {
-		tok := p.advance()
-		retType = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
-	}
 	nameTok, err := p.expect(lexer.TokenSymbol)
 	if err != nil {
 		return nil, err
@@ -628,6 +609,15 @@ func (p *parser) parseDefn(pos ast.Position) (*ast.DefnDecl, error) {
 	params, err := p.parseParamList()
 	if err != nil {
 		return nil, err
+	}
+	// (defn name [params] -> return-type body...)
+	var retType *ast.TypeExpr
+	if p.peekType() == lexer.TokenSymbol && p.peek().Text == "->" {
+		p.advance() // consume "->"
+		retType, err = p.parseTypeExpr()
+		if err != nil {
+			return nil, err
+		}
 	}
 	rawBody, err := p.parseBody()
 	if err != nil {
@@ -651,14 +641,17 @@ func (p *parser) parseDefstruct(pos ast.Position) (*ast.StructDecl, error) {
 	}
 	var fields []ast.StructField
 	for p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF {
-		var annot *ast.TypeExpr
-		if p.peekType() == lexer.TokenTypeAnnot {
-			tok := p.advance()
-			annot = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
-		}
 		fieldTok, err := p.expect(lexer.TokenSymbol)
 		if err != nil {
 			return nil, err
+		}
+		// Field type follows name: (defstruct Name field type ...)
+		var annot *ast.TypeExpr
+		if p.isTypeExprStart() {
+			annot, err = p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
 		}
 		tag := ""
 		if p.peekType() == lexer.TokenString {
@@ -692,10 +685,14 @@ func (p *parser) parseDefinterface(pos ast.Position) (*ast.InterfaceDecl, error)
 		if err != nil {
 			return nil, err
 		}
+		// (Method [params] -> return-type)
 		var retType *ast.TypeExpr
-		if p.peekType() == lexer.TokenTypeAnnot {
-			tok := p.advance()
-			retType = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
+		if p.peekType() == lexer.TokenSymbol && p.peek().Text == "->" {
+			p.advance() // consume "->"
+			retType, err = p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
 		}
 		if _, err := p.expect(lexer.TokenRParen); err != nil {
 			return nil, err
@@ -710,11 +707,10 @@ func (p *parser) parseDefinterface(pos ast.Position) (*ast.InterfaceDecl, error)
 
 func (p *parser) parseDefmethod(pos ast.Position) (*ast.MethodDecl, error) {
 	p.advance() // "defmethod"
-	recvTypeTok, err := p.expect(lexer.TokenTypeAnnot)
+	recvType, err := p.parseTypeExpr()
 	if err != nil {
 		return nil, err
 	}
-	recvType := ast.NewTypeExpr(p.mkpos(recvTypeTok), recvTypeTok.Text)
 	nameTok, err := p.expect(lexer.TokenSymbol)
 	if err != nil {
 		return nil, err
@@ -728,10 +724,14 @@ func (p *parser) parseDefmethod(pos ast.Position) (*ast.MethodDecl, error) {
 	}
 	recvName := allParams[0].Name
 	params := allParams[1:]
+	// (defmethod ReceiverType name [params] -> return-type body...)
 	var retType *ast.TypeExpr
-	if p.peekType() == lexer.TokenTypeAnnot {
-		tok := p.advance()
-		retType = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
+	if p.peekType() == lexer.TokenSymbol && p.peek().Text == "->" {
+		p.advance() // consume "->"
+		retType, err = p.parseTypeExpr()
+		if err != nil {
+			return nil, err
+		}
 	}
 	rawBody, err := p.parseBody()
 	if err != nil {
@@ -753,10 +753,14 @@ func (p *parser) parseFn(pos ast.Position) (*ast.FnExpr, error) {
 	if err != nil {
 		return nil, err
 	}
+	// (fn [params] -> return-type body...)
 	var retType *ast.TypeExpr
-	if p.peekType() == lexer.TokenTypeAnnot {
-		tok := p.advance()
-		retType = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
+	if p.peekType() == lexer.TokenSymbol && p.peek().Text == "->" {
+		p.advance() // consume "->"
+		retType, err = p.parseTypeExpr()
+		if err != nil {
+			return nil, err
+		}
 	}
 	body, err := p.parseBody()
 	if err != nil {
@@ -775,11 +779,6 @@ func (p *parser) parseLet(pos ast.Position) (*ast.LetExpr, error) {
 	}
 	var bindings []ast.LetBinding
 	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
-		var annot *ast.TypeExpr
-		if p.peekType() == lexer.TokenTypeAnnot {
-			tok := p.advance()
-			annot = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
-		}
 		var pattern ast.Node
 		if p.peekType() == lexer.TokenLBracket {
 			v, err := p.parseVector()
@@ -804,7 +803,7 @@ func (p *parser) parseLet(pos ast.Position) (*ast.LetExpr, error) {
 		if err != nil {
 			return nil, err
 		}
-		bindings = append(bindings, ast.LetBinding{Pattern: pattern, TypeAnnot: annot, Value: val})
+		bindings = append(bindings, ast.LetBinding{Pattern: pattern, Value: val})
 	}
 	if _, err := p.expect(lexer.TokenRBracket); err != nil {
 		return nil, err
@@ -950,11 +949,10 @@ func (p *parser) parseDefer(pos ast.Position) (*ast.DeferStmt, error) {
 
 func (p *parser) parseChan(pos ast.Position) (*ast.ChanExpr, error) {
 	p.advance() // "chan"
-	annotTok, err := p.expect(lexer.TokenTypeAnnot)
+	elemType, err := p.parseTypeExpr()
 	if err != nil {
 		return nil, err
 	}
-	elemType := ast.NewTypeExpr(p.mkpos(annotTok), annotTok.Text)
 	var cap ast.Node
 	if p.peekType() != lexer.TokenRParen {
 		cap, err = p.parseExpr()
@@ -1488,11 +1486,10 @@ func (p *parser) parseWhenLet(pos ast.Position) (*ast.WhenLetExpr, error) {
 
 func (p *parser) parseTypeAssert(pos ast.Position) (*ast.TypeAssertExpr, error) {
 	p.advance() // "as"
-	annotTok, err := p.expect(lexer.TokenTypeAnnot)
+	ty, err := p.parseTypeExpr()
 	if err != nil {
 		return nil, err
 	}
-	ty := ast.NewTypeExpr(p.mkpos(annotTok), annotTok.Text)
 	val, err := p.parseExpr()
 	if err != nil {
 		return nil, err
@@ -1572,17 +1569,13 @@ func (p *parser) parseParamList() ([]ast.Param, error) {
 	}
 	var params []ast.Param
 	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
-		var annot *ast.TypeExpr
-		if p.peekType() == lexer.TokenTypeAnnot {
-			tok := p.advance()
-			annot = ast.NewTypeExpr(p.mkpos(tok), tok.Text)
-		}
+		// Destructuring patterns have no type annotation
 		if p.peekType() == lexer.TokenLBracket {
 			v, err := p.parseVector()
 			if err != nil {
 				return nil, err
 			}
-			params = append(params, ast.Param{Pattern: v, TypeAnnot: annot})
+			params = append(params, ast.Param{Pattern: v})
 			continue
 		}
 		if p.peekType() == lexer.TokenLBrace {
@@ -1590,7 +1583,7 @@ func (p *parser) parseParamList() ([]ast.Param, error) {
 			if err != nil {
 				return nil, err
 			}
-			params = append(params, ast.Param{Pattern: m, TypeAnnot: annot})
+			params = append(params, ast.Param{Pattern: m})
 			continue
 		}
 		symTok, err := p.expect(lexer.TokenSymbol)
@@ -1602,8 +1595,24 @@ func (p *parser) parseParamList() ([]ast.Param, error) {
 			if err != nil {
 				return nil, err
 			}
-			params = append(params, ast.Param{Name: restTok.Text, TypeAnnot: annot, IsRest: true})
+			// rest param may have a type annotation
+			var restAnnot *ast.TypeExpr
+			if p.isTypeExprStart() {
+				restAnnot, err = p.parseTypeExpr()
+				if err != nil {
+					return nil, err
+				}
+			}
+			params = append(params, ast.Param{Name: restTok.Text, TypeAnnot: restAnnot, IsRest: true})
 			continue
+		}
+		// Type annotation follows the param name when the next token looks like a type
+		var annot *ast.TypeExpr
+		if p.isTypeExprStart() {
+			annot, err = p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
 		}
 		params = append(params, ast.Param{Name: symTok.Text, TypeAnnot: annot})
 	}
@@ -1627,6 +1636,121 @@ func (p *parser) parseBody() ([]ast.Node, error) {
 
 func (p *parser) parseArgs() ([]ast.Node, error) {
 	return p.parseBody()
+}
+
+// ---------- type expression parsing ----------
+
+// parseTypeExpr reads a type expression in a position where a Go type is expected.
+// Handles: symbols (int, string, *Foo, web/Bar), []T, [T1 T2] (multi-return),
+// (chan T), and map[K]V — without needing a ^ prefix.
+func (p *parser) parseTypeExpr() (*ast.TypeExpr, error) {
+	tok := p.peek()
+	pos := p.mkpos(tok)
+
+	switch p.peekType() {
+	case lexer.TokenLBracket:
+		p.advance() // consume [
+		if p.peekType() == lexer.TokenRBracket {
+			// []T — slice type
+			p.advance() // consume ]
+			elem, err := p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
+			return ast.NewTypeExpr(pos, "[]"+elem.Text), nil
+		}
+		// [T1 T2 ...] — multi-return type
+		var parts []string
+		for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
+			t, err := p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
+			parts = append(parts, t.Text)
+		}
+		if _, err := p.expect(lexer.TokenRBracket); err != nil {
+			return nil, err
+		}
+		return ast.NewTypeExpr(pos, "["+strings.Join(parts, " ")+"]"), nil
+
+	case lexer.TokenLParen:
+		// (chan T) — channel type
+		p.advance() // consume (
+		chanTok, err := p.expect(lexer.TokenSymbol)
+		if err != nil {
+			return nil, err
+		}
+		if chanTok.Text != "chan" {
+			return nil, p.errorf("expected 'chan' in type expression, got %q", chanTok.Text)
+		}
+		elem, err := p.parseTypeExpr()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := p.expect(lexer.TokenRParen); err != nil {
+			return nil, err
+		}
+		return ast.NewTypeExpr(pos, "chan "+elem.Text), nil
+
+	case lexer.TokenSymbol:
+		symTok := p.advance()
+		text := symTok.Text
+		// Handle map[K]V
+		if text == "map" && p.peekType() == lexer.TokenLBracket {
+			p.advance() // consume [
+			keyType, err := p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
+			if _, err := p.expect(lexer.TokenRBracket); err != nil {
+				return nil, err
+			}
+			valType, err := p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
+			return ast.NewTypeExpr(pos, "map["+keyType.Text+"]"+valType.Text), nil
+		}
+		return ast.NewTypeExpr(pos, text), nil
+
+	default:
+		return nil, p.errorf("expected type expression, got %v (%q)", p.peekType(), p.peek().Text)
+	}
+}
+
+// isTypeExprStart reports whether the current token can begin a type expression
+// in a position where a type annotation is expected after a name.
+func (p *parser) isTypeExprStart() bool {
+	switch p.peekType() {
+	case lexer.TokenLBracket, lexer.TokenLParen:
+		return true
+	case lexer.TokenSymbol:
+		return isTypeSymbol(p.peek().Text)
+	}
+	return false
+}
+
+// isTypeSymbol reports whether a symbol text looks like a Go type name rather
+// than a variable name. Used to disambiguate param/binding syntax.
+func isTypeSymbol(text string) bool {
+	switch text {
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		"float32", "float64", "complex64", "complex128",
+		"bool", "byte", "rune", "string", "error", "any", "uintptr",
+		"map":
+		return true
+	}
+	if strings.Contains(text, "/") {
+		return true // qualified type like web/Request or sync/Mutex
+	}
+	if strings.HasPrefix(text, "*") {
+		return true // pointer type like *Circle
+	}
+	if len(text) > 0 && text[0] >= 'A' && text[0] <= 'Z' {
+		return true // exported/PascalCase type like Circle, Handler
+	}
+	return false
 }
 
 // ---------- deftest ----------

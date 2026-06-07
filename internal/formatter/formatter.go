@@ -216,42 +216,25 @@ func inline(n ast.Node) string {
 	case *ast.KeywordLit:
 		return ":" + v.Value
 	case *ast.Symbol:
-		if v.TypeAnnot != nil {
-			return "^" + v.TypeAnnot.Text + " " + v.Name
-		}
 		return v.Name
 	case *ast.VectorLit:
 		if len(v.Elements) == 0 {
-			if v.TypeAnnot != nil {
-				return "^" + v.TypeAnnot.Text + " []"
-			}
 			return "[]"
 		}
 		parts := make([]string, len(v.Elements))
 		for i, e := range v.Elements {
 			parts[i] = inline(e)
 		}
-		s := "[" + strings.Join(parts, " ") + "]"
-		if v.TypeAnnot != nil {
-			return "^" + v.TypeAnnot.Text + " " + s
-		}
-		return s
+		return "[" + strings.Join(parts, " ") + "]"
 	case *ast.MapLit:
 		if len(v.Pairs) == 0 {
-			if v.TypeAnnot != nil {
-				return "^" + v.TypeAnnot.Text + " {}"
-			}
 			return "{}"
 		}
 		parts := make([]string, 0, len(v.Pairs)*2)
 		for _, p := range v.Pairs {
 			parts = append(parts, inline(p.Key), inline(p.Value))
 		}
-		s := "{" + strings.Join(parts, " ") + "}"
-		if v.TypeAnnot != nil {
-			return "^" + v.TypeAnnot.Text + " " + s
-		}
-		return s
+		return "{" + strings.Join(parts, " ") + "}"
 	case *ast.SetLit:
 		parts := make([]string, len(v.Elements))
 		for i, e := range v.Elements {
@@ -267,7 +250,7 @@ func inline(n ast.Node) string {
 	case *ast.FnExpr:
 		head := "(fn " + inlineParams(v.Params)
 		if v.ReturnType != nil {
-			head += " ^" + v.ReturnType.Text
+			head += " -> " + v.ReturnType.Text
 		}
 		var bodyParts []string
 		for _, b := range v.Body {
@@ -350,9 +333,9 @@ func inline(n ast.Node) string {
 		return "(close! " + inline(v.Chan) + ")"
 	case *ast.ChanExpr:
 		if v.Cap != nil {
-			return "(chan ^" + v.ElemType.Text + " " + inline(v.Cap) + ")"
+			return "(chan " + v.ElemType.Text + " " + inline(v.Cap) + ")"
 		}
-		return "(chan ^" + v.ElemType.Text + ")"
+		return "(chan " + v.ElemType.Text + ")"
 	case *ast.SelectStmt:
 		return "(select! ...)"
 	case *ast.MethodCallExpr:
@@ -370,7 +353,7 @@ func inline(n ast.Node) string {
 		}
 		return "(" + v.TypeName + ". {" + strings.Join(pairParts, " ") + "})"
 	case *ast.TypeAssertExpr:
-		return "(as ^" + v.Type.Text + " " + inline(v.Value) + ")"
+		return "(as " + v.Type.Text + " " + inline(v.Value) + ")"
 	case *ast.IfErrExpr:
 		return "(if-err [" + v.ValName + " " + v.ErrName + "] " +
 			inline(v.Expr) + " " + inline(v.OnErr) + " " + inline(v.OnOk) + ")"
@@ -387,17 +370,16 @@ func inline(n ast.Node) string {
 		}
 		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.DefDecl:
-		s := "(def"
+		s := "(def " + v.Name
 		if v.TypeAnnot != nil {
-			s += " ^" + v.TypeAnnot.Text
+			s += " " + v.TypeAnnot.Text
 		}
-		return s + " " + v.Name + " " + inline(v.Value) + ")"
+		return s + " " + inline(v.Value) + ")"
 	case *ast.DefnDecl:
-		head := "(defn"
+		head := "(defn " + v.Name + " " + inlineParams(v.Params)
 		if v.ReturnType != nil {
-			head += " ^" + v.ReturnType.Text
+			head += " -> " + v.ReturnType.Text
 		}
-		head += " " + v.Name + " " + inlineParams(v.Params)
 		var bodyParts []string
 		for _, b := range v.Body {
 			bodyParts = append(bodyParts, inline(b))
@@ -408,20 +390,24 @@ func inline(n ast.Node) string {
 	case *ast.StructDecl:
 		parts := []string{"defstruct", v.Name}
 		for _, f := range v.Fields {
-			if f.TypeAnnot != nil {
-				parts = append(parts, "^"+f.TypeAnnot.Text)
-			}
 			if f.Tag != "" {
-				parts = append(parts, f.Name, fmt.Sprintf("%q", f.Tag))
+				parts = append(parts, f.Name)
+				if f.TypeAnnot != nil {
+					parts = append(parts, f.TypeAnnot.Text)
+				}
+				parts = append(parts, fmt.Sprintf("%q", f.Tag))
 			} else {
 				parts = append(parts, f.Name)
+				if f.TypeAnnot != nil {
+					parts = append(parts, f.TypeAnnot.Text)
+				}
 			}
 		}
 		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.InterfaceDecl:
 		return "(definterface " + v.Name + " ...)"
 	case *ast.MethodDecl:
-		return "(defmethod ^" + v.ReceiverType.Text + " " + v.Name + " ...)"
+		return "(defmethod " + v.ReceiverType.Text + " " + v.Name + " ...)"
 	case *ast.DefTestDecl:
 		parts := []string{"deftest", v.Name}
 		for _, b := range v.Body {
@@ -435,30 +421,27 @@ func inline(n ast.Node) string {
 // --- helpers ---
 
 func inlineParams(params []ast.Param) string {
-	parts := make([]string, 0, len(params))
+	parts := make([]string, 0, len(params)*2)
 	for _, p := range params {
-		var s string
-		if p.TypeAnnot != nil {
-			s = "^" + p.TypeAnnot.Text + " "
-		}
 		if p.Pattern != nil {
-			s += inline(p.Pattern)
+			parts = append(parts, inline(p.Pattern))
 		} else if p.IsRest {
-			s += "& " + p.Name
+			parts = append(parts, "& "+p.Name)
+			if p.TypeAnnot != nil {
+				parts[len(parts)-1] += " " + p.TypeAnnot.Text
+			}
 		} else {
-			s += p.Name
+			parts = append(parts, p.Name)
+			if p.TypeAnnot != nil {
+				parts = append(parts, p.TypeAnnot.Text)
+			}
 		}
-		parts = append(parts, s)
 	}
 	return "[" + strings.Join(parts, " ") + "]"
 }
 
 func inlineLetBinding(b ast.LetBinding) string {
-	pat := inline(b.Pattern)
-	if b.TypeAnnot != nil {
-		pat = "^" + b.TypeAnnot.Text + " " + pat
-	}
-	return pat + " " + inline(b.Value)
+	return inline(b.Pattern) + " " + inline(b.Value)
 }
 
 func inlineBindingForm(keyword string, bindings []ast.LetBinding, body []ast.Node) string {
@@ -557,13 +540,8 @@ func formatVector(v *ast.VectorLit, indent int) string {
 		return ind(indent) + "[]"
 	}
 	var sb strings.Builder
-	prefix := ""
-	if v.TypeAnnot != nil {
-		prefix = "^" + v.TypeAnnot.Text + " "
-	}
-	sb.WriteString(ind(indent) + prefix + "[")
-	// align subsequent elements under first
-	contPad := ind(indent) + prefix + " " + strings.Repeat(" ", len(prefix))
+	sb.WriteString(ind(indent) + "[")
+	contPad := ind(indent) + " "
 	for i, e := range v.Elements {
 		if i == 0 {
 			sb.WriteString(inline(e))
@@ -577,11 +555,7 @@ func formatVector(v *ast.VectorLit, indent int) string {
 
 func formatMap(v *ast.MapLit, indent int) string {
 	if len(v.Pairs) == 0 {
-		s := "{}"
-		if v.TypeAnnot != nil {
-			s = "^" + v.TypeAnnot.Text + " " + s
-		}
-		return ind(indent) + s
+		return ind(indent) + "{}"
 	}
 	il := inline(v)
 	// only use inline for single pair that fits
@@ -589,10 +563,6 @@ func formatMap(v *ast.MapLit, indent int) string {
 		return ind(indent) + il
 	}
 	// multi-line aligned
-	prefix := ""
-	if v.TypeAnnot != nil {
-		prefix = "^" + v.TypeAnnot.Text + " "
-	}
 	keyStrs := make([]string, len(v.Pairs))
 	maxKeyW := 0
 	for i, p := range v.Pairs {
@@ -602,9 +572,8 @@ func formatMap(v *ast.MapLit, indent int) string {
 		}
 	}
 	var sb strings.Builder
-	sb.WriteString(ind(indent) + prefix + "{")
-	// continuation: align under first key (indent*2 + len(prefix) + 1 spaces)
-	contPad := strings.Repeat(" ", indent*2+len(prefix)+1)
+	sb.WriteString(ind(indent) + "{")
+	contPad := strings.Repeat(" ", indent*2+1)
 	for i, p := range v.Pairs {
 		if i > 0 {
 			sb.WriteString("\n" + contPad)
@@ -655,7 +624,7 @@ func formatFn(v *ast.FnExpr, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(fn " + params)
 	if v.ReturnType != nil {
-		sb.WriteString(" ^" + v.ReturnType.Text)
+		sb.WriteString(" -> " + v.ReturnType.Text)
 	}
 	for _, b := range v.Body {
 		sb.WriteString("\n" + format(b, indent+1))
@@ -795,11 +764,11 @@ func formatDef(v *ast.DefDecl, indent int) string {
 		return ind(indent) + il
 	}
 	var sb strings.Builder
-	sb.WriteString(ind(indent) + "(def")
+	sb.WriteString(ind(indent) + "(def " + v.Name)
 	if v.TypeAnnot != nil {
-		sb.WriteString(" ^" + v.TypeAnnot.Text)
+		sb.WriteString(" " + v.TypeAnnot.Text)
 	}
-	sb.WriteString(" " + v.Name + "\n")
+	sb.WriteString("\n")
 	sb.WriteString(format(v.Value, indent+1))
 	sb.WriteString(")")
 	return sb.String()
@@ -810,11 +779,10 @@ func formatDefn(v *ast.DefnDecl, indent int) string {
 	if v.Doc != "" {
 		sb.WriteString(ind(indent) + ";;; " + v.Doc + "\n")
 	}
-	sb.WriteString(ind(indent) + "(defn")
+	sb.WriteString(ind(indent) + "(defn " + v.Name + " " + inlineParams(v.Params))
 	if v.ReturnType != nil {
-		sb.WriteString(" ^" + v.ReturnType.Text)
+		sb.WriteString(" -> " + v.ReturnType.Text)
 	}
-	sb.WriteString(" " + v.Name + " " + inlineParams(v.Params))
 	for _, b := range v.Body {
 		sb.WriteString("\n" + format(b, indent+1))
 	}
@@ -859,11 +827,10 @@ func formatStruct(v *ast.StructDecl, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(defstruct " + v.Name)
 	for _, f := range v.Fields {
-		sb.WriteString("\n" + ind(indent+1))
+		sb.WriteString("\n" + ind(indent+1) + f.Name)
 		if f.TypeAnnot != nil {
-			sb.WriteString("^" + f.TypeAnnot.Text + " ")
+			sb.WriteString(" " + f.TypeAnnot.Text)
 		}
-		sb.WriteString(f.Name)
 		if f.Tag != "" {
 			sb.WriteString(" " + fmt.Sprintf("%q", f.Tag))
 		}
@@ -878,7 +845,7 @@ func formatInterface(v *ast.InterfaceDecl, indent int) string {
 	for _, m := range v.Methods {
 		sb.WriteString("\n" + ind(indent+1) + "(" + m.Name + " " + inlineParams(m.Params))
 		if m.ReturnType != nil {
-			sb.WriteString(" ^" + m.ReturnType.Text)
+			sb.WriteString(" -> " + m.ReturnType.Text)
 		}
 		sb.WriteString(")")
 	}
@@ -891,11 +858,11 @@ func formatMethod(v *ast.MethodDecl, indent int) string {
 	if v.Doc != "" {
 		sb.WriteString(ind(indent) + ";;; " + v.Doc + "\n")
 	}
-	sb.WriteString(ind(indent) + "(defmethod ^" + v.ReceiverType.Text + " " + v.Name)
+	sb.WriteString(ind(indent) + "(defmethod " + v.ReceiverType.Text + " " + v.Name)
 	allParams := append([]ast.Param{{Name: v.ReceiverName}}, v.Params...)
 	sb.WriteString(" " + inlineParams(allParams))
 	if v.ReturnType != nil {
-		sb.WriteString(" ^" + v.ReturnType.Text)
+		sb.WriteString(" -> " + v.ReturnType.Text)
 	}
 	for _, b := range v.Body {
 		sb.WriteString("\n" + format(b, indent+1))

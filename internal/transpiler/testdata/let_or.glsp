@@ -1,12 +1,12 @@
 (ns main)
 
-(defn ^any parse-body [^any req]
+(defn parse-body [req any] -> any
   (let-or [body (get req "body")  "missing body"
            name (get body "name") "name required"
            age  (get body "age")  "age required"]
     {"name" name "age" age}))
 
-(defn ^any multi-level [^any x ^any y]
+(defn multi-level [x any y any] -> any
   (let-or [a x "no x"
            b y "no y"]
     (str a b)))

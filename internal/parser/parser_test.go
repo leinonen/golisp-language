@@ -89,7 +89,7 @@ func TestParseLiterals(t *testing.T) {
 }
 
 func TestParseDefn(t *testing.T) {
-	nodes := mustParse(t, `(defn ^int add [^int a ^int b] (+ a b))`)
+	nodes := mustParse(t, `(defn add [a int b int] -> int (+ a b))`)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -158,7 +158,7 @@ func TestParseIf(t *testing.T) {
 
 func TestParseGoroutineChannel(t *testing.T) {
 	nodes := mustParse(t, `
-(let [ch (chan ^int 10)]
+(let [ch (chan int 10)]
   (go (send! ch 42))
   (recv! ch))`)
 	if len(nodes) != 1 {
@@ -298,7 +298,7 @@ func TestParseDefTest(t *testing.T) {
 
 func TestDocComment(t *testing.T) {
 	t.Run("sets Doc on defn", func(t *testing.T) {
-		nodes := mustParse(t, ";;; Returns the sum.\n(defn ^int add [^int a ^int b] (+ a b))")
+		nodes := mustParse(t, ";;; Returns the sum.\n(defn add [a int b int] -> int (+ a b))")
 		fn := nodes[0].(*ast.DefnDecl)
 		if fn.Doc != "Returns the sum." {
 			t.Errorf("Doc: got %q, want %q", fn.Doc, "Returns the sum.")
@@ -306,7 +306,7 @@ func TestDocComment(t *testing.T) {
 	})
 
 	t.Run("overrides string literal doc", func(t *testing.T) {
-		nodes := mustParse(t, ";;; Comment doc.\n(defn ^int f [] \"String doc.\" 1)")
+		nodes := mustParse(t, ";;; Comment doc.\n(defn f [] -> int \"String doc.\" 1)")
 		fn := nodes[0].(*ast.DefnDecl)
 		if fn.Doc != "Comment doc." {
 			t.Errorf("Doc: got %q, want %q", fn.Doc, "Comment doc.")

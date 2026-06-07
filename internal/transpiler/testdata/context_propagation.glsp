@@ -1,23 +1,23 @@
 (ns main)
 
-(defn ^any background-ctx []
+(defn background-ctx [] -> any
   (ctx/background))
 
-(defn ^any todo-ctx []
+(defn todo-ctx [] -> any
   (ctx/todo))
 
-(defn ^any with-cancel-example []
+(defn with-cancel-example [] -> any
   (let [[ctx cancel] (ctx/with-cancel (ctx/background))]
     (ctx/cancel! cancel)
     ctx))
 
-(defn ^any with-timeout-example []
+(defn with-timeout-example [] -> any
   (let [[ctx cancel] (ctx/with-timeout (ctx/background) 5000)]
     (ctx/cancel! cancel)
     ctx))
 
-(defn ^any store-value [^any ctx ^string key ^string val]
+(defn store-value [ctx any key string val string] -> any
   (ctx/with-value ctx key val))
 
-(defn ^any read-value [^any ctx ^string key]
+(defn read-value [ctx any key string] -> any
   (ctx/value ctx key))

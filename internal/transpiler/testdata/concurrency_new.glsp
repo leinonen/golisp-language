@@ -1,7 +1,7 @@
 (ns main)
 
 ; go-val: goroutine returning a future channel
-(defn ^(chan any) start-task [^int x]
+(defn start-task [x int] -> (chan any)
   (go-val (* x x)))
 
 ; par: parallel fire-and-wait with WaitGroup
@@ -12,24 +12,24 @@
     (fmt/println "task c")))
 
 ; for-chan: range over channel until closed
-(defn drain [^(chan string) ch]
+(defn drain [ch (chan string)]
   (for-chan [msg ch]
     (fmt/println msg)))
 
 ; recv-ok!: comma-ok receive to detect closed channel
-(defn try-recv [^(chan int) ch]
+(defn try-recv [ch (chan int)]
   (let [[val ok] (recv-ok! ch)]
     (if ok
       val
       -1)))
 
 ; with-lock: mutex critical section
-(defn safe-inc [^*sync/Mutex mu ^*int counter]
+(defn safe-inc [mu *sync/Mutex counter *int]
   (with-lock mu
     (fmt/println "locked")))
 
 ; select! with :timeout
-(defn with-timeout [^(chan string) ch]
+(defn with-timeout [ch (chan string)]
   (select!
     ([msg ch] msg)
     (:timeout 5000 "timed out")))

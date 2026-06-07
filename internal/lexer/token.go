@@ -27,7 +27,6 @@ const (
 	TokenSymbol   // any identifier
 
 	// Special
-	TokenTypeAnnot  // ^T — raw Go type string following ^
 	TokenQuote      // '
 	TokenDocComment // ;;; doc comment
 	TokenComment    // ; or ;; regular comment
@@ -52,7 +51,6 @@ var tokenTypeNames = map[TokenType]string{
 	TokenString:    "string",
 	TokenKeyword:   "keyword",
 	TokenSymbol:    "symbol",
-	TokenTypeAnnot:  "type-annot",
 	TokenQuote:      "'",
 	TokenDocComment: "doc-comment",
 	TokenComment:    "comment",

@@ -1,23 +1,23 @@
-(defn ^string shout [^string s]
+(defn shout [s string] -> string
   (upper-case s))
 
-(defn ^string whisper [^string s]
+(defn whisper [s string] -> string
   (lower-case s))
 
-(defn ^string clean [^string s]
+(defn clean [s string] -> string
   (trim s))
 
-(defn ^[]any words [^string s]
+(defn words [s string] -> []any
   (split s " "))
 
-(defn ^string sentence [^[]any parts]
+(defn sentence [parts []any] -> string
   (join parts " "))
 
-(defn ^bool has-prefix? [^string s ^string prefix]
+(defn has-prefix? [s string prefix string] -> bool
   (starts-with? s prefix))
 
-(defn ^string redact [^string s ^string word]
+(defn redact [s string word string] -> string
   (replace s word "***"))
 
-(defn ^string middle [^string s]
+(defn middle [s string] -> string
   (subs s 1 4))

@@ -11,15 +11,15 @@
 ; A plain atom wrapping an integer.  swap! takes a function (any → any) and
 ; applies it atomically: lock, call f with current value, store result, unlock.
 
-(defn ^any make-counter [] (atom 0))
+(defn make-counter [] -> any (atom 0))
 
-(defn ^any increment! [^any c]
-  (swap! c (fn [^any n] (+ (int n) 1))))
+(defn increment! [c any] -> any
+  (swap! c (fn [n any] (+ (int n) 1))))
 
-(defn ^any add! [^any c ^any delta]
-  (swap! c (fn [^any n] (+ (int n) (int delta)))))
+(defn add! [c any delta any] -> any
+  (swap! c (fn [n any] (+ (int n) (int delta)))))
 
-(defn ^int current [^any c]
+(defn current [c any] -> int
   (int (deref c)))
 
 ; ── main ─────────────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@
   (let [counter       (make-counter)
         n-goroutines  5
         n-per         1000
-        done          (chan ^bool n-goroutines)]
+        done          (chan bool n-goroutines)]
 
     ; ── launch ──────────────────────────────────────────────────────
     ; Spawn n-goroutines goroutines.  Each does n-per increments, then

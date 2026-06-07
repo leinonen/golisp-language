@@ -1,8 +1,8 @@
 (def ErrNotFound (error "not found"))
 
-(defn ^error load-user [^int id]
+(defn load-user [id int] -> error
   (let [err (error "db error")]
     (wrap-error "loading user" err)))
 
-(defn ^bool is-not-found? [^any err]
+(defn is-not-found? [err any] -> bool
   (errors/is? err ErrNotFound))

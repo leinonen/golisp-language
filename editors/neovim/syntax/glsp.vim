@@ -10,14 +10,14 @@ setlocal iskeyword+=!,?,/,-,>
 " keywords (:foo), comments (;), defn/def/fn/let/if/when/cond/do/->/->>.
 runtime! syntax/clojure.vim
 
-" Type annotations — three forms:
-"   ^int  ^*web/Request  ^error       (simple / pointer / qualified)
-"   ^[string error]                   (multi-return — match to closing ])
-"   ^(chan int)                        (channel — match to closing ))
-syn match glispTypeAnnot '\^\*\?[a-zA-Z][a-zA-Z0-9./]*'
-syn match glispTypeAnnot '\^\[[^\]]*\]'
-syn match glispTypeAnnot '\^([^)]*)'
-hi def link glispTypeAnnot Type
+" Go primitive type names — highlighted wherever they appear as type tokens
+" (param vectors [name type], return position after ->, defstruct fields, etc.)
+syn keyword glispTypeName
+  \ int int8 int16 int32 int64
+  \ uint uint8 uint16 uint32 uint64 uintptr
+  \ float32 float64 complex64 complex128
+  \ bool byte rune string error any
+hi def link glispTypeName Type
 
 " Core special forms (may not be in clojure.vim if runtime is absent)
 syn keyword glispCore
@@ -33,6 +33,6 @@ syn keyword glispSpecial
 hi def link glispSpecial Statement
 
 " Add glisp groups to Clojure's top-level cluster so they match inside parens
-syn cluster clojureTop add=glispCore,glispSpecial,glispTypeAnnot
+syn cluster clojureTop add=glispCore,glispSpecial,glispTypeName
 
 let b:current_syntax = 'glsp'

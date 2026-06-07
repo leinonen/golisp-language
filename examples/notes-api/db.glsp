@@ -2,7 +2,7 @@
   (:require [github.com/leinonen/glispdb]))
 
 ;;; db-connect opens a connection, creates tables if needed, and returns [conn error].
-(defn ^[any error] db-connect [^string url]
+(defn db-connect [url string] -> [any error]
   (if-err [conn err] (glispdb/connect url)
     (values nil err)
     (if-err [_ err] (glispdb/exec-raw conn
@@ -27,12 +27,12 @@
 
 ;;; User queries
 
-(defn ^[any error] db-list-users [^any conn]
+(defn db-list-users [conn any] -> [any error]
   (glispdb/query conn {"select"   [:id :name :email :created-at]
                        "from"     :users
                        "order-by" :id}))
 
-(defn ^[any error] db-get-user [^any conn ^any id]
+(defn db-get-user [conn any id any] -> [any error]
   (if-err [rows err]
     (glispdb/query conn {"select" [:id :name :email :created-at]
                          "from"   :users
@@ -40,7 +40,7 @@
     (values nil err)
     (values (first rows) nil)))
 
-(defn ^[any error] db-create-user [^any conn ^string name ^string email]
+(defn db-create-user [conn any name string email string] -> [any error]
   (if-err [rows err]
     (glispdb/query-raw conn
       "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, name, email, created_at"
@@ -50,13 +50,13 @@
 
 ;;; Note queries
 
-(defn ^[any error] db-list-user-notes [^any conn ^any user-id]
+(defn db-list-user-notes [conn any user-id any] -> [any error]
   (glispdb/query conn {"select"   [:id :user-id :title :content :created-at :updated-at]
                        "from"     :notes
                        "where"    [:= :user-id user-id]
                        "order-by" :created-at}))
 
-(defn ^[any error] db-get-note [^any conn ^any id]
+(defn db-get-note [conn any id any] -> [any error]
   (if-err [rows err]
     (glispdb/query conn {"select" [:id :user-id :title :content :created-at :updated-at]
                          "from"   :notes
@@ -64,7 +64,7 @@
     (values nil err)
     (values (first rows) nil)))
 
-(defn ^[any error] db-create-note [^any conn ^any user-id ^string title ^string content]
+(defn db-create-note [conn any user-id any title string content string] -> [any error]
   (if-err [rows err]
     (glispdb/query-raw conn
       "INSERT INTO notes (user_id, title, content) VALUES ($1, $2, $3)
@@ -73,7 +73,7 @@
     (values nil err)
     (values (first rows) nil)))
 
-(defn ^[any error] db-update-note [^any conn ^any id ^string title ^string content]
+(defn db-update-note [conn any id any title string content string] -> [any error]
   (if-err [rows err]
     (glispdb/query-raw conn
       "UPDATE notes SET title=$1, content=$2, updated_at=NOW()
@@ -82,5 +82,5 @@
     (values nil err)
     (values (first rows) nil)))
 
-(defn ^[any error] db-delete-note [^any conn ^any id]
+(defn db-delete-note [conn any id any] -> [any error]
   (glispdb/exec-raw conn "DELETE FROM notes WHERE id=$1" [id]))

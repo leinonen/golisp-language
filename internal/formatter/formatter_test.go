@@ -44,8 +44,8 @@ func TestFormat(t *testing.T) {
 		},
 		{
 			name:  "symbol with type annot",
-			input: "^int x",
-			want:  "^int x\n",
+			input: "x",
+			want:  "x\n",
 		},
 		{
 			name:  "empty vector",
@@ -104,8 +104,8 @@ func TestFormat(t *testing.T) {
 		},
 		{
 			name:  "def with type",
-			input: "(def ^int x 42)",
-			want:  "(def ^int x 42)\n",
+			input: "(def x int 42)",
+			want:  "(def x int 42)\n",
 		},
 		{
 			name:  "defn simple",
@@ -114,8 +114,8 @@ func TestFormat(t *testing.T) {
 		},
 		{
 			name:  "defn with return type and params",
-			input: "(defn ^int add [^int a ^int b] (+ a b))",
-			want:  "(defn ^int add [^int a ^int b]\n  (+ a b))\n",
+			input: "(defn add [a int b int] -> int (+ a b))",
+			want:  "(defn add [a int b int] -> int\n  (+ a b))\n",
 		},
 		{
 			name:  "defn multi-body",
@@ -129,8 +129,8 @@ func TestFormat(t *testing.T) {
 		},
 		{
 			name:  "fn multiline",
-			input: "(fn [^string very-long-param-name] (str very-long-param-name \" suffix that makes this too long\"))",
-			want:  "(fn [^string very-long-param-name]\n  (str very-long-param-name \" suffix that makes this too long\"))\n",
+			input: "(fn [very-long-param-name string] (str very-long-param-name \" suffix that makes this too long\"))",
+			want:  "(fn [very-long-param-name string]\n  (str very-long-param-name \" suffix that makes this too long\"))\n",
 		},
 		{
 			name:  "let inline",
@@ -174,8 +174,8 @@ func TestFormat(t *testing.T) {
 		},
 		{
 			name:  "defstruct",
-			input: "(defstruct Point ^int x ^int y)",
-			want:  "(defstruct Point\n  ^int x\n  ^int y)\n",
+			input: "(defstruct Point x int y int)",
+			want:  "(defstruct Point\n  x int\n  y int)\n",
 		},
 		{
 			name:  "deftest",
@@ -189,8 +189,8 @@ func TestFormat(t *testing.T) {
 		},
 		{
 			name:  "type assert",
-			input: "(as ^int x)",
-			want:  "(as ^int x)\n",
+			input: "(as int x)",
+			want:  "(as int x)\n",
 		},
 		{
 			name:  "method call",
@@ -204,8 +204,8 @@ func TestFormat(t *testing.T) {
 		},
 		{
 			name:  "chan",
-			input: "(chan ^int)",
-			want:  "(chan ^int)\n",
+			input: "(chan int)",
+			want:  "(chan int)\n",
 		},
 		{
 			name:  "send recv close",
@@ -344,10 +344,10 @@ func TestCommentPreservation(t *testing.T) {
 
 func TestIdempotent(t *testing.T) {
 	inputs := []string{
-		"(defn ^int add [^int a ^int b]\n  (+ a b))\n",
+		"(defn add [a int b int] -> int\n  (+ a b))\n",
 		"(let [a 1\n      b 2]\n  (+ a b))\n",
 		"(cond\n  (= x 1) :one\n  (= x 2) :two\n  :else :other)\n",
-		"(defstruct Point\n  ^int x\n  ^int y)\n",
+		"(defstruct Point\n  x int\n  y int)\n",
 		"; section header\n(def x 1)\n\n;; another note\n(def y 2)\n",
 	}
 	for _, src := range inputs {

@@ -1,14 +1,14 @@
-(defn log-request [^string method ^string path ^int status]
+(defn log-request [method string path string status int]
   (log/info "request" "method" method "path" path "status" status))
 
-(defn log-startup [^int port]
+(defn log-startup [port int]
   (log/info "server started" "port" port))
 
-(defn log-slow [^string query ^int ms]
+(defn log-slow [query string ms int]
   (log/warn "slow query" "sql" query "ms" ms))
 
-(defn log-failure [^string op ^any err]
+(defn log-failure [op string err any]
   (log/error "operation failed" "op" op "err" err))
 
-(defn log-trace [^string msg]
+(defn log-trace [msg string]
   (log/debug msg))

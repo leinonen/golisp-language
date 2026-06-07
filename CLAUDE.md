@@ -13,7 +13,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | File | Role |
 |---|---|
 | `internal/ast/nodes.go` | All AST node types — everything imports this |
-| `internal/lexer/lexer.go` | Tokenizer; `^T` → `TokenTypeAnnot` |
+| `internal/lexer/lexer.go` | Tokenizer; no `^` — types are positional |
 | `internal/parser/parser.go` | Tokens → AST nodes |
 | `internal/transpiler/transpiler.go` | `Emitter` struct, two-pass `emitFile`, dispatch |
 | `internal/transpiler/emit_decl.go` | `def`, `defn`, `defstruct`, `definterface`, `defmethod` |
@@ -58,9 +58,27 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 **`->` in identifiers**: `ring->handler` → `ringToHandler`. Pre-processed with `strings.ReplaceAll(s, "->", "-To-")` before camelCase conversion in `identToGo`.
 
-**Package-qualified naming**: glisp source uses lowercase-hyphenated names (`fmt/println`, `web/json-response`). `identToGo` applies `fnToGo` to the part after `/`: if all-lowercase → PascalCase (`println` → `Println`, `json-response` → `JsonResponse`); if any uppercase → pass through as-is (backward compat). Type annotations (`^web/Request`) go through `qualifiedTypeToGo` (slash→dot only) and are unaffected.
+**Package-qualified naming**: glisp source uses lowercase-hyphenated names (`fmt/println`, `web/json-response`). `identToGo` applies `fnToGo` to the part after `/`: if all-lowercase → PascalCase (`println` → `Println`, `json-response` → `JsonResponse`); if any uppercase → pass through as-is (backward compat). Type expressions like `web/Request` go through `qualifiedTypeToGo` (slash→dot only).
 
-**Type annotations**: `^(chan int)` needs parens because `chan` followed by space would confuse the lexer. `^[string error]` uses brackets to denote multi-return `(string, error)`. `^web/Request` uses slash notation for package-qualified types — `typeExprToGo` converts `pkg/Type` → `pkg.Type` via `qualifiedTypeToGo`.
+**Type syntax** — positional, no `^` prefix:
+
+| Form | Example |
+|---|---|
+| `defn` single return | `(defn grade [score int] -> string ...)` |
+| `defn` multi-return | `(defn f [x int] -> [string error] ...)` |
+| `fn` | `(fn [x int] -> string body)` |
+| `defmethod` | `(defmethod *Circle Area [c] -> float64 body)` |
+| `defstruct` | `(defstruct Circle radius float64)` |
+| `definterface` | `(definterface S (Area [] -> float64))` |
+| `def` (typed) | `(def x int 42)` |
+| type assertion | `(as *Circle val)` |
+| channel type | `(chan any n)` or `(chan map[string]any n)` |
+| complex channel type | `(chan (chan any) n)` — parens around `chan T` types |
+| slice type | `[]any`, `[]string` — in params/return positions |
+| multi-return type | `[string error]` in `-> [string error]` |
+| package-qualified | `web/Request`, `*pgx/Conn` — slash→dot via `qualifiedTypeToGo` |
+
+`->` for return types: a bare return-type symbol after params would be ambiguous (indistinguishable from first body expr). `->` makes return type unambiguous. `parseTypeExpr()` in `parser.go` handles complex types by reading individual tokens without needing `^`.
 
 **Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link. Conditional blocks are appended only when the corresponding built-ins are used, gated by `builtinImports` keys:
 
@@ -94,7 +112,7 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 
 **Context built-ins**: `ctx/background` and `ctx/todo` emit inline (`context.Background()` / `context.TODO()`) and call `e.needImport("context")` for the real import. `ctx/with-cancel`, `ctx/with-timeout`, `ctx/cancel!`, `ctx/value`, `ctx/with-value` call `e.needImport("_ctx")` — a pseudo-key that gates `glispCtxRuntime` and auto-imports `context` + `time`. Multi-return forms (`ctx/with-cancel`, `ctx/with-timeout`) return `[]any{ctx, cancel}` for use with vector destructuring. `ctx/cancel!` type-asserts to `context.CancelFunc` internally so callers don't need to; it returns `any` (nil) so it works in both statement and expression position. No import declaration ever needed in glisp source.
 
-**web API**: all web functionality lives in `web/web.go` as plain Go — no special transpiler forms. `Request` and `Response` are type aliases for `map[string]any` (use `^web/Request` / `^web/Response` in glisp annotations). `Handler` is `func(Request) Response`. Middleware signature is `func(Handler) Handler`. `wrap(h Handler, mws ...Middleware)` applies middlewares outermost-first. `wrap-json` stores parsed body in `req["json-body"]`; `wrap-auth` stores the Bearer token in `req["identity"]`. `serve-files` bridges Ring ↔ `http.FileServer` via `httptest.ResponseRecorder`. `serve-graceful` traps SIGINT/SIGTERM and shuts down with a 5 s context deadline. HTTP route helpers: `(web/get path handler)`, `(web/post path handler)`, etc.
+**web API**: all web functionality lives in `web/web.go` as plain Go — no special transpiler forms. `Request` and `Response` are type aliases for `map[string]any` (use `web/Request` / `web/Response` in glisp type positions). `Handler` is `func(Request) Response`. Middleware signature is `func(Handler) Handler`. `wrap(h Handler, mws ...Middleware)` applies middlewares outermost-first. `wrap-json` stores parsed body in `req["json-body"]`; `wrap-auth` stores the Bearer token in `req["identity"]`. `serve-files` bridges Ring ↔ `http.FileServer` via `httptest.ResponseRecorder`. `serve-graceful` traps SIGINT/SIGTERM and shuts down with a 5 s context deadline. HTTP route helpers: `(web/get path handler)`, `(web/post path handler)`, etc.
 
 **Concurrency primitives** — six forms beyond the basic `go`/`chan`/`send!`/`recv!`/`close!`/`select!`:
 
@@ -109,7 +127,7 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 
 **`doseq` collection handling**: uses `_glispToSlice(coll)` (which accepts `any`) rather than `coll.([]any)` type assertion, so it works when the collection is already statically typed as `[]any` (e.g. result of `map`, `filter`, or a literal binding via `let`).
 
-**`defmethod` — receiver methods**: `(defmethod ^*ReceiverType name [self params...] ^RetType body)` emits `func (self *ReceiverType) Name(params) RetType { body }`. The `^` annotation before the method name is the receiver type (`^T` value receiver, `^*T` pointer receiver). The first element of the params vector is the receiver variable name; remaining params are regular params. Together with `definterface` and `defstruct`, this is the full Go interface/struct/method triad.
+**`defmethod` — receiver methods**: `(defmethod *ReceiverType name [self params...] -> RetType body)` emits `func (self *ReceiverType) Name(params) RetType { body }`. The receiver type before the method name uses `*T` for pointer receivers, `T` for value receivers. The first element of the params vector is the receiver variable name; remaining params are regular params. Together with `definterface` and `defstruct`, this is the full Go interface/struct/method triad.
 
 **`any`-type constraints** — the transpiler emits `any` for most values retrieved at runtime (map lookups, collection elements, loop vars). This causes several Go compile errors:
 
@@ -121,9 +139,9 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 | `(let [...] (select! ...) )` — `select!` as last expr in `let` body | missing return — `select` is statement-only | add `nil` after: `(let [...] (select! ...) nil)` |
 | `(if ok ...)` where `ok` from `[[val ok] (recv-ok! ch)]` | `ok` is `any` not `bool`; Go `if` requires bool | `(if (= ok true) ...)` |
 | any multi-return Go fn (e.g. `os/create`) as the tail of a `func(...) any` closure | `(T, error)` can't coerce to `any` | `(do (os/create ...) nil)` — note: `fmt/println` and `fmt/print` are handled automatically |
-| `(defn ^int f [] (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `^any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
+| `(defn f [] -> int (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `-> any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
 | passing `[]T` (concrete slice) to `reduce`/`map`/`filter` | `_glispToSlice` only handles `[]any`; concrete slices iterate as nil | in Go bridge code, convert: `result := make([]any, len(s)); for i,v := range s { result[i]=v }` |
-| `(defn f [] ...)` with no `^RetType`, void-ish body | Go generates `func f()` (void); using it in return position fails | add explicit `^any` annotation if the fn is called in expression/return position |
+| `(defn f [] ...)` with no `-> RetType`, void-ish body | Go generates `func f()` (void); using it in return position fails | add explicit `-> any` if the fn is called in expression/return position |
 
 ## Formatter
 
@@ -178,7 +196,7 @@ The qualifier in glisp code is the last path segment: `(mathlib/add 3 4)`.
 **Export convention** — library modules must use PascalCase names for exported functions:
 ```clojure
 ; in the library (github.com/user/mathlib):
-(defn ^int Add [^int a ^int b] (+ a b))
+(defn Add [a int b int] -> int (+ a b))
 
 ; consumer writes lowercase — fnToGo converts add → Add:
 (mathlib/add 3 4)  ; → mathlib.Add(3, 4)
@@ -216,20 +234,20 @@ In the module's `.glsp` files, import the Go package via `:import` (not `:requir
   (:import [context]
            [github.com/jackc/pgx/v5]))
 
-(defn ^[any error] Connect [^string url]
+(defn Connect [url string] -> [any error]
   (pgx/connect context/background url))
 
-(defn ^[any error] Exec [^any conn ^string sql]
-  (let [typed (as ^*pgx/Conn conn)]
+(defn Exec [conn any sql string] -> [any error]
+  (let [typed (as *pgx/Conn conn)]
     (.Exec typed context/background sql)))
 ```
 
 Key rules for Go-wrapping modules:
 - Use `(:import [...])` for external/vendor Go packages (stdlib is auto-imported; no declaration needed); `(:require [...])` only for other glisp modules
-- Return opaque Go types as `any`; callers type-assert with `(as ^*pkg/Type val)` when methods are needed
-- Type annotation syntax for pointer-to-external-type: `^*pgx/Conn` → `*pgx.Conn` (slash→dot via `qualifiedTypeToGo`)
+- Return opaque Go types as `any`; callers type-assert with `(as *pkg/Type val)` when methods are needed
+- Type syntax for pointer-to-external-type: `*pgx/Conn` → `*pgx.Conn` (slash→dot via `qualifiedTypeToGo`)
 - The package qualifier comes from the last path segment: `(:import [github.com/jackc/pgx/v5])` → qualifier is `pgx`
-- Go interop primitives available: `(.Method obj args)` for method calls, `(.-Field obj)` for field access, `(Type. {:field val})` for struct literals, `(as ^T val)` for type assertions
+- Go interop primitives available: `(.Method obj args)` for method calls, `(.-Field obj)` for field access, `(Type. {:field val})` for struct literals, `(as T val)` for type assertions
 - **Bridge pattern for variadic Go APIs**: write a hand-written `bridge.go` (same package) with unexported Go helpers that handle variadic spreading and type assertions; call them from glisp as unqualified names. Unqualified calls use `identToGo` (camelCase, lowercase first letter), so `(bridge-query ...)` → `bridgeQuery`. The bridge functions must be unexported (lowercase) — they're only accessible within the package.
 - **`[]any` for collections**: glisp's `_glispToSlice` only handles `[]any`. If a Go bridge function returns a concrete slice type (e.g. `[]map[string]any`), convert it to `[]any` before returning so `reduce`/`map`/`filter` work correctly.
 

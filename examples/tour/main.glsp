@@ -9,7 +9,7 @@
 ; --- Control flow ---
 
 ;;; Returns the letter grade for a numeric score (0-100).
-(defn ^string grade [^int score]
+(defn grade [score int] -> string
   (cond
     (>= score 90) "A"
     (>= score 80) "B"
@@ -18,7 +18,7 @@
     :else         "F"))
 
 ;;; Returns a human-readable HTTP status description.
-(defn ^string http-status [^int code]
+(defn http-status [code int] -> string
   (switch code
     200 "OK"
     201 "Created"
@@ -40,7 +40,7 @@
       (fmt/println "caught panic:" r))))
 
 ;;; Returns a/b, or 0 if b is zero (panic caught by deferred handler).
-(defn ^int safe-divide [^int a ^int b]
+(defn safe-divide [a int b int] -> int
   (defer (catch-panic))
   (when (= b 0)
     (panic "divide by zero"))
@@ -49,7 +49,7 @@
 ; --- Tail-recursive loop ---
 
 ;;; Returns the nth Fibonacci number using tail-recursive loop/recur.
-(defn ^int fib [^int n]
+(defn fib [n int] -> int
   (loop [i n a 0 b 1]
     (if (<= i 0) a (recur (- i 1) b (+ a b)))))
 
@@ -57,7 +57,7 @@
 ; (str w) coerces any→string so (len (str w)) compiles on any-typed values.
 
 ;;; Returns words longer than 3 characters, lowercased and sorted.
-(defn ^[]any long-words [^string text]
+(defn long-words [text string] -> []any
   (let [ws (split (lower-case (trim text)) " ")]
     (sort-by (fn [w] w)
              (filter (fn [w] (> (len (str w)) 3)) ws))))
@@ -96,7 +96,7 @@
          {:name "English" :scores [76 85 90 55 68 73 82]}
          {:name "Science" :scores [91 94 87 98 79 85 92]}]]
 
-    (let [ch (chan ^map[string]any (len classes))]
+    (let [ch (chan map[string]any (len classes))]
 
       ; Spawn one goroutine per class using map destructuring on the param
       (map

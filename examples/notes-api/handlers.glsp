@@ -1,20 +1,20 @@
 (ns main
   (:import [golisp/web]))
 
-(defn ^web/Handler make-health []
-  (fn [^web/Request req] ^web/Response
+(defn make-health [] -> web/Handler
+  (fn [req web/Request] -> web/Response
     (web/json-response 200 {"status" "ok" "version" "1.0.0"})))
 
 ;;; User handlers
 
-(defn ^web/Handler make-list-users [^any conn]
-  (fn [^web/Request req] ^web/Response
+(defn make-list-users [conn any] -> web/Handler
+  (fn [req web/Request] -> web/Response
     (if-err [rows err] (db-list-users conn)
       (server-error err)
       (web/json-response 200 rows))))
 
-(defn ^web/Handler make-get-user [^any conn]
-  (fn [^web/Request req] ^web/Response
+(defn make-get-user [conn any] -> web/Handler
+  (fn [req web/Request] -> web/Response
     (if-err [id err] (strconv/atoi (web/path-param req "id"))
       (bad-request "invalid user id")
       (if-err [user err] (db-get-user conn id)
@@ -23,8 +23,8 @@
           (not-found "user not found")
           (web/json-response 200 user))))))
 
-(defn ^web/Handler make-create-user [^any conn]
-  (fn [^web/Request req] ^web/Response
+(defn make-create-user [conn any] -> web/Handler
+  (fn [req web/Request] -> web/Response
     (let-or [body  (web/body-map req)  (bad-request "invalid JSON body")
              name  (get body "name")   (bad-request "name required")
              email (get body "email")  (bad-request "email required")]
@@ -32,8 +32,8 @@
         (bad-request (.Error err))
         (web/json-response 201 user)))))
 
-(defn ^web/Handler make-list-user-notes [^any conn]
-  (fn [^web/Request req] ^web/Response
+(defn make-list-user-notes [conn any] -> web/Handler
+  (fn [req web/Request] -> web/Response
     (if-err [id err] (strconv/atoi (web/path-param req "id"))
       (bad-request "invalid user id")
       (if-err [rows err] (db-list-user-notes conn id)
@@ -42,8 +42,8 @@
 
 ;;; Note handlers
 
-(defn ^web/Handler make-create-note [^any conn]
-  (fn [^web/Request req] ^web/Response
+(defn make-create-note [conn any] -> web/Handler
+  (fn [req web/Request] -> web/Response
     (let-or [body    (web/body-map req)    (bad-request "invalid JSON body")
              user-id (get body "user_id")  (bad-request "user_id required")
              title   (get body "title")    (bad-request "title required")
@@ -52,8 +52,8 @@
         (bad-request (.Error err))
         (web/json-response 201 note)))))
 
-(defn ^web/Handler make-get-note [^any conn]
-  (fn [^web/Request req] ^web/Response
+(defn make-get-note [conn any] -> web/Handler
+  (fn [req web/Request] -> web/Response
     (if-err [id err] (strconv/atoi (web/path-param req "id"))
       (bad-request "invalid note id")
       (if-err [note err] (db-get-note conn id)
@@ -62,8 +62,8 @@
           (not-found "note not found")
           (web/json-response 200 note))))))
 
-(defn ^web/Handler make-update-note [^any conn]
-  (fn [^web/Request req] ^web/Response
+(defn make-update-note [conn any] -> web/Handler
+  (fn [req web/Request] -> web/Response
     (if-err [id err] (strconv/atoi (web/path-param req "id"))
       (bad-request "invalid note id")
       (let-or [body    (web/body-map req)   (bad-request "invalid JSON body")
@@ -75,8 +75,8 @@
             (not-found "note not found")
             (web/json-response 200 note)))))))
 
-(defn ^web/Handler make-delete-note [^any conn]
-  (fn [^web/Request req] ^web/Response
+(defn make-delete-note [conn any] -> web/Handler
+  (fn [req web/Request] -> web/Response
     (if-err [id err] (strconv/atoi (web/path-param req "id"))
       (bad-request "invalid note id")
       (if-err [n err] (db-delete-note conn id)

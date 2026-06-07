@@ -1,14 +1,14 @@
-(defn ^bool valid-email? [^string s]
+(defn valid-email? [s string] -> bool
   (re/match "^[^@]+@[^@]+\\.[^@]+$" s))
 
-(defn ^any first-number [^string s]
+(defn first-number [s string] -> any
   (re/find "\\d+" s))
 
-(defn ^[]any all-words [^string s]
+(defn all-words [s string] -> []any
   (re/find-all "\\w+" s))
 
-(defn ^string normalize-spaces [^string s]
+(defn normalize-spaces [s string] -> string
   (re/replace "\\s+" s " "))
 
-(defn ^[]any csv-fields [^string s]
+(defn csv-fields [s string] -> []any
   (re/split "," s))

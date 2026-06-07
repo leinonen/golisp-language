@@ -1,9 +1,9 @@
 (ns main)
 
-(defn ^int add [^int a ^int b]
+(defn add [a int b int] -> int
   (+ a b))
 
-(defn ^string greet [^string name]
+(defn greet [name string] -> string
   (str "hello " name))
 
 (deftest math-ops

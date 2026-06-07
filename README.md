@@ -3,7 +3,7 @@
 Clojure-style S-expression language that transpiles to Go.
 
 ```clojure
-(defn ^string greet [^string name]
+(defn greet [name string] -> string
   (str "Hello, " name "!"))
 
 (defn main []
@@ -32,10 +32,10 @@ glisp doc     [name]            # show built-in docs (all if no name)
 ## Syntax highlights
 
 ```clojure
-; Type annotations
-(defn ^int add [^int a ^int b] (+ a b))
-(defn ^[string error] parse [^string s] (values s nil))  ; multi-return
-(defn ^web/Response handler [^web/Request req] ...)  ; package-qualified
+; Positional types — name then type in params, -> for return type
+(defn add [a int b int] -> int (+ a b))
+(defn parse [s string] -> [string error] (values s nil))  ; multi-return
+(defn handler [req web/Request] -> web/Response ...)       ; package-qualified
 
 ; Control flow
 (if cond then else)
@@ -56,7 +56,7 @@ glisp doc     [name]            # show built-in docs (all if no name)
 ; Go interop
 (go (fmt/println "async"))
 (defer (fmt/println "cleanup"))
-(let [ch (chan ^int 1)] (send! ch 42) (recv! ch))
+(let [ch (chan int 1)] (send! ch 42) (recv! ch))
 (.Write w data)   ; method call
 (.-Field obj)     ; field access
 
@@ -86,7 +86,7 @@ Handlers are `Request → Response` (both aliases for `map[string]any`).
 ```clojure
 (ns main (:import [golisp/web]))
 
-(defn ^web/Response handler [^web/Request req]
+(defn handler [req web/Request] -> web/Response
   (web/json-response 200 {"message" "hello"}))
 
 (defn main []
@@ -170,7 +170,7 @@ Or with lazy.nvim:
 
 This gives you filetype detection, `commentstring`, `iskeyword` tuning, and syntax
 highlighting that inherits from Clojure (parens, strings, keywords, comments, core
-special forms) plus glisp-specific rules (type annotations, `defstruct`, `if-err`,
+special forms) plus glisp-specific rules (positional type names, `defstruct`, `if-err`,
 `send!`, etc.).
 
 ### Neovim — LSP (diagnostics + hover)

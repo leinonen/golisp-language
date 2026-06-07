@@ -1,13 +1,13 @@
-(defn ^any greet [^any users ^any id]
+(defn greet [users any id any] -> any
   (if-let [user (get users id)]
     (str "hello " (:name user))
     "unknown user"))
 
-(defn ^any display-name [^any users ^any id]
+(defn display-name [users any id any] -> any
   (if-let [{name :name} (get users id)]
     name
     "anon"))
 
-(defn ^any maybe-name [^any users ^any id]
+(defn maybe-name [users any id any] -> any
   (if-let [user (get users id)]
     (:name user)))

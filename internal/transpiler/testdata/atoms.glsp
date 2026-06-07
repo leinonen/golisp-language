@@ -1,23 +1,23 @@
 (ns main)
 
-(defn ^any make-counter []
+(defn make-counter [] -> any
   (atom 0))
 
-(defn ^any increment [^any a]
-  (swap! a (fn [^any x] (+ x 1))))
+(defn increment [a any] -> any
+  (swap! a (fn [x any] (+ x 1))))
 
-(defn ^any add-n [^any a ^any n]
-  (swap! a (fn [^any x] (+ x n))))
+(defn add-n [a any n any] -> any
+  (swap! a (fn [x any] (+ x n))))
 
-(defn ^any set-value [^any a ^any v]
+(defn set-value [a any v any] -> any
   (reset! a v))
 
-(defn ^any read-value [^any a]
+(defn read-value [a any] -> any
   (deref a))
 
-(defn ^any counter-demo []
+(defn counter-demo [] -> any
   (let [c (atom 0)]
-    (swap! c (fn [^any x] (+ x 1)))
-    (swap! c (fn [^any x] (+ x 1)))
+    (swap! c (fn [x any] (+ x 1)))
+    (swap! c (fn [x any] (+ x 1)))
     (reset! c 10)
     (deref c)))

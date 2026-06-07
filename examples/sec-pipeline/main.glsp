@@ -36,16 +36,16 @@
    {"src" "auth" "type" "login"  "ip" "203.0.113.55" "msg" "Root login attempt"}])
 
 ; Emit delays as typed time.Duration so time.Sleep receives the right type.
-(def ^time/Duration fw-delay   (* 10 time/Millisecond))
-(def ^time/Duration ids-delay  (* 25 time/Millisecond))
-(def ^time/Duration auth-delay (* 15 time/Millisecond))
+(def fw-delay   time/Duration (* 10 time/Millisecond))
+(def ids-delay  time/Duration (* 25 time/Millisecond))
+(def auth-delay time/Duration (* 15 time/Millisecond))
 
 ; -- source emitters -----------------------------------------------------------
 
 ;;; Emit each event to a channel with a per-event delay, then close it.
 ;;; Each call spawns one goroutine, so three concurrent streams run in parallel.
-(defn ^(chan any) emit-log [^[]any events ^time/Duration delay]
-  (let [ch (chan ^any 8)]
+(defn emit-log [events []any delay time/Duration] -> (chan any)
+  (let [ch (chan any 8)]
     (go
       (doseq [ev events]
         (time/sleep delay)
@@ -64,7 +64,7 @@
 ;;; CRITICAL = loud type from a known bad IP.
 ;;; HIGH = loud type from an unknown IP.
 ;;; INFO = everything else.
-(defn ^string classify [^any ev]
+(defn classify [ev any] -> string
   (let [t  (str (get ev "type"))
         ip (str (get ev "ip"))]
     (if (contains? loud-types t)
@@ -74,11 +74,11 @@
 ; -- pipeline stage functions --------------------------------------------------
 
 ;;; Stage 1: add a "level" field derived from type and IP reputation.
-(defn ^any stage-classify [^any ev]
+(defn stage-classify [ev any] -> any
   (assoc ev "level" (classify ev)))
 
 ;;; Stage 2: build a fixed-width display line for terminal output.
-(defn ^any stage-format [^any ev]
+(defn stage-format [ev any] -> any
   (assoc ev "line"
     (format "  %-8s | %-4s | %-15s | %s"
             (get ev "level")
@@ -90,7 +90,7 @@
 
 (def print-mu (sync/Mutex. {}))
 
-(defn say [^string s]
+(defn say [s string]
   (with-lock print-mu
     (fmt/println s)))
 
@@ -122,7 +122,7 @@
       ; Step 3: fan-out -- 4 workers drain the enriched channel concurrently.
       ; Each prints the event and sends the threat level to results.
       ; Wrapped in (go ...) so main can collect from results while workers run.
-      (let [results (chan ^any 32)]
+      (let [results (chan any 32)]
         (go
           (fan-out 4 [ev enriched]
             (say (str (get ev "line")))

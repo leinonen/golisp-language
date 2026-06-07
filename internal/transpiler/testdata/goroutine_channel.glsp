@@ -1,5 +1,5 @@
-(defn worker [^(chan string) results ^string item]
+(defn worker [results (chan string) item string]
   (go (send! results (str "done: " item))))
 
-(defn ^string first-result [^(chan string) ch]
+(defn first-result [ch (chan string)] -> string
   (recv! ch))

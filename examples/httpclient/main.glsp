@@ -4,19 +4,19 @@
 (ns main)
 
 ;;; Decode the "body" field of an HTTP response map, or nil on error.
-(defn ^any decode-resp [^any resp]
+(defn decode-resp [resp any] -> any
   (if-err [body err] (json/decode (get resp "body"))
     (fmt/println "decode failed:" (.Error err))
     body))
 
 ;;; Fetch a URL and return the JSON-decoded body map, or nil on error.
-(defn ^any fetch [^string url]
+(defn fetch [url string] -> any
   (if-err [resp err] (http/get url)
     (fmt/println "GET failed:" (.Error err))
     (decode-resp resp)))
 
 ;;; POST a JSON payload to url. Returns the JSON-decoded response body, or nil.
-(defn ^any post-json [^string url ^map[string]any payload]
+(defn post-json [url string payload map[string]any] -> any
   (if-err [encoded err] (json/encode payload)
     (fmt/println "encode failed:" (.Error err))
     (if-err [resp err2] (http/post url encoded {"Content-Type" "application/json"})

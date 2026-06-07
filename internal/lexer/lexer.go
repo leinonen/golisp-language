@@ -142,9 +142,6 @@ func (l *lexer) nextToken() (Token, error) {
 	case ch == '"':
 		return l.readString(line, col)
 
-	case ch == '^':
-		return l.readTypeAnnot(line, col)
-
 	case ch == ':':
 		return l.readKeyword(line, col)
 
@@ -197,52 +194,6 @@ func (l *lexer) readString(line, col int) (Token, error) {
 	return Token{}, l.errorf("unterminated string literal")
 }
 
-// readTypeAnnot reads everything after ^ as a Go type string.
-// Tracks bracket depth for [], () so compound types like []string and (chan int)
-// are consumed whole.
-func (l *lexer) readTypeAnnot(line, col int) (Token, error) {
-	l.advance() // consume ^
-	if l.pos >= len(l.src) {
-		return Token{}, l.errorf("expected type after ^")
-	}
-
-	var sb strings.Builder
-	depth := 0
-	first := true
-
-	for l.pos < len(l.src) {
-		ch := l.peek()
-
-		// Terminate on whitespace when not inside brackets
-		if depth == 0 && unicode.IsSpace(ch) {
-			break
-		}
-		// Terminate on closing delimiters that don't belong to us
-		if depth == 0 && (ch == ')' || ch == ']' || ch == '}') {
-			break
-		}
-
-		if ch == '(' || ch == '[' {
-			depth++
-		} else if ch == ')' || ch == ']' {
-			depth--
-			if depth < 0 {
-				break
-			}
-		}
-
-		first = false
-		_ = first
-		sb.WriteRune(ch)
-		l.advance()
-	}
-
-	text := sb.String()
-	if text == "" {
-		return Token{}, l.errorf("empty type annotation after ^")
-	}
-	return Token{Type: TokenTypeAnnot, Text: text, Line: line, Column: col}, nil
-}
 
 func (l *lexer) readKeyword(line, col int) (Token, error) {
 	l.advance() // consume :

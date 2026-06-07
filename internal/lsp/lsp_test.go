@@ -9,7 +9,7 @@ import (
 // ── Diagnostics ──────────────────────────────────────────────────────────────
 
 func TestDiagnostics_clean(t *testing.T) {
-	src := `(defn ^int add [^int a ^int b] (+ a b))`
+	src := `(defn add [a int b int] -> int (+ a b))`
 	if d := Diagnostics(src, ""); d != nil {
 		t.Errorf("expected nil diagnostics, got %v", d)
 	}
@@ -173,30 +173,30 @@ func TestHover_builtinDoc(t *testing.T) {
 }
 
 func TestHover_defnWithTypes(t *testing.T) {
-	// (defn ^int add [^int a ^int b] (+ a b))
-	// col:  01234567890123
-	// "add" at col 11
-	src := "(defn ^int add [^int a ^int b] (+ a b))"
-	result := FindHover(src, 0, 11)
+	// (defn add [a int b int] -> int (+ a b))
+	// col:  012345678901
+	// "add" at col 6
+	src := "(defn add [a int b int] -> int (+ a b))"
+	result := FindHover(src, 0, 6)
 	if result == nil {
 		t.Fatal("expected hover for 'add'")
 	}
-	want := "(defn ^int add [^int a ^int b])"
+	want := "(defn add [a int b int] -> int)"
 	if result.Sig != want {
 		t.Errorf("want %q, got %q", want, result.Sig)
 	}
 }
 
 func TestHover_def(t *testing.T) {
-	// (def ^int port 8080)
-	// col:  0123456789012345
-	// "port" at col 10
-	src := "(def ^int port 8080)"
-	result := FindHover(src, 0, 10)
+	// (def port int 8080)
+	// col:  0123456789
+	// "port" at col 5
+	src := "(def port int 8080)"
+	result := FindHover(src, 0, 5)
 	if result == nil {
 		t.Fatal("expected hover for 'port'")
 	}
-	want := "(def ^int port)"
+	want := "(def port int)"
 	if result.Sig != want {
 		t.Errorf("want %q, got %q", want, result.Sig)
 	}
@@ -290,17 +290,18 @@ func TestHover_builtin_json(t *testing.T) {
 }
 
 func TestHover_webTypes(t *testing.T) {
-	// (defn ^web/Response health [^web/Request req]
-	// col:  0    5 7              22     30 32
-	//                col 7: 's' of web/Response (right after ^)
-	//                                          col 32: 's' of web/Request (right after ^)
-	src := "(defn ^web/Response health [^web/Request req])"
+	// (defn health [req web/Request] -> web/Response)
+	// col:  0         1         2         3         4
+	//       0123456789012345678901234567890123456789012
+	//                    col 18: 'w' of web/Request
+	//                                        col 36: 'w' of web/Response
+	src := "(defn health [req web/Request] -> web/Response)"
 	for _, tc := range []struct {
 		col  int
 		want string
 	}{
-		{7, "web/Response"}, // cursor on 's' of web/Response (after ^)
-		{32, "web/Request"}, // cursor on 's' of web/Request (after ^)
+		{18, "web/Request"},  // cursor on 'w' of web/Request in params
+		{34, "web/Response"}, // cursor on 'w' of web/Response after ->
 	} {
 		name := symbolAtPosition(src, 0, tc.col)
 		if name != tc.want {
@@ -499,7 +500,7 @@ func TestCompletions_noMatch(t *testing.T) {
 }
 
 func TestCompletions_kinds(t *testing.T) {
-	src := "(defn add [a b] (+ a b))\n(def port 8080)\n(defstruct User ^string name)"
+	src := "(defn add [a b] (+ a b))\n(def port 8080)\n(defstruct User name string)"
 	items := FindCompletions(src, 0, 0)
 	kindFor := map[string]int{}
 	for _, item := range items {
@@ -610,7 +611,7 @@ func TestRename_rangeEnd(t *testing.T) {
 }
 
 func TestCompletions_detail(t *testing.T) {
-	src := "(defn add [^int a ^int b] (+ a b))"
+	src := "(defn add [a int b int] (+ a b))"
 	items := FindCompletions(src, 0, 0)
 	for _, item := range items {
 		if item.Label == "add" {

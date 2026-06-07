@@ -34,7 +34,7 @@ glisp is Clojure-inspired, not Clojure-compatible. Where Clojure idioms fit Go's
 
 - **Explicit error handling** — `if-err` over Clojure's exception model
 - **Goroutines + channels** — first-class concurrency forms (`go`, `chan`, `send!`, `recv!`, `select!`)
-- **Pointer receivers** — `defmethod` supports `^*T` receiver types
+- **Pointer receivers** — `defmethod` supports `*T` receiver types
 - **Multi-return values** — `[value error]` return type annotations
 - **Type assertions** — `(as x SomeType)` for Go interface narrowing
 

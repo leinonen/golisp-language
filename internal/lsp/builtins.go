@@ -135,7 +135,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"int":   {Sig: "(int x)       →  int", Doc: "Convert x to int."},
 	"error": {Sig: "(error msg)   →  error", Doc: "Create a new error with message msg."},
 	"nil?":  {Sig: "(nil? x)      →  bool", Doc: "True when x is nil."},
-	"as":    {Sig: "(as ^T x)     →  T  (type assertion)", Doc: "Assert that x is of type T. Panics if the assertion fails."},
+	"as":    {Sig: "(as T x)      →  T  (type assertion)", Doc: "Assert that x is of type T. Panics if the assertion fails."},
 
 	// Iteration
 	"doseq":    {Sig: "(doseq [x coll] body...)", Doc: "Evaluate body for each element x in coll. Returns nil."},
@@ -164,8 +164,8 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"http/request": {Sig: "(http/request opts)  →  [response error]", Doc: "HTTP request with full control. opts map keys: \"method\", \"url\", \"body\", \"headers\"."},
 
 	// Special forms
-	"def":    {Sig: "(def ^T name value)", Doc: "Define a top-level variable. Optional ^T annotation declares the Go type."},
-	"defn":   {Sig: "(defn ^ReturnType name [params...] body...)", Doc: "Define a named function. Optional ^ReturnType annotation. A leading string literal in the body is treated as a doc string."},
+	"def":    {Sig: "(def name type value)", Doc: "Define a top-level variable. Optional type declares the Go type (3-arg form)."},
+	"defn":   {Sig: "(defn name [p1 T1 ...] -> RetType body...)", Doc: "Define a named function. -> RetType is optional. A leading string literal in the body is treated as a doc string."},
 	"fn":     {Sig: "(fn [params...] body...)", Doc: "Create an anonymous function (closure)."},
 	"let":    {Sig: "(let [name val ...] body...)", Doc: "Bind local names to values, evaluate body in that scope."},
 	"if":     {Sig: "(if cond then else?)", Doc: "Evaluate then when cond is true, else (or nil) otherwise."},
@@ -300,9 +300,9 @@ var BuiltinDocs = map[string]BuiltinDoc{
 
 	// Declarations
 	"ns":           {Sig: "(ns name (:import [...]))", Doc: "Declare the namespace and list Go package imports."},
-	"defstruct":    {Sig: "(defstruct Name ^T1 field1 ...)", Doc: "Define a Go struct type with typed fields."},
-	"definterface": {Sig: "(definterface Name (Method [params] ^Ret) ...)", Doc: "Define a Go interface type with method signatures."},
-	"defmethod":    {Sig: "(defmethod ^*ReceiverType name [receiver params...] ^RetType body...)", Doc: "Define a method on a struct type. ^T is value receiver, ^*T is pointer receiver. First param is the receiver variable."},
+	"defstruct":    {Sig: "(defstruct Name field1 T1 ...)", Doc: "Define a Go struct type with typed fields (field name then type)."},
+	"definterface": {Sig: "(definterface Name (Method [params] -> Ret) ...)", Doc: "Define a Go interface type with method signatures."},
+	"defmethod":    {Sig: "(defmethod *ReceiverType name [receiver params...] -> RetType body...)", Doc: "Define a method on a struct type. *T is pointer receiver, T is value receiver. First param is the receiver variable."},
 	"deftest":      {Sig: "(deftest name body...)", Doc: "Define a test case. Use assert= and assert-true inside the body."},
 
 	// Assertions

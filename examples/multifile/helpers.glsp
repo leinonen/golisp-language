@@ -1,13 +1,13 @@
 (ns main)
 
 ;;; Returns a greeting string for the given name.
-(defn ^string greet [^string name]
+(defn greet [name string] -> string
   (str "Hello, " name "!"))
 
 ;;; Returns n multiplied by itself.
-(defn ^int square [^int n]
+(defn square [n int] -> int
   (* n n))
 
 ;;; Prints a labeled list of values to stdout.
-(defn print-results [^string label ^[]any nums]
+(defn print-results [label string nums []any]
   (fmt/printf "%s: %v\n" label nums))

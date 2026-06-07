@@ -1,4 +1,4 @@
-(defn ^int sum-to [^int n]
+(defn sum-to [n int] -> int
   (loop [i 0 acc 0]
     (if (> i n)
       acc

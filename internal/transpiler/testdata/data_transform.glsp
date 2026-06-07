@@ -1,59 +1,59 @@
-(defn ^any get-second [^[]any coll]
+(defn get-second [coll []any] -> any
   (second coll))
 
-(defn ^any get-last [^[]any coll]
+(defn get-last [coll []any] -> any
   (last coll))
 
-(defn ^bool is-empty [^[]any coll]
+(defn is-empty [coll []any] -> bool
   (empty? coll))
 
-(defn ^any safe-coll [^[]any coll]
+(defn safe-coll [coll []any] -> any
   (not-empty coll))
 
-(defn ^any nested-get [^map[string]any m]
+(defn nested-get [m map[string]any] -> any
   (get-in m ["a" "b"]))
 
-(defn ^map[string]any nested-set [^map[string]any m ^any v]
+(defn nested-set [m map[string]any v any] -> map[string]any
   (assoc-in m ["a" "b"] v))
 
-(defn ^map[string]any nested-inc [^map[string]any m]
+(defn nested-inc [m map[string]any] -> map[string]any
   (update-in m ["a" "count"] (fn [n] (+ (int n) 1))))
 
-(defn ^map[string]any bump [^map[string]any m]
+(defn bump [m map[string]any] -> map[string]any
   (update m "count" (fn [n] (+ (int n) 1))))
 
-(defn ^map[string]any project [^map[string]any m]
+(defn project [m map[string]any] -> map[string]any
   (select-keys m ["id" "name"]))
 
-(defn ^map[string]any rename [^map[string]any m]
+(defn rename [m map[string]any] -> map[string]any
   (rename-keys m {"old-key" "new-key"}))
 
-(defn ^map[string]any group [^[]any users]
+(defn group [users []any] -> map[string]any
   (group-by "status" users))
 
-(defn ^map[string]any freq [^[]any items]
+(defn freq [items []any] -> map[string]any
   (frequencies items))
 
-(defn ^any build-map [^[]any pairs]
+(defn build-map [pairs []any] -> any
   (into {} pairs))
 
-(defn ^[]any join-seqs [^[]any a ^[]any b ^[]any c]
+(defn join-seqs [a []any b []any c []any] -> []any
   (concat a b c))
 
-(defn ^[]any flat-map [^[]any coll]
+(defn flat-map [coll []any] -> []any
   (mapcat (fn [x] [x x]) coll))
 
-(defn ^[]any take-pos [^[]any nums]
+(defn take-pos [nums []any] -> []any
   (take-while (fn [n] (> (int n) 0)) nums))
 
-(defn ^[]any drop-neg [^[]any nums]
+(defn drop-neg [nums []any] -> []any
   (drop-while (fn [n] (< (int n) 0)) nums))
 
-(defn ^map[string]any zip [^[]any ks ^[]any vs]
+(defn zip [ks []any vs []any] -> map[string]any
   (zipmap ks vs))
 
-(defn ^[]any chunks [^[]any coll]
+(defn chunks [coll []any] -> []any
   (partition 3 coll))
 
-(defn ^[]any by-sign [^[]any nums]
+(defn by-sign [nums []any] -> []any
   (partition-by (fn [n] (> (int n) 0)) nums))

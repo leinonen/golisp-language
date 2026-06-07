@@ -55,41 +55,8 @@ func TestTokenizeBasic(t *testing.T) {
 	}
 }
 
-func TestTokenizeTypeAnnot(t *testing.T) {
-	tests := []struct {
-		input    string
-		wantText string
-	}{
-		{"^int", "int"},
-		{"^string", "string"},
-		{"^float64", "float64"},
-		{"^bool", "bool"},
-		{"^error", "error"},
-		{"^*http.Request", "*http.Request"},
-		{"^[]string", "[]string"},
-		{"^map[string]int", "map[string]int"},
-		{"^(chan int)", "(chan int)"},
-		{"^[string error]", "[string error]"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			toks, err := Tokenize(tt.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if toks[0].Type != TokenTypeAnnot {
-				t.Errorf("type: got %v, want TokenTypeAnnot", toks[0].Type)
-			}
-			if toks[0].Text != tt.wantText {
-				t.Errorf("text: got %q, want %q", toks[0].Text, tt.wantText)
-			}
-		})
-	}
-}
-
 func TestTokenizeSequence(t *testing.T) {
-	toks, err := Tokenize("(defn ^int add [^int a ^int b] (+ a b))")
+	toks, err := Tokenize("(defn add [a int b int] -> int (+ a b))")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -102,8 +69,9 @@ func TestTokenizeSequence(t *testing.T) {
 		types = append(types, tok.Type)
 	}
 	want := []TokenType{
-		TokenLParen, TokenSymbol, TokenTypeAnnot, TokenSymbol,
-		TokenLBracket, TokenTypeAnnot, TokenSymbol, TokenTypeAnnot, TokenSymbol, TokenRBracket,
+		TokenLParen, TokenSymbol, TokenSymbol,
+		TokenLBracket, TokenSymbol, TokenSymbol, TokenSymbol, TokenSymbol, TokenRBracket,
+		TokenSymbol, TokenSymbol,
 		TokenLParen, TokenSymbol, TokenSymbol, TokenSymbol, TokenRParen,
 		TokenRParen,
 	}

@@ -5,22 +5,22 @@
     nil
     resp))
 
-(defn fetch-with-auth [^string token]
+(defn fetch-with-auth [token string]
   (if-err [resp err] (http/get "https://api.example.com/data" {"Authorization" (str "Bearer " token)})
     nil
     resp))
 
-(defn post-user [^string body]
+(defn post-user [body string]
   (if-err [resp err] (http/post "https://api.example.com/users" body {"Content-Type" "application/json"})
     nil
     resp))
 
-(defn delete-user [^string id]
+(defn delete-user [id string]
   (if-err [resp err] (http/delete (str "https://api.example.com/users/" id))
     nil
     resp))
 
-(defn custom-request [^string method ^string url ^string body]
+(defn custom-request [method string url string body string]
   (if-err [resp err] (http/request {"method" method "url" url "body" body "headers" {"Content-Type" "application/json"}})
     nil
     resp))

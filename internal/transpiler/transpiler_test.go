@@ -73,12 +73,12 @@ func TestTranspileSnippets(t *testing.T) {
 	}{
 		{
 			name:    "defn basic",
-			src:     `(defn ^int double [^int x] (* x 2))`,
+			src:     `(defn double [x int] -> int (* x 2))`,
 			wantSub: "func double(x int) int {",
 		},
 		{
 			name:    "def var",
-			src:     `(def ^int answer 42)`,
+			src:     `(def answer int 42)`,
 			wantSub: "var answer int = 42",
 		},
 		{
@@ -88,17 +88,17 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "channel",
-			src:     `(defn make-ch [] (chan ^int 5))`,
+			src:     `(defn make-ch [] (chan int 5))`,
 			wantSub: "make(chan int, 5)",
 		},
 		{
 			name:    "send recv",
-			src:     `(defn send-it [^(chan int) ch] (send! ch 42))`,
+			src:     `(defn send-it [ch (chan int)] (send! ch 42))`,
 			wantSub: "ch <- 42",
 		},
 		{
 			name:    "recv",
-			src:     `(defn get-it [^(chan int) ch] ^int (recv! ch))`,
+			src:     `(defn get-it [ch (chan int)] -> int (recv! ch))`,
 			wantSub: "<-ch",
 		},
 		{
@@ -113,12 +113,12 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "for-chan",
-			src:     `(defn drain [^(chan string) ch] (for-chan [x ch] (fmt/println x)))`,
+			src:     `(defn drain [ch (chan string)] (for-chan [x ch] (fmt/println x)))`,
 			wantSub: "for x := range",
 		},
 		{
 			name:    "recv-ok",
-			src:     `(defn try-recv [^(chan int) ch] (let [[v ok] (recv-ok! ch)] ok))`,
+			src:     `(defn try-recv [ch (chan int)] (let [[v ok] (recv-ok! ch)] ok))`,
 			wantSub: "_v, _ok := <-",
 		},
 		{
@@ -128,52 +128,52 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "select timeout",
-			src:     `(defn wait [^(chan int) ch] (select! ([v ch] v) (:timeout 1000 nil)))`,
+			src:     `(defn wait [ch (chan int)] (select! ([v ch] v) (:timeout 1000 nil)))`,
 			wantSub: "time.After(",
 		},
 		{
 			name:    "pipeline",
-			src:     `(defn pipe [^(chan any) ch] (pipeline [x ch] (* x 2)))`,
+			src:     `(defn pipe [ch (chan any)] (pipeline [x ch] (* x 2)))`,
 			wantSub: "defer close(",
 		},
 		{
 			name:    "pipeline multi-stage",
-			src:     `(defn pipe [^(chan any) ch] (pipeline [x ch] (* x 2) (str x)))`,
+			src:     `(defn pipe [ch (chan any)] (pipeline [x ch] (* x 2) (str x)))`,
 			wantSub: "_pipe2",
 		},
 		{
 			name:    "fan-out",
-			src:     `(defn work [^(chan any) ch] (fan-out 4 [item ch] (fmt/println item)))`,
+			src:     `(defn work [ch (chan any)] (fan-out 4 [item ch] (fmt/println item)))`,
 			wantSub: "sync.WaitGroup",
 		},
 		{
 			name:    "fan-out loop",
-			src:     `(defn work [^(chan any) ch] (fan-out 4 [item ch] (fmt/println item)))`,
+			src:     `(defn work [ch (chan any)] (fan-out 4 [item ch] (fmt/println item)))`,
 			wantSub: "_fanN",
 		},
 		{
 			name:    "fan-in",
-			src:     `(defn merge [^(chan any) a ^(chan any) b] (fan-in a b))`,
+			src:     `(defn merge [a (chan any) b (chan any)] (fan-in a b))`,
 			wantSub: "_fanInMerge",
 		},
 		{
 			name:    "fan-in close",
-			src:     `(defn merge [^(chan any) a ^(chan any) b] (fan-in a b))`,
+			src:     `(defn merge [a (chan any) b (chan any)] (fan-in a b))`,
 			wantSub: "close(_out)",
 		},
 		{
 			name:    "method call",
-			src:     `(defn greet [^*Writer w] (.Write w "hi"))`,
+			src:     `(defn greet [w *Writer] (.Write w "hi"))`,
 			wantSub: "w.Write(",
 		},
 		{
 			name:    "field access",
-			src:     `(defn get-method [^*Request r] (.-Method r))`,
+			src:     `(defn get-method [r *Request] (.-Method r))`,
 			wantSub: "r.Method",
 		},
 		{
 			name:    "if-err",
-			src:     `(defn ^[string error] safe-div [^float64 a ^float64 b] (if-err [r err] (divide a b) (values "" err) (values r nil)))`,
+			src:     `(defn safe-div [a float64 b float64] -> [string error] (if-err [r err] (divide a b) (values "" err) (values r nil)))`,
 			wantSub: "if err != nil {",
 		},
 		{
@@ -218,7 +218,7 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "struct decl",
-			src:     `(defstruct User ^string name ^int age)`,
+			src:     `(defstruct User name string age int)`,
 			wantSub: "type User struct {",
 		},
 		{
@@ -307,37 +307,37 @@ func TestTranspileSnippets(t *testing.T) {
 		// 2b: string operations
 		{
 			name:    "upper-case",
-			src:     `(defn f [^string s] (upper-case s))`,
+			src:     `(defn f [s string] (upper-case s))`,
 			wantSub: "strings.ToUpper(",
 		},
 		{
 			name:    "lower-case",
-			src:     `(defn f [^string s] (lower-case s))`,
+			src:     `(defn f [s string] (lower-case s))`,
 			wantSub: "strings.ToLower(",
 		},
 		{
 			name:    "trim",
-			src:     `(defn f [^string s] (trim s))`,
+			src:     `(defn f [s string] (trim s))`,
 			wantSub: "strings.TrimSpace(",
 		},
 		{
 			name:    "starts-with?",
-			src:     `(defn f [^string s] (starts-with? s "foo"))`,
+			src:     `(defn f [s string] (starts-with? s "foo"))`,
 			wantSub: "strings.HasPrefix(",
 		},
 		{
 			name:    "ends-with?",
-			src:     `(defn f [^string s] (ends-with? s "bar"))`,
+			src:     `(defn f [s string] (ends-with? s "bar"))`,
 			wantSub: "strings.HasSuffix(",
 		},
 		{
 			name:    "replace",
-			src:     `(defn f [^string s] (replace s "a" "b"))`,
+			src:     `(defn f [s string] (replace s "a" "b"))`,
 			wantSub: "strings.ReplaceAll(",
 		},
 		{
 			name:    "split",
-			src:     `(defn f [^string s] (split s ","))`,
+			src:     `(defn f [s string] (split s ","))`,
 			wantSub: "_glispSplit(",
 		},
 		{
@@ -347,12 +347,12 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "subs two-arg",
-			src:     `(defn f [^string s] (subs s 2))`,
+			src:     `(defn f [s string] (subs s 2))`,
 			wantSub: "_glispToString(s))[2:]",
 		},
 		{
 			name:    "subs three-arg",
-			src:     `(defn f [^string s] (subs s 1 4))`,
+			src:     `(defn f [s string] (subs s 1 4))`,
 			wantSub: "_glispToString(s))[1:4]",
 		},
 		// 2d: test framework
@@ -410,7 +410,7 @@ func TestTranspileSnippets(t *testing.T) {
 		},
 		{
 			name:    "json/decode emits runtime call",
-			src:     `(defn f [^string s] (json/decode s))`,
+			src:     `(defn f [s string] (json/decode s))`,
 			wantSub: "_glispJsonDecode(",
 		},
 		// 6b: Destructuring
@@ -462,22 +462,22 @@ func TestTranspileSnippets(t *testing.T) {
 		// 7c: string & number utilities
 		{
 			name:    "format",
-			src:     `(defn f [^string name ^int age] (format "Hello, %s! You are %d." name age))`,
+			src:     `(defn f [name string age int] (format "Hello, %s! You are %d." name age))`,
 			wantSub: `fmt.Sprintf("Hello, %s! You are %d.", name, age)`,
 		},
 		{
 			name:    "parse-int",
-			src:     `(defn f [^string s] (parse-int s))`,
+			src:     `(defn f [s string] (parse-int s))`,
 			wantSub: `strconv.Atoi(_glispToString(s))`,
 		},
 		{
 			name:    "parse-float",
-			src:     `(defn f [^string s] (parse-float s))`,
+			src:     `(defn f [s string] (parse-float s))`,
 			wantSub: `strconv.ParseFloat(_glispToString(s), 64)`,
 		},
 		{
 			name:    "repeat",
-			src:     `(defn f [^int n] (repeat n 0))`,
+			src:     `(defn f [n int] (repeat n 0))`,
 			wantSub: `_glispRepeat(n, 0)`,
 		},
 		{
@@ -511,10 +511,10 @@ func TestTranspileSnippets(t *testing.T) {
 
 		// Type / error
 		{name: "nil?", src: `(defn f [x] (nil? x))`, wantSub: "== nil"},
-		{name: "error", src: `(defn f [^string msg] (error msg))`, wantSub: "errors.New("},
-		{name: "string conv", src: `(defn f [^int x] (string x))`, wantSub: "string("},
+		{name: "error", src: `(defn f [msg string] (error msg))`, wantSub: "errors.New("},
+		{name: "string conv", src: `(defn f [x int] (string x))`, wantSub: "string("},
 		{name: "int conv", src: `(defn f [x] (int x))`, wantSub: "_glispToInt("},
-		{name: "as type assertion", src: `(defn f [x] (as ^int x))`, wantSub: ".(int)"},
+		{name: "as type assertion", src: `(defn f [x] (as int x))`, wantSub: ".(int)"},
 
 		// I/O
 		{name: "fmt/println", src: `(defn f [x] (fmt/println x))`, wantSub: "fmt.Println("},
@@ -525,48 +525,48 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "dotimes", src: `(defn f [] (dotimes [i 3] (fmt/println i)))`, wantSub: "for i := 0"},
 
 		// errors/new — pkg-prefixed, goes through fnToGo
-		{name: "errors/new", src: `(defn f [^string msg] (errors/new msg))`, wantSub: "errors.New("},
+		{name: "errors/new", src: `(defn f [msg string] (errors/new msg))`, wantSub: "errors.New("},
 
 		// fmt — verify naming convention for commonly-used fmt functions
-		{name: "fmt/printf", src: `(defn f [^string s] (fmt/printf "%s" s))`, wantSub: "fmt.Printf("},
-		{name: "fmt/sprintf", src: `(defn f [^string s] (fmt/sprintf "%s" s))`, wantSub: "fmt.Sprintf("},
-		{name: "fmt/errorf", src: `(defn f [^string s] (fmt/errorf "%s" s))`, wantSub: "fmt.Errorf("},
+		{name: "fmt/printf", src: `(defn f [s string] (fmt/printf "%s" s))`, wantSub: "fmt.Printf("},
+		{name: "fmt/sprintf", src: `(defn f [s string] (fmt/sprintf "%s" s))`, wantSub: "fmt.Sprintf("},
+		{name: "fmt/errorf", src: `(defn f [s string] (fmt/errorf "%s" s))`, wantSub: "fmt.Errorf("},
 
 		// strings — verify hyphen→PascalCase conversion
-		{name: "strings/contains", src: `(defn f [^string s] (strings/contains s "x"))`, wantSub: "strings.Contains("},
-		{name: "strings/has-prefix", src: `(defn f [^string s] (strings/has-prefix s "x"))`, wantSub: "strings.HasPrefix("},
-		{name: "strings/has-suffix", src: `(defn f [^string s] (strings/has-suffix s "x"))`, wantSub: "strings.HasSuffix("},
-		{name: "strings/trim-space", src: `(defn f [^string s] (strings/trim-space s))`, wantSub: "strings.TrimSpace("},
-		{name: "strings/to-upper", src: `(defn f [^string s] (strings/to-upper s))`, wantSub: "strings.ToUpper("},
-		{name: "strings/to-lower", src: `(defn f [^string s] (strings/to-lower s))`, wantSub: "strings.ToLower("},
-		{name: "strings/split", src: `(defn f [^string s] (strings/split s ","))`, wantSub: "strings.Split("},
+		{name: "strings/contains", src: `(defn f [s string] (strings/contains s "x"))`, wantSub: "strings.Contains("},
+		{name: "strings/has-prefix", src: `(defn f [s string] (strings/has-prefix s "x"))`, wantSub: "strings.HasPrefix("},
+		{name: "strings/has-suffix", src: `(defn f [s string] (strings/has-suffix s "x"))`, wantSub: "strings.HasSuffix("},
+		{name: "strings/trim-space", src: `(defn f [s string] (strings/trim-space s))`, wantSub: "strings.TrimSpace("},
+		{name: "strings/to-upper", src: `(defn f [s string] (strings/to-upper s))`, wantSub: "strings.ToUpper("},
+		{name: "strings/to-lower", src: `(defn f [s string] (strings/to-lower s))`, wantSub: "strings.ToLower("},
+		{name: "strings/split", src: `(defn f [s string] (strings/split s ","))`, wantSub: "strings.Split("},
 		{name: "strings/join", src: `(defn f [coll] (strings/join coll ","))`, wantSub: "strings.Join("},
-		{name: "strings/replace", src: `(defn f [^string s] (strings/replace s "a" "b" -1))`, wantSub: "strings.Replace("},
-		{name: "strings/replace-all", src: `(defn f [^string s] (strings/replace-all s "a" "b"))`, wantSub: "strings.ReplaceAll("},
-		{name: "strings/index", src: `(defn f [^string s] (strings/index s "x"))`, wantSub: "strings.Index("},
-		{name: "strings/trim-prefix", src: `(defn f [^string s] (strings/trim-prefix s "x"))`, wantSub: "strings.TrimPrefix("},
-		{name: "strings/trim-suffix", src: `(defn f [^string s] (strings/trim-suffix s "x"))`, wantSub: "strings.TrimSuffix("},
-		{name: "strings/trim", src: `(defn f [^string s] (strings/trim s " "))`, wantSub: "strings.Trim("},
-		{name: "strings/count", src: `(defn f [^string s] (strings/count s "x"))`, wantSub: "strings.Count("},
-		{name: "strings/repeat", src: `(defn f [^string s] (strings/repeat s 3))`, wantSub: "strings.Repeat("},
+		{name: "strings/replace", src: `(defn f [s string] (strings/replace s "a" "b" -1))`, wantSub: "strings.Replace("},
+		{name: "strings/replace-all", src: `(defn f [s string] (strings/replace-all s "a" "b"))`, wantSub: "strings.ReplaceAll("},
+		{name: "strings/index", src: `(defn f [s string] (strings/index s "x"))`, wantSub: "strings.Index("},
+		{name: "strings/trim-prefix", src: `(defn f [s string] (strings/trim-prefix s "x"))`, wantSub: "strings.TrimPrefix("},
+		{name: "strings/trim-suffix", src: `(defn f [s string] (strings/trim-suffix s "x"))`, wantSub: "strings.TrimSuffix("},
+		{name: "strings/trim", src: `(defn f [s string] (strings/trim s " "))`, wantSub: "strings.Trim("},
+		{name: "strings/count", src: `(defn f [s string] (strings/count s "x"))`, wantSub: "strings.Count("},
+		{name: "strings/repeat", src: `(defn f [s string] (strings/repeat s 3))`, wantSub: "strings.Repeat("},
 
 		// strconv
-		{name: "strconv/atoi", src: `(defn f [^string s] (strconv/atoi s))`, wantSub: "strconv.Atoi("},
-		{name: "strconv/itoa", src: `(defn f [^int n] (strconv/itoa n))`, wantSub: "strconv.Itoa("},
-		{name: "strconv/parse-int", src: `(defn f [^string s] (strconv/parse-int s 10 64))`, wantSub: "strconv.ParseInt("},
-		{name: "strconv/parse-float", src: `(defn f [^string s] (strconv/parse-float s 64))`, wantSub: "strconv.ParseFloat("},
-		{name: "strconv/format-int", src: `(defn f [^int64 n] (strconv/format-int n 10))`, wantSub: "strconv.FormatInt("},
-		{name: "strconv/format-float", src: `(defn f [^float64 x] (strconv/format-float x 102 -1))`, wantSub: "strconv.FormatFloat("},
+		{name: "strconv/atoi", src: `(defn f [s string] (strconv/atoi s))`, wantSub: "strconv.Atoi("},
+		{name: "strconv/itoa", src: `(defn f [n int] (strconv/itoa n))`, wantSub: "strconv.Itoa("},
+		{name: "strconv/parse-int", src: `(defn f [s string] (strconv/parse-int s 10 64))`, wantSub: "strconv.ParseInt("},
+		{name: "strconv/parse-float", src: `(defn f [s string] (strconv/parse-float s 64))`, wantSub: "strconv.ParseFloat("},
+		{name: "strconv/format-int", src: `(defn f [n int64] (strconv/format-int n 10))`, wantSub: "strconv.FormatInt("},
+		{name: "strconv/format-float", src: `(defn f [x float64] (strconv/format-float x 102 -1))`, wantSub: "strconv.FormatFloat("},
 
 		// math
-		{name: "math/sqrt", src: `(defn f [^float64 x] (math/sqrt x))`, wantSub: "math.Sqrt("},
-		{name: "math/abs", src: `(defn f [^float64 x] (math/abs x))`, wantSub: "math.Abs("},
-		{name: "math/pow", src: `(defn f [^float64 x y] (math/pow x y))`, wantSub: "math.Pow("},
-		{name: "math/floor", src: `(defn f [^float64 x] (math/floor x))`, wantSub: "math.Floor("},
-		{name: "math/ceil", src: `(defn f [^float64 x] (math/ceil x))`, wantSub: "math.Ceil("},
-		{name: "math/round", src: `(defn f [^float64 x] (math/round x))`, wantSub: "math.Round("},
-		{name: "math/max", src: `(defn f [^float64 a b] (math/max a b))`, wantSub: "math.Max("},
-		{name: "math/min", src: `(defn f [^float64 a b] (math/min a b))`, wantSub: "math.Min("},
+		{name: "math/sqrt", src: `(defn f [x float64] (math/sqrt x))`, wantSub: "math.Sqrt("},
+		{name: "math/abs", src: `(defn f [x float64] (math/abs x))`, wantSub: "math.Abs("},
+		{name: "math/pow", src: `(defn f [x float64 y] (math/pow x y))`, wantSub: "math.Pow("},
+		{name: "math/floor", src: `(defn f [x float64] (math/floor x))`, wantSub: "math.Floor("},
+		{name: "math/ceil", src: `(defn f [x float64] (math/ceil x))`, wantSub: "math.Ceil("},
+		{name: "math/round", src: `(defn f [x float64] (math/round x))`, wantSub: "math.Round("},
+		{name: "math/max", src: `(defn f [a float64 b] (math/max a b))`, wantSub: "math.Max("},
+		{name: "math/min", src: `(defn f [a float64 b] (math/min a b))`, wantSub: "math.Min("},
 		{name: "math/pi constant", src: `(defn f [] math/pi)`, wantSub: "math.Pi"},
 
 		// sort
@@ -583,16 +583,16 @@ func TestTranspileSnippets(t *testing.T) {
 
 		// log
 		{name: "log/println", src: `(defn f [x] (log/println x))`, wantSub: "log.Println("},
-		{name: "log/printf", src: `(defn f [^string s] (log/printf "%s" s))`, wantSub: "log.Printf("},
-		{name: "log/fatal", src: `(defn f [^string s] (log/fatal s))`, wantSub: "log.Fatal("},
-		{name: "log/fatalf", src: `(defn f [^string s] (log/fatalf "%s" s))`, wantSub: "log.Fatalf("},
+		{name: "log/printf", src: `(defn f [s string] (log/printf "%s" s))`, wantSub: "log.Printf("},
+		{name: "log/fatal", src: `(defn f [s string] (log/fatal s))`, wantSub: "log.Fatal("},
+		{name: "log/fatalf", src: `(defn f [s string] (log/fatalf "%s" s))`, wantSub: "log.Fatalf("},
 
 		// os
 		{name: "os/exit", src: `(defn f [] (os/exit 0))`, wantSub: "os.Exit("},
 		{name: "os/args", src: `(defn f [] os/args)`, wantSub: "os.Args"},
 
 		// http — put is the one missing from golden tests
-		{name: "http/put", src: `(defn f [^string url body] (http/put url body))`, wantSub: "_glispHttpPut("},
+		{name: "http/put", src: `(defn f [url string body] (http/put url body))`, wantSub: "_glispHttpPut("},
 
 		// ns :require — glisp modules emitted as Go imports
 		{

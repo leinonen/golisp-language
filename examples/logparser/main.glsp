@@ -24,7 +24,7 @@
 (def log-pattern "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} (INFO|WARN|ERROR)")
 
 ;;; Extract key=value field from a log line. Returns "" if not found.
-(defn ^string kv [^string k ^string line]
+(defn kv [k string line string] -> string
   (let [m (re/find (str k "=\\S+") line)]
     (if (nil? m)
       ""
@@ -32,7 +32,7 @@
         (if (>= (count parts) 2) (str (nth parts 1)) "")))))
 
 ;;; Parse one log line into a map, or nil if the line is malformed.
-(defn ^any parse-line [^string line]
+(defn parse-line [line string] -> any
   (when (re/match log-pattern line)
     {"level"  (str (re/find "INFO|WARN|ERROR" line))
      "user"   (kv "user" line)
@@ -40,7 +40,7 @@
      "status" (kv "status" line)}))
 
 ;;; Load and parse all entries from a log file. Returns [entries error].
-(defn ^[[]any error] load-log [^string path]
+(defn load-log [path string] -> [[]any error]
   (if-err [content err] (read-file path)
     (values nil (wrap-error "reading log file" err))
     (let [lines   (split (str content) "\n")
@@ -51,7 +51,7 @@
 ; ---- analysis ----
 
 ;;; Build a plain-text summary report from parsed entries.
-(defn ^string build-report [^[]any entries]
+(defn build-report [entries []any] -> string
   (let [total   (count entries)
         errors  (count (filter (fn [e] (= (get e "level") "ERROR")) entries))
         warns   (count (filter (fn [e] (= (get e "level") "WARN")) entries))
@@ -80,11 +80,11 @@
 ; ---- validation helpers ----
 
 ;;; Returns true when the string looks like an email address.
-(defn ^bool valid-email? [^string s]
+(defn valid-email? [s string] -> bool
   (re/match "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" s))
 
 ;;; Redact the local part of an email, keeping the domain.
-(defn ^string redact-email [^string s]
+(defn redact-email [s string] -> string
   (re/replace "^[^@]+" s "***"))
 
 ; ---- main ----

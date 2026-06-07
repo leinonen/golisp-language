@@ -1,17 +1,17 @@
-(defn ^[string error] load-config [^string path]
+(defn load-config [path string] -> [string error]
   (read-file path))
 
-(defn ^error save-result [^string path ^string content]
+(defn save-result [path string content string] -> error
   (write-file path content))
 
-(defn ^error log-append [^string path ^string line]
+(defn log-append [path string line string] -> error
   (append-file path line))
 
-(defn ^bool config-exists? [^string path]
+(defn config-exists? [path string] -> bool
   (file-exists? path))
 
-(defn ^[[]any error] list-migrations [^string dir]
+(defn list-migrations [dir string] -> [[]any error]
   (list-dir dir))
 
-(defn ^error ensure-dir [^string path]
+(defn ensure-dir [path string] -> error
   (mkdir path))

@@ -1,13 +1,13 @@
 (ns main)
 
-(defn ^string describe [^int x]
+(defn describe [x int] -> string
   (switch x
     1 "one"
     2 "two"
     3 "three"
     :default "other"))
 
-(defn ^string grade [^int score]
+(defn grade [score int] -> string
   (let [label (switch (/ score 10)
                  9 "A"
                  8 "B"
@@ -16,7 +16,7 @@
                  :default "F")]
     label))
 
-(defn ^any process [^string cmd]
+(defn process [cmd string] -> any
   (switch cmd
     "start" (do (fmt/println "starting") true)
     "stop"  (do (fmt/println "stopping") false)))

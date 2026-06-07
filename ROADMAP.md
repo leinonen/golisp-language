@@ -293,11 +293,11 @@ Building blocks that close the gap between a toy language and one you'd stake pr
 - [x] `wrap-error` — `(wrap-error msg err)` → `error` — wraps with `fmt.Errorf("%s: %w", msg, err)` for proper Go error chains
 - [x] `errors/is?` — `(errors/is? err target)` → `bool` — wraps `errors.Is` for unwrapping chains
 
-### 10e. atom — shared mutable state
-- [ ] `(atom init)` — create an atom wrapping init value; backed by `struct { mu sync.Mutex; val any }`
-- [ ] `(swap! a f)` — atomically update with f; `a.mu.Lock(); a.val = f(a.val); a.mu.Unlock()`
-- [ ] `(reset! a v)` — unconditional set
-- [ ] `@a` (or `(deref a)`) — read current value without locking (for uncontended reads)
+### 10e. atom — shared mutable state ✓
+- [x] `(atom init)` — create an atom wrapping init value; backed by `struct { mu sync.Mutex; val any }`
+- [x] `(swap! a f)` — atomically update with f; locks, calls f(current), assigns, unlocks
+- [x] `(reset! a v)` — unconditional set (locked)
+- [x] `(deref a)` — read current value (locked)
 
 ### 10f. with-open
 - [ ] `(with-open [f (os/Open path)] body...)` — wraps body in `defer f.Close()`; safe resource cleanup for files, HTTP responses, and anything with a `Close()` method

@@ -1132,6 +1132,36 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "errors/is?":
 			e.needImport("errors")
 			return e.emitRuntimeCall("errors.Is", n.Args, 2)
+		// atom — shared mutable state
+		case "atom":
+			e.needImport("_atom")
+			if len(n.Args) != 1 {
+				return fmt.Errorf("atom requires 1 argument, got %d", len(n.Args))
+			}
+			e.write("&_glispAtom{val: ")
+			if err := e.emitExpr(n.Args[0]); err != nil {
+				return err
+			}
+			e.write("}")
+			return nil
+		case "swap!":
+			e.needImport("_atom")
+			if len(n.Args) != 2 {
+				return fmt.Errorf("swap! requires 2 arguments (atom f), got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispAtomSwap", n.Args, 2)
+		case "reset!":
+			e.needImport("_atom")
+			if len(n.Args) != 2 {
+				return fmt.Errorf("reset! requires 2 arguments (atom value), got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispAtomReset", n.Args, 2)
+		case "deref":
+			e.needImport("_atom")
+			if len(n.Args) != 1 {
+				return fmt.Errorf("deref requires 1 argument, got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispAtomDeref", n.Args, 1)
 		}
 	}
 
@@ -1627,7 +1657,11 @@ func (e *Emitter) emitDoseq(args []ast.Node) error {
 	e.nl()
 	e.push()
 	e.writeIndent()
-	e.writef("for _, %s := range _glispToSlice(", goName)
+	if goName == "_" {
+		e.write("for range _glispToSlice(")
+	} else {
+		e.writef("for _, %s := range _glispToSlice(", goName)
+	}
 	if err := e.emitExpr(bv.Elements[1]); err != nil {
 		return err
 	}

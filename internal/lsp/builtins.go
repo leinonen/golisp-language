@@ -336,4 +336,10 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	// Error wrapping
 	"wrap-error":  {Sig: "(wrap-error msg err)   →  error", Doc: "Wrap err with a context message: returns an error whose message is \"msg: err\"."},
 	"errors/is?":  {Sig: "(errors/is? err target) →  bool", Doc: "Return true if err or any error in its chain matches target."},
+
+	// Atom — shared mutable state
+	"atom":   {Sig: "(atom init)       →  atom", Doc: "Create a thread-safe mutable reference wrapping init."},
+	"swap!":  {Sig: "(swap! a f)       →  any", Doc: "Atomically update atom a by applying f to its current value. Returns the new value."},
+	"reset!": {Sig: "(reset! a v)      →  any", Doc: "Atomically set atom a to v. Returns v."},
+	"deref":  {Sig: "(deref a)         →  any", Doc: "Read the current value of atom a."},
 }

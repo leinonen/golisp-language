@@ -245,6 +245,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["_strruntime"] {
 			e.needImport("strings")
 		}
+		if e.builtinImports["_atom"] {
+			e.needImport("sync")
+		}
 	}
 	if err := e.emitImports(); err != nil {
 		return err
@@ -282,6 +285,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 		if e.builtinImports["_set"] {
 			e.write(glispSetRuntime)
+		}
+		if e.builtinImports["_atom"] {
+			e.write(glispAtomRuntime)
 		}
 	}
 	return nil

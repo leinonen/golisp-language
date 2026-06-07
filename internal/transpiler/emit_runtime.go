@@ -47,8 +47,12 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	if builtins["data"] {
 		addImport("fmt")
 	}
+	if builtins["_atom"] {
+		addImport("sync")
+	}
 	// "_set" is a pseudo-package marker for set algebra helpers (no real import needed)
 	// "_file" is a pseudo-package marker for file I/O helpers (real imports: os, fmt)
+	// "_atom" is a pseudo-package marker for atom helpers (real import: sync)
 	// "regexp" gates regex helpers (real imports: regexp, fmt)
 
 	s := fmt.Sprintf("package %s\n", pkgName)
@@ -86,6 +90,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["_set"] {
 		s += glispSetRuntime
+	}
+	if builtins["_atom"] {
+		s += glispAtomRuntime
 	}
 	return s
 }
@@ -1410,5 +1417,36 @@ func _glispSetDifference(a any, b any) map[any]struct{} {
 		result[k] = struct{}{}
 	}
 	return result
+}
+`
+
+const glispAtomRuntime = `
+type _glispAtom struct {
+	mu  sync.Mutex
+	val any
+}
+
+func _glispAtomSwap(a any, f any) any {
+	atom := a.(*_glispAtom)
+	fn := f.(func(any) any)
+	atom.mu.Lock()
+	defer atom.mu.Unlock()
+	atom.val = fn(atom.val)
+	return atom.val
+}
+
+func _glispAtomReset(a any, v any) any {
+	atom := a.(*_glispAtom)
+	atom.mu.Lock()
+	defer atom.mu.Unlock()
+	atom.val = v
+	return v
+}
+
+func _glispAtomDeref(a any) any {
+	atom := a.(*_glispAtom)
+	atom.mu.Lock()
+	defer atom.mu.Unlock()
+	return atom.val
 }
 `

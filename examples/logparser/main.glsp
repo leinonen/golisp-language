@@ -5,7 +5,7 @@
 
 ; ---- sample data ----
 
-(def sample-log
+(def sample-log string
   (join
     ["2024-01-15 10:23:45 INFO  user=alice  action=login   status=ok"
      "2024-01-15 10:24:12 ERROR user=bob    action=upload  status=denied"
@@ -21,7 +21,7 @@
 
 ; ---- parsing ----
 
-(def log-pattern "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} (INFO|WARN|ERROR)")
+(def log-pattern string "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} (INFO|WARN|ERROR)")
 
 ;;; Extract key=value field from a log line. Returns "" if not found.
 (defn kv [k string line string] -> string
@@ -89,7 +89,7 @@
 
 ; ---- main ----
 
-(defn main []
+(defn main [] -> void
   (let [log-path    "/tmp/glisp-access.log"
         report-path "/tmp/glisp-report.txt"]
 

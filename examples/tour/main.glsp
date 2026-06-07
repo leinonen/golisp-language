@@ -42,7 +42,7 @@
 ; recover must be called from a deferred function to catch panics.
 ; Defer a named handler so recover() runs in the right stack frame.
 
-(defn catch-panic []
+(defn catch-panic [] -> void
   (let [r (recover)]
     (when (not= r nil)
       (fmt/println "caught panic:" r))))
@@ -78,7 +78,7 @@
 (def months []string ["Jan" "Feb" "Mar" "Apr" "May" "Jun"
                       "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"])
 
-(defn main []
+(defn main [] -> void
 
   ; Panic and recover
   (fmt/println "10/2 =" (safe-divide 10 2))

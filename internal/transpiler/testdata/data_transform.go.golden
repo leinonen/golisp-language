@@ -21,15 +21,15 @@ func safeColl(coll []any) any {
 }
 
 func nestedGet(m map[string]any) any {
-	return _glispGetIn(m, []any{"a", "b"})
+	return _glispGetIn(m, []string{"a", "b"})
 }
 
 func nestedSet(m map[string]any, v any) map[string]any {
-	return _glispAssocIn(m, []any{"a", "b"}, v)
+	return _glispAssocIn(m, []string{"a", "b"}, v)
 }
 
 func nestedInc(m map[string]any) map[string]any {
-	return _glispUpdateIn(m, []any{"a", "count"}, func(n any) any {
+	return _glispUpdateIn(m, []string{"a", "count"}, func(n any) any {
 		return (_glispToInt(n) + 1)
 	})
 }
@@ -41,7 +41,7 @@ func bump(m map[string]any) map[string]any {
 }
 
 func project(m map[string]any) map[string]any {
-	return _glispSelectKeys(m, []any{"id", "name"})
+	return _glispSelectKeys(m, []string{"id", "name"})
 }
 
 func rename(m map[string]any) map[string]any {

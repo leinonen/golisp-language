@@ -17,19 +17,19 @@
 
 ; -- event data ----------------------------------------------------------------
 
-(def fw-log
+(def fw-log []any
   [{"src" "fw"   "type" "block"  "ip" "203.0.113.42" "msg" "SSH brute force"}
    {"src" "fw"   "type" "allow"  "ip" "198.51.100.7" "msg" "HTTPS request ok"}
    {"src" "fw"   "type" "block"  "ip" "203.0.113.99" "msg" "RDP scan blocked"}
    {"src" "fw"   "type" "drop"   "ip" "192.0.2.55"   "msg" "Telnet probe dropped"}])
 
-(def ids-log
+(def ids-log []any
   [{"src" "ids"  "type" "alert"  "ip" "203.0.113.42" "msg" "SQL injection attempt"}
    {"src" "ids"  "type" "info"   "ip" "198.51.100.8" "msg" "Port scan detected"}
    {"src" "ids"  "type" "alert"  "ip" "203.0.113.15" "msg" "Reflected XSS"}
    {"src" "ids"  "type" "alert"  "ip" "203.0.113.42" "msg" "Path traversal"}])
 
-(def auth-log
+(def auth-log []any
   [{"src" "auth" "type" "login"  "ip" "10.0.0.1"     "msg" "Admin login (internal)"}
    {"src" "auth" "type" "login"  "ip" "203.0.113.42" "msg" "DB service login from external"}
    {"src" "auth" "type" "access" "ip" "10.0.0.1"     "msg" "Config file read"}
@@ -56,10 +56,10 @@
 ; -- threat classification -----------------------------------------------------
 
 ;;; IPs known to be hostile.
-(def bad-ips #{"203.0.113.42" "203.0.113.15" "203.0.113.55" "203.0.113.99"})
+(def bad-ips any #{"203.0.113.42" "203.0.113.15" "203.0.113.55" "203.0.113.99"})
 
 ;;; Event types that warrant at least a HIGH rating.
-(def loud-types #{"block" "alert" "drop"})
+(def loud-types any #{"block" "alert" "drop"})
 
 ;;; CRITICAL = loud type from a known bad IP.
 ;;; HIGH = loud type from an unknown IP.
@@ -88,15 +88,15 @@
 
 ; -- thread-safe output --------------------------------------------------------
 
-(def print-mu (sync/Mutex. {}))
+(def print-mu sync/Mutex (sync/Mutex. {}))
 
-(defn say [s string]
+(defn say [s string] -> void
   (with-lock print-mu
     (fmt/println s)))
 
 ; -- main ----------------------------------------------------------------------
 
-(defn main []
+(defn main [] -> void
   (say "Parallel Security Event Analyzer")
   (say "=================================")
   (say "Sources  : firewall (10ms/event)  ids (25ms/event)  auth (15ms/event)")

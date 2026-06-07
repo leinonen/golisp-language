@@ -19,8 +19,25 @@ func (e *Emitter) emitVectorLit(n *ast.VectorLit) error {
 		} else {
 			typeStr = t
 		}
+	} else if inferred := inferHomogeneousElemType(n.Elements); inferred != "" {
+		typeStr = inferred
 	}
 	return e.emitVectorLitElem(n, typeStr)
+}
+
+// inferHomogeneousElemType returns the Go element type when all elements are the same literal kind.
+// Currently infers "string" only ([]string is safe since _glispToSlice already handles it).
+// Returns "" when elements are mixed, non-literal, or empty.
+func inferHomogeneousElemType(elems []ast.Node) string {
+	if len(elems) == 0 {
+		return ""
+	}
+	for _, el := range elems {
+		if _, ok := el.(*ast.StringLit); !ok {
+			return ""
+		}
+	}
+	return "string"
 }
 
 // emitVectorLitElem emits []elemType{...} with an explicit element type override.
@@ -1264,6 +1281,20 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		}
 		e.write(")")
 		return nil
+	}
+
+	// Arity check for user-defined function calls.
+	if sym, ok := n.Head.(*ast.Symbol); ok && len(e.symbols) > 0 {
+		if sig, found := e.symbols[sym.Name]; found {
+			nargs := len(n.Args)
+			if sig.variadic {
+				if nargs < sig.minArity {
+					return fmt.Errorf("arity error: %s called with %d arg(s), expected at least %d (at %s)", sym.Name, nargs, sig.minArity, n.Pos())
+				}
+			} else if nargs != sig.minArity {
+				return fmt.Errorf("arity error: %s called with %d arg(s), expected %d (at %s)", sym.Name, nargs, sig.minArity, n.Pos())
+			}
+		}
 	}
 
 	// General function call: f(args...)

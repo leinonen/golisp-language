@@ -49,7 +49,7 @@ func splitPositives(nums []any) []any {
 }
 
 func weave() []any {
-	return _glispInterleave([]any{1, 2, 3}, []any{"a", "b", "c"})
+	return _glispInterleave([]any{1, 2, 3}, []string{"a", "b", "c"})
 }
 
 func allPositive(nums []any) bool {

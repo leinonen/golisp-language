@@ -10,6 +10,9 @@ import (
 // emitDefDecl emits: var Name Type = Value
 func (e *Emitter) emitDefDecl(n *ast.DefDecl) error {
 	e.lineDir(n.Pos_)
+	if e.strict && n.TypeAnnot == nil {
+		return fmt.Errorf("strict: def %q has no type annotation", n.Name)
+	}
 	goName := identToGo(n.Name)
 	if n.TypeAnnot != nil {
 		typeStr := typeExprToGo(n.TypeAnnot.Text)
@@ -33,12 +36,30 @@ func (e *Emitter) emitDefDecl(n *ast.DefDecl) error {
 // emitDefnDecl emits a function declaration.
 func (e *Emitter) emitDefnDecl(n *ast.DefnDecl) error {
 	e.lineDir(n.Pos_)
+	if e.strict {
+		for _, p := range n.Params {
+			// Skip rest params and destructured params — type annotation optional there.
+			if p.IsRest || p.Pattern != nil {
+				continue
+			}
+			if p.TypeAnnot == nil {
+				return fmt.Errorf("strict: param %q in defn %q has no type annotation", p.Name, n.Name)
+			}
+		}
+		if n.ReturnType == nil {
+			return fmt.Errorf("strict: defn %q has no return type annotation (use -> void for functions with no return value)", n.Name)
+		}
+	}
 	goName := identToGo(n.Name)
 	sigParts, destructs, err := e.buildParamSig(n.Params)
 	if err != nil {
 		return err
 	}
 	retStr := e.formatReturnType(n.ReturnType)
+	isVoid := retStr == "void"
+	if isVoid {
+		retStr = ""
+	}
 
 	e.writeIndent()
 	if retStr != "" {
@@ -69,6 +90,13 @@ func (e *Emitter) emitDefTypeDecl(n *ast.DefTypeDecl) error {
 // emitStructDecl emits a struct type declaration.
 func (e *Emitter) emitStructDecl(n *ast.StructDecl) error {
 	e.lineDir(n.Pos_)
+	if e.strict {
+		for _, f := range n.Fields {
+			if f.TypeAnnot == nil {
+				return fmt.Errorf("strict: field %q in defstruct %q has no type annotation", f.Name, n.Name)
+			}
+		}
+	}
 	e.writeIndent()
 	e.writef("type %s struct {", n.Name)
 	e.nl()
@@ -103,6 +131,9 @@ func (e *Emitter) emitInterfaceDecl(n *ast.InterfaceDecl) error {
 			return err
 		}
 		retStr := e.formatReturnType(m.ReturnType)
+		if retStr == "void" {
+			retStr = ""
+		}
 		if retStr != "" {
 			e.linef("%s(%s) %s", m.Name, params, retStr)
 		} else {
@@ -124,6 +155,10 @@ func (e *Emitter) emitMethodDecl(n *ast.MethodDecl) error {
 		return err
 	}
 	retStr := e.formatReturnType(n.ReturnType)
+	isVoid := retStr == "void"
+	if isVoid {
+		retStr = ""
+	}
 	e.writeIndent()
 	if retStr != "" {
 		e.writef("func (%s %s) %s(%s) %s {", n.ReceiverName, receiverType, goName, strings.Join(sigParts, ", "), retStr)

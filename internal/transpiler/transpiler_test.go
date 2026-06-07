@@ -704,3 +704,170 @@ func TestTypeExprToGo(t *testing.T) {
 		})
 	}
 }
+
+// TestArityChecking verifies that the transpiler catches user-defined function
+// call sites with the wrong number of arguments.
+func TestArityChecking(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string // expected substring in error message
+	}{
+		{
+			name:    "too few args",
+			src:     `(defn greet [name string] -> string (str "hi " name)) (defn main [] (greet))`,
+			wantErr: "arity error: greet called with 0 arg(s), expected 1",
+		},
+		{
+			name:    "too many args",
+			src:     `(defn greet [name string] -> string (str "hi " name)) (defn main [] (greet "Alice" "Bob"))`,
+			wantErr: "arity error: greet called with 2 arg(s), expected 1",
+		},
+		{
+			name:    "variadic ok with min",
+			src:     `(defn log [msg string & args] -> any (fmt/println msg)) (defn main [] (log "hello"))`,
+			wantErr: "", // variadic with >= minArity — no error
+		},
+		{
+			name:    "variadic too few",
+			src:     `(defn log [msg string & args] -> any (fmt/println msg)) (defn main [] (log))`,
+			wantErr: "arity error: log called with 0 arg(s), expected at least 1",
+		},
+		{
+			name:    "exact arity ok",
+			src:     `(defn add [a int b int] -> int (+ a b)) (defn main [] (add 1 2))`,
+			wantErr: "", // correct arity — no error
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Transpile(tt.src)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error %q\ngot: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+// TestStrictMode verifies that --strict rejects programs with missing type annotations.
+func TestStrictMode(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string // expected substring in error; "" means no error
+	}{
+		{
+			name:    "missing param type",
+			src:     `(defn greet [name] -> string (str "hi " name))`,
+			wantErr: `strict: param "name" in defn "greet" has no type annotation`,
+		},
+		{
+			name:    "missing return type",
+			src:     `(defn greet [name string] (str "hi " name))`,
+			wantErr: `strict: defn "greet" has no return type annotation`,
+		},
+		{
+			name:    "missing struct field type",
+			src:     `(defstruct Circle radius)`,
+			wantErr: `strict: field "radius" in defstruct "Circle" has no type annotation`,
+		},
+		{
+			name:    "missing def type",
+			src:     `(def x 42)`,
+			wantErr: `strict: def "x" has no type annotation`,
+		},
+		{
+			name:    "fully typed defn ok",
+			src:     `(defn add [a int b int] -> int (+ a b))`,
+			wantErr: "",
+		},
+		{
+			name:    "typed struct ok",
+			src:     `(defstruct Circle radius float64)`,
+			wantErr: "",
+		},
+		{
+			name:    "typed def ok",
+			src:     `(def x int 42)`,
+			wantErr: "",
+		},
+		{
+			name:    "rest param exempt from annotation requirement",
+			src:     `(defn log [msg string & args] -> any (fmt/println msg))`,
+			wantErr: "", // rest params are exempt
+		},
+		{
+			name:    "void return type ok in strict mode",
+			src:     `(defn say [s string] -> void (fmt/println s))`,
+			wantErr: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := TranspileFileStrict(tt.src, "test.glsp")
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error %q\ngot: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+// TestHomogeneousVectorInference verifies that vector literals with all-string elements
+// are emitted as []string instead of []any.
+func TestHomogeneousVectorInference(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantSub string
+	}{
+		{
+			name:    "string vector infers []string",
+			src:     `(defn words [] -> []string ["hello" "world"])`,
+			wantSub: `[]string{"hello", "world"}`,
+		},
+		{
+			name:    "empty vector stays []any",
+			src:     `(defn empty-list [] -> []any [])`,
+			wantSub: `[]any{}`,
+		},
+		{
+			name:    "mixed vector stays []any",
+			src:     `(defn mixed [] -> []any ["a" 1])`,
+			wantSub: `[]any{"a", 1}`,
+		},
+		{
+			name:    "explicit annotation overrides inference",
+			src:     `(def xs []any ["a" "b"])`,
+			wantSub: `[]any{"a", "b"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Transpile(tt.src)
+			if err != nil {
+				t.Fatalf("transpile error: %v", err)
+			}
+			if !strings.Contains(got, tt.wantSub) {
+				t.Errorf("expected output to contain %q\nfull output:\n%s", tt.wantSub, got)
+			}
+		})
+	}
+}

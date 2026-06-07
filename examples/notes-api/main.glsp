@@ -1,7 +1,7 @@
 (ns main
   (:import [golisp/web]))
 
-(defn main []
+(defn main [] -> void
   (let [db-url (os/env "DATABASE_URL" "postgres://notes:notes@localhost:5432/notes")
         port   (os/env "PORT" "4000")]
     (if-err [conn err] (db-connect db-url)

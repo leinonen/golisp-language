@@ -9,5 +9,5 @@
   (* n n))
 
 ;;; Prints a labeled list of values to stdout.
-(defn print-results [label string nums []any]
+(defn print-results [label string nums []any] -> void
   (fmt/printf "%s: %v\n" label nums))

@@ -43,10 +43,10 @@
   (fmt/sprintf "triangle(%.2f, %.2f, %.2f)" (.-A t) (.-B t) (.-C t)))
 
 ;;; Prints a shape's description and area to stdout.
-(defn print-shape [s Shape]
+(defn print-shape [s Shape] -> void
   (fmt/printf "  %-28s  area = %.4f\n" (.Describe s) (.Area s)))
 
-(defn main []
+(defn main [] -> void
   (fmt/println "Shapes:")
   (print-shape (Circle.   {:radius 5.0}))
   (print-shape (Rect.     {:width 4.0 :height 6.0}))

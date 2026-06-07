@@ -23,78 +23,73 @@ type TranspileError struct{ Err error }
 func (e *TranspileError) Error() string { return "transpile error: " + e.Err.Error() }
 func (e *TranspileError) Unwrap() error { return e.Err }
 
+// transpileInternal is the unified internal entry point for all transpile variants.
+func transpileInternal(src, filename string, runtime, strict bool) (string, map[string]bool, error) {
+	tokens, err := lexer.Tokenize(src)
+	if err != nil {
+		return "", nil, &ParseError{Err: err}
+	}
+	var nodes []ast.Node
+	var parseErr error
+	if filename != "" {
+		nodes, parseErr = parser.ParseSourceFile(tokens, src, filename)
+	} else {
+		nodes, parseErr = parser.ParseSource(tokens, src)
+	}
+	if parseErr != nil {
+		return "", nil, &ParseError{Err: parseErr}
+	}
+	e := newEmitter()
+	e.emitRuntime = runtime
+	e.strict = strict
+	if err := e.emitFile(nodes); err != nil {
+		return "", nil, &TranspileError{Err: err}
+	}
+	return e.buf.String(), e.builtinImports, nil
+}
+
 // Transpile is the top-level entry point: source text → Go source text.
 // The returned Go source is not gofmt'd; call gofmt externally.
 func Transpile(src string) (string, error) {
-	tokens, err := lexer.Tokenize(src)
-	if err != nil {
-		return "", &ParseError{Err: err}
-	}
-	nodes, err := parser.ParseSource(tokens, src)
-	if err != nil {
-		return "", &ParseError{Err: err}
-	}
-	e := newEmitter()
-	if err := e.emitFile(nodes); err != nil {
-		return "", &TranspileError{Err: err}
-	}
-	return e.buf.String(), nil
+	out, _, err := transpileInternal(src, "", true, false)
+	return out, err
 }
 
 // TranspileNoRuntime transpiles source to Go without appending runtime helpers.
 // It also returns the set of built-in packages used so the caller can generate
 // a shared runtime file for multi-file package builds.
 func TranspileNoRuntime(src string) (string, map[string]bool, error) {
-	tokens, err := lexer.Tokenize(src)
-	if err != nil {
-		return "", nil, &ParseError{Err: err}
-	}
-	nodes, err := parser.ParseSource(tokens, src)
-	if err != nil {
-		return "", nil, &ParseError{Err: err}
-	}
-	e := newEmitter()
-	e.emitRuntime = false
-	if err := e.emitFile(nodes); err != nil {
-		return "", nil, &TranspileError{Err: err}
-	}
-	return e.buf.String(), e.builtinImports, nil
+	return transpileInternal(src, "", false, false)
 }
 
 // TranspileFile is like Transpile but embeds //line directives so go build
 // error messages report .glsp file locations instead of generated .go locations.
 func TranspileFile(src, filename string) (string, error) {
-	tokens, err := lexer.Tokenize(src)
-	if err != nil {
-		return "", &ParseError{Err: err}
-	}
-	nodes, err := parser.ParseSourceFile(tokens, src, filename)
-	if err != nil {
-		return "", &ParseError{Err: err}
-	}
-	e := newEmitter()
-	if err := e.emitFile(nodes); err != nil {
-		return "", &TranspileError{Err: err}
-	}
-	return e.buf.String(), nil
+	out, _, err := transpileInternal(src, filename, true, false)
+	return out, err
 }
 
 // TranspileNoRuntimeFile is like TranspileNoRuntime but embeds //line directives.
 func TranspileNoRuntimeFile(src, filename string) (string, map[string]bool, error) {
-	tokens, err := lexer.Tokenize(src)
-	if err != nil {
-		return "", nil, &ParseError{Err: err}
-	}
-	nodes, err := parser.ParseSourceFile(tokens, src, filename)
-	if err != nil {
-		return "", nil, &ParseError{Err: err}
-	}
-	e := newEmitter()
-	e.emitRuntime = false
-	if err := e.emitFile(nodes); err != nil {
-		return "", nil, &TranspileError{Err: err}
-	}
-	return e.buf.String(), e.builtinImports, nil
+	return transpileInternal(src, filename, false, false)
+}
+
+// TranspileFileStrict is like TranspileFile with strict mode enabled.
+// In strict mode, defn params, defstruct fields, and def globals must have type annotations.
+func TranspileFileStrict(src, filename string) (string, error) {
+	out, _, err := transpileInternal(src, filename, true, true)
+	return out, err
+}
+
+// TranspileNoRuntimeFileStrict is like TranspileNoRuntimeFile with strict mode enabled.
+func TranspileNoRuntimeFileStrict(src, filename string) (string, map[string]bool, error) {
+	return transpileInternal(src, filename, false, true)
+}
+
+// fnSig holds the arity information for a user-defined function.
+type fnSig struct {
+	minArity int
+	variadic bool
 }
 
 // Emitter accumulates Go source text with indentation tracking.
@@ -121,6 +116,10 @@ type Emitter struct {
 	// emitRuntime controls whether runtime helpers are appended to the output.
 	// True by default; set false for multi-file builds that use a shared runtime file.
 	emitRuntime bool
+	// strict: when true, require type annotations on defn params, struct fields, def globals.
+	strict bool
+	// symbols: user-defined function signatures for arity checking (populated by pre-pass).
+	symbols map[string]*fnSig
 }
 
 func (e *Emitter) needImport(pkg string) {
@@ -188,6 +187,18 @@ func (e *Emitter) lineDir(pos ast.Position) {
 	fmt.Fprintf(&e.buf, "//line %s:%d\n", pos.File, pos.Line)
 }
 
+// countParams returns the minimum arity and variadic flag for a param list.
+func countParams(params []ast.Param) (minArity int, variadic bool) {
+	for _, p := range params {
+		if p.IsRest {
+			variadic = true
+		} else {
+			minArity++
+		}
+	}
+	return
+}
+
 // emitFile emits the full Go file: package, imports, declarations, runtime helpers.
 // We use a two-pass approach: emit declarations into a temp buffer first to
 // discover which built-in imports are needed, then prepend package+imports.
@@ -201,9 +212,20 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 	}
 
+	// Pre-pass: collect user-defined function signatures for arity checking.
+	symbols := map[string]*fnSig{}
+	for _, n := range nodes {
+		if d, ok := n.(*ast.DefnDecl); ok {
+			minArity, variadic := countParams(d.Params)
+			symbols[d.Name] = &fnSig{minArity: minArity, variadic: variadic}
+		}
+	}
+
 	// Pass 1: emit declarations into a side buffer to discover import needs
 	declEmitter := newEmitter()
 	declEmitter.emitRuntime = e.emitRuntime
+	declEmitter.strict = e.strict
+	declEmitter.symbols = symbols
 	declEmitter.pkg = e.pkg
 	declEmitter.imports = e.imports
 	declEmitter.requires = e.requires

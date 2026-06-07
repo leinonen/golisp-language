@@ -1,6 +1,6 @@
 (ns main (:import [golisp/web]))
 
-(def tasks
+(def tasks []any
   [{"id" "1" "title" "Buy groceries" "done" false "priority" "low"}
    {"id" "2" "title" "Write glisp code" "done" true "priority" "high"}
    {"id" "3" "title" "Go for a run" "done" false "priority" "medium"}
@@ -47,7 +47,7 @@
      "count"       (len tasks)
      "exported-by" (get req "identity")}))
 
-(def app
+(def app web/Handler
   (web/wrap
     (web/routes
       (web/get "/health" health)
@@ -61,7 +61,7 @@
     web/wrap-cors
     web/wrap-json))
 
-(defn main []
+(defn main [] -> void
   (let [port (os/env "PORT" "4000")
         addr (str ":" port)]
     (fmt/println (str "Tasks API on " addr))

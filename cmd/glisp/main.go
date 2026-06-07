@@ -61,6 +61,7 @@ func main() {
 func compileCmd(args []string) {
 	fs := flag.NewFlagSet("compile", flag.ExitOnError)
 	out := fs.String("o", "", "output file (default: <input>.go)")
+	strict := fs.Bool("strict", false, "require type annotations on all defn params, struct fields, and def globals")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(1)
 	}
@@ -68,7 +69,8 @@ func compileCmd(args []string) {
 		fmt.Fprintln(os.Stderr, "compile: requires <file.glsp>")
 		os.Exit(1)
 	}
-	if err := compiler.Compile(fs.Arg(0), *out); err != nil {
+	opts := compiler.Options{Strict: *strict}
+	if err := compiler.CompileWithOptions(fs.Arg(0), *out, opts); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -77,6 +79,7 @@ func compileCmd(args []string) {
 func buildCmd(args []string) {
 	fs := flag.NewFlagSet("build", flag.ExitOnError)
 	out := fs.String("o", "", "output binary")
+	strict := fs.Bool("strict", false, "require type annotations on all defn params, struct fields, and def globals")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(1)
 	}
@@ -85,11 +88,12 @@ func buildCmd(args []string) {
 		os.Exit(1)
 	}
 	arg := fs.Arg(0)
+	opts := compiler.Options{Strict: *strict}
 	var buildErr error
 	if info, err := os.Stat(arg); err == nil && info.IsDir() {
-		buildErr = compiler.CompileDir(arg, *out)
+		buildErr = compiler.CompileDirWithOptions(arg, *out, opts)
 	} else {
-		buildErr = compiler.CompileAndBuild(arg, *out)
+		buildErr = compiler.CompileAndBuildWithOptions(arg, *out, opts)
 	}
 	if buildErr != nil {
 		fmt.Fprintln(os.Stderr, buildErr)
@@ -284,9 +288,9 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `glisp — Clojure-inspired language that transpiles to Go
 
 Usage:
-  glisp compile [-o output.go] <file.glsp>   transpile to Go source
-  glisp build   [-o binary]    <file.glsp>   transpile + go build
-  glisp build   [-o binary]    <dir/>        compile all .glsp in dir
+  glisp compile [-o output.go] [--strict] <file.glsp>   transpile to Go source
+  glisp build   [-o binary]    [--strict] <file.glsp>   transpile + go build
+  glisp build   [-o binary]    [--strict] <dir/>        compile all .glsp in dir
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
   glisp fmt     [--check]      <file.glsp>   format source in-place (- = stdin→stdout)

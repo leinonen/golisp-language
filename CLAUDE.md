@@ -66,6 +66,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 |---|---|
 | `defn` single return | `(defn grade [score int] -> string ...)` |
 | `defn` multi-return | `(defn f [x int] -> [string error] ...)` |
+| `defn` void (no return) | `(defn say [s string] -> void ...)` → `func say(s string)` |
 | `fn` | `(fn [x int] -> string body)` |
 | `defmethod` | `(defmethod *Circle Area [c] -> float64 body)` |
 | `defstruct` | `(defstruct Circle radius float64)` |
@@ -146,7 +147,7 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 | any multi-return Go fn (e.g. `os/create`) as the tail of a `func(...) any` closure | `(T, error)` can't coerce to `any` | `(do (os/create ...) nil)` — note: `fmt/println` and `fmt/print` are handled automatically |
 | `(defn f [] -> int (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `-> any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
 | passing `[]T` (concrete slice) to `reduce`/`map`/`filter` | `_glispToSlice` only handles `[]any`; concrete slices iterate as nil | in Go bridge code, convert: `result := make([]any, len(s)); for i,v := range s { result[i]=v }` |
-| `(defn f [] ...)` with no `-> RetType`, void-ish body | Go generates `func f()` (void); using it in return position fails | add explicit `-> any` if the fn is called in expression/return position |
+| `(defn f [] ...)` with no `-> RetType`, void-ish body | Go generates `func f()` (void); using it in return position fails | add `-> void` for true void functions; add `-> any` only if the fn is used in expression/return position |
 
 ## Formatter
 

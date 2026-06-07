@@ -24,7 +24,7 @@
 
 ; ── main ─────────────────────────────────────────────────────────────────────
 
-(defn main []
+(defn main [] -> void
   (let [counter       (make-counter)
         n-goroutines  5
         n-per         1000

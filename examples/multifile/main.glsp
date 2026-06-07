@@ -1,6 +1,6 @@
 (ns main)
 
-(defn main []
+(defn main [] -> void
   (fmt/println (greet "World"))
   (fmt/println (greet "glisp"))
   (let [nums (map (fn [n] (square (int n))) (range 1 6))]

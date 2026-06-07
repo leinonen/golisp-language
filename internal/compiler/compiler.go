@@ -13,9 +13,19 @@ import (
 	"golisp/internal/transpiler"
 )
 
+// Options configures compilation behavior.
+type Options struct {
+	Strict bool // require type annotations on defn params, struct fields, and def globals
+}
+
 // Compile reads a .glsp source file, transpiles it to Go, writes the output,
 // and optionally runs gofmt on it.
 func Compile(srcPath string, outPath string) error {
+	return CompileWithOptions(srcPath, outPath, Options{})
+}
+
+// CompileWithOptions is like Compile but accepts compilation options.
+func CompileWithOptions(srcPath string, outPath string, opts Options) error {
 	src, err := os.ReadFile(srcPath)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", srcPath, err)
@@ -26,7 +36,12 @@ func Compile(srcPath string, outPath string) error {
 		return fmt.Errorf("abs path %s: %w", srcPath, err)
 	}
 
-	goSrc, err := transpiler.TranspileFile(string(src), absSrcPath)
+	var goSrc string
+	if opts.Strict {
+		goSrc, err = transpiler.TranspileFileStrict(string(src), absSrcPath)
+	} else {
+		goSrc, err = transpiler.TranspileFile(string(src), absSrcPath)
+	}
 	if err != nil {
 		var pe *transpiler.ParseError
 		var te *transpiler.TranspileError
@@ -77,8 +92,13 @@ func CompileTest(srcPath string) error {
 
 // CompileAndBuild compiles a .glsp file to Go and then runs `go build`.
 func CompileAndBuild(srcPath string, outBin string) error {
+	return CompileAndBuildWithOptions(srcPath, outBin, Options{})
+}
+
+// CompileAndBuildWithOptions is like CompileAndBuild but accepts compilation options.
+func CompileAndBuildWithOptions(srcPath string, outBin string, opts Options) error {
 	goPath := strings.TrimSuffix(srcPath, filepath.Ext(srcPath)) + ".go"
-	if err := Compile(srcPath, goPath); err != nil {
+	if err := CompileWithOptions(srcPath, goPath, opts); err != nil {
 		return err
 	}
 
@@ -100,7 +120,7 @@ func CompileAndBuild(srcPath string, outBin string) error {
 // TranspileDir transpiles all .glsp files in srcDir to Go source without building.
 // Use this when compiling a dependency module that will be imported by another package.
 func TranspileDir(srcDir string) error {
-	return compileDir(srcDir, "", false)
+	return compileDir(srcDir, "", false, Options{})
 }
 
 // GetModule downloads, transpiles, and registers a glisp module in projectDir.
@@ -170,10 +190,15 @@ func ResolveDeps(projectDir string) error {
 // Each .glsp produces a .go file in the same directory; a shared glisp_runtime.go
 // is written with the union of runtime helpers needed across all files.
 func CompileDir(srcDir string, outBin string) error {
-	return compileDir(srcDir, outBin, true)
+	return CompileDirWithOptions(srcDir, outBin, Options{})
 }
 
-func compileDir(srcDir string, outBin string, build bool) error {
+// CompileDirWithOptions is like CompileDir but accepts compilation options.
+func CompileDirWithOptions(srcDir string, outBin string, opts Options) error {
+	return compileDir(srcDir, outBin, true, opts)
+}
+
+func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 	// Resolve glisp module dependencies before transpiling
 	if _, err := os.Stat(module.ModFilePath(srcDir)); err == nil {
 		if err := ResolveDeps(srcDir); err != nil {
@@ -206,7 +231,13 @@ func compileDir(srcDir string, outBin string, build bool) error {
 		}
 
 		absSrcPath, _ := filepath.Abs(srcPath)
-		goSrc, builtins, err := transpiler.TranspileNoRuntimeFile(string(src), absSrcPath)
+		var goSrc string
+		var builtins map[string]bool
+		if opts.Strict {
+			goSrc, builtins, err = transpiler.TranspileNoRuntimeFileStrict(string(src), absSrcPath)
+		} else {
+			goSrc, builtins, err = transpiler.TranspileNoRuntimeFile(string(src), absSrcPath)
+		}
 		if err != nil {
 			var pe *transpiler.ParseError
 			var te *transpiler.TranspileError

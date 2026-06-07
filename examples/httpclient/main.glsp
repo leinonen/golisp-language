@@ -23,7 +23,7 @@
       (fmt/println "POST failed:" (.Error err2))
       (decode-resp resp))))
 
-(defn main []
+(defn main [] -> void
   (fmt/println "=== GET /get ===")
   (when-let [body (fetch "https://httpbin.org/get")]
     (fmt/println "url:" (get body "url")))

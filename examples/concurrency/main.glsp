@@ -12,9 +12,9 @@
 ; ── shared log mutex ──────────────────────────────────────────────
 ; with-lock ensures log lines from concurrent goroutines don't interleave.
 
-(def log-mu (sync/Mutex. {}))
+(def log-mu sync/Mutex (sync/Mutex. {}))
 
-(defn log! [msg string]
+(defn log! [msg string] -> void
   (with-lock log-mu
     (fmt/println msg)))
 
@@ -46,7 +46,7 @@
 
 ; ── main ──────────────────────────────────────────────────────────
 
-(defn main []
+(defn main [] -> void
 
   ; 1. par — three independent startup steps, synchronized by WaitGroup.
   ;    All three run concurrently; main blocks until all finish.

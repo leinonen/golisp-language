@@ -50,6 +50,7 @@ Core functions available in every glisp program without any import.
 | `(conj coll x)` | coll | Append x to a slice, or add x to a set |
 | `(count coll)` | int | Number of elements (works for slices, maps, sets, strings) |
 | `(first coll)` | any | First element |
+| `(last coll)` | any | Last element; nil if empty |
 | `(rest coll)` | `[]any` | All elements after the first |
 | `(nth coll i)` | any | Element at index i |
 | `(contains? coll x)` | bool | True when coll contains x (map, slice, set, string) |

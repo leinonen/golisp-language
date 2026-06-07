@@ -1162,6 +1162,51 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 				return fmt.Errorf("deref requires 1 argument, got %d", len(n.Args))
 			}
 			return e.emitRuntimeCall("_glispAtomDeref", n.Args, 1)
+		// Context propagation
+		case "ctx/background":
+			e.needImport("context")
+			if len(n.Args) != 0 {
+				return fmt.Errorf("ctx/background: expected 0 arguments, got %d", len(n.Args))
+			}
+			e.write("context.Background()")
+			return nil
+		case "ctx/todo":
+			e.needImport("context")
+			if len(n.Args) != 0 {
+				return fmt.Errorf("ctx/todo: expected 0 arguments, got %d", len(n.Args))
+			}
+			e.write("context.TODO()")
+			return nil
+		case "ctx/with-cancel":
+			e.needImport("_ctx")
+			if len(n.Args) != 1 {
+				return fmt.Errorf("ctx/with-cancel: expected 1 argument, got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispCtxWithCancel", n.Args, 1)
+		case "ctx/with-timeout":
+			e.needImport("_ctx")
+			if len(n.Args) != 2 {
+				return fmt.Errorf("ctx/with-timeout: expected 2 arguments (ctx ms), got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispCtxWithTimeout", n.Args, 2)
+		case "ctx/cancel!":
+			e.needImport("_ctx")
+			if len(n.Args) != 1 {
+				return fmt.Errorf("ctx/cancel!: expected 1 argument, got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispCtxCancel", n.Args, 1)
+		case "ctx/value":
+			e.needImport("_ctx")
+			if len(n.Args) != 2 {
+				return fmt.Errorf("ctx/value: expected 2 arguments (ctx key), got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispCtxValue", n.Args, 2)
+		case "ctx/with-value":
+			e.needImport("_ctx")
+			if len(n.Args) != 3 {
+				return fmt.Errorf("ctx/with-value: expected 3 arguments (ctx key val), got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispCtxWithValue", n.Args, 3)
 		}
 	}
 

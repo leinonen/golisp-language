@@ -610,6 +610,15 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(ns main (:import [fmt]) (:require [github.com/user/lib])) (defn f [] (fmt/println (lib/greet "World")))`,
 			wantSub: `"fmt"`,
 		},
+		// context propagation
+		{name: "ctx-background", src: `(defn f [] (ctx/background))`, wantSub: "context.Background()"},
+		{name: "ctx-todo", src: `(defn f [] (ctx/todo))`, wantSub: "context.TODO()"},
+		{name: "ctx-with-cancel", src: `(defn f [] (ctx/with-cancel (ctx/background)))`, wantSub: "_glispCtxWithCancel("},
+		{name: "ctx-with-timeout", src: `(defn f [] (ctx/with-timeout (ctx/background) 5000))`, wantSub: "_glispCtxWithTimeout("},
+		{name: "ctx-cancel", src: `(defn f [cancel] (ctx/cancel! cancel))`, wantSub: "_glispCtxCancel("},
+		{name: "ctx-value", src: `(defn f [ctx] (ctx/value ctx "key"))`, wantSub: "_glispCtxValue("},
+		{name: "ctx-with-value", src: `(defn f [ctx] (ctx/with-value ctx "key" "val"))`, wantSub: "_glispCtxWithValue("},
+
 		{
 			name:    "anon fn single arg",
 			src:     `(def f #(+ % 1))`,

@@ -248,6 +248,10 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["_atom"] {
 			e.needImport("sync")
 		}
+		if e.builtinImports["_ctx"] {
+			e.needImport("context")
+			e.needImport("time")
+		}
 	}
 	if err := e.emitImports(); err != nil {
 		return err
@@ -288,6 +292,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 		if e.builtinImports["_atom"] {
 			e.write(glispAtomRuntime)
+		}
+		if e.builtinImports["_ctx"] {
+			e.write(glispCtxRuntime)
 		}
 	}
 	return nil

@@ -75,8 +75,10 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `"regexp"` | `glispReRuntime` | `regexp`, `fmt` (runtime-only; not in user-file imports) |
 | `"_set"` | `glispSetRuntime` | none (pseudo-key) |
 | `"data"` | `glispDataRuntime` | `fmt` |
+| `"_atom"` | `glispAtomRuntime` | `sync` (pseudo-key) |
+| `"_ctx"` | `glispCtxRuntime` | `context`, `time` (pseudo-key) |
 
-Pseudo-keys (`"_file"`, `"_set"`) are never added as real Go imports — they only gate which runtime block is emitted. `"regexp"` is in `runtimeOnlyPkgs` so it appears only in the shared `glisp_runtime.go` in multi-file mode, not in individual user files. For multi-file builds (`glisp build dir/`), helpers are instead written once to `glisp_runtime.go` in the same directory via `transpiler.RuntimeSource`; individual files use `TranspileNoRuntime` which sets `emitRuntime=false`.
+Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real Go imports — they only gate which runtime block is emitted. `"regexp"` is in `runtimeOnlyPkgs` so it appears only in the shared `glisp_runtime.go` in multi-file mode, not in individual user files. For multi-file builds (`glisp build dir/`), helpers are instead written once to `glisp_runtime.go` in the same directory via `transpiler.RuntimeSource`; individual files use `TranspileNoRuntime` which sets `emitRuntime=false`.
 
 **`json/encode` / `json/decode`**: built-in forms (no AST node needed — dispatched by symbol name in `emitCallExpr`). Both return multi-value `(value, error)` and are designed for use with `if-err`. `json/decode` returns `any` so it handles both JSON objects and arrays.
 
@@ -89,6 +91,8 @@ Pseudo-keys (`"_file"`, `"_set"`) are never added as real Go imports — they on
 **Regex built-ins**: `re/match`, `re/find`, `re/find-all`, `re/replace`, `re/split` — dispatched by symbol name, calling `e.needImport("regexp")`. `"regexp"` is in `runtimeOnlyPkgs` so it only appears in `glisp_runtime.go` in multi-file mode. All helpers use `regexp.MustCompile` — invalid patterns panic at runtime. `re/find` returns `any` (nil on no match). Go uses RE2 syntax — no lookaheads/lookbehinds.
 
 **Error wrapping**: `wrap-error` emits `fmt.Errorf("%s: %w", msg, err)` inline — needs `"fmt"` import. `errors/is?` emits `errors.Is(err, target)` via `emitRuntimeCall("errors.Is", ...)` — `"errors"` is already in the tracked import list.
+
+**Context built-ins**: `ctx/background` and `ctx/todo` emit inline (`context.Background()` / `context.TODO()`) and call `e.needImport("context")` for the real import. `ctx/with-cancel`, `ctx/with-timeout`, `ctx/cancel!`, `ctx/value`, `ctx/with-value` call `e.needImport("_ctx")` — a pseudo-key that gates `glispCtxRuntime` and auto-imports `context` + `time`. Multi-return forms (`ctx/with-cancel`, `ctx/with-timeout`) return `[]any{ctx, cancel}` for use with vector destructuring. `ctx/cancel!` type-asserts to `context.CancelFunc` internally so callers don't need to; it returns `any` (nil) so it works in both statement and expression position. No import declaration ever needed in glisp source.
 
 **web API**: all web functionality lives in `web/web.go` as plain Go — no special transpiler forms. `Request` and `Response` are type aliases for `map[string]any` (use `^web/Request` / `^web/Response` in glisp annotations). `Handler` is `func(Request) Response`. Middleware signature is `func(Handler) Handler`. `wrap(h Handler, mws ...Middleware)` applies middlewares outermost-first. `wrap-json` stores parsed body in `req["json-body"]`; `wrap-auth` stores the Bearer token in `req["identity"]`. `serve-files` bridges Ring ↔ `http.FileServer` via `httptest.ResponseRecorder`. `serve-graceful` traps SIGINT/SIGTERM and shuts down with a 5 s context deadline. HTTP route helpers: `(web/get path handler)`, `(web/post path handler)`, etc.
 

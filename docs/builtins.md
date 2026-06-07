@@ -331,6 +331,41 @@ RE2-syntax regular expressions via Go's `regexp` package. No import required. Pa
 
 **RE2 note**: Go uses RE2 syntax — no lookaheads, lookbehinds, or backreferences. Use `regexp.Compile` via Go interop if you need error-checked compilation at startup.
 
+## Context
+
+Pass `context.Context` to Go APIs that support cancellation and deadlines. No import declaration needed.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(ctx/background)` | context | `context.Background()` — root context, never cancelled |
+| `(ctx/todo)` | context | `context.TODO()` — placeholder when context is unclear |
+| `(ctx/with-cancel ctx)` | `[]any{ctx, cancel}` | Derive a cancellable child context |
+| `(ctx/with-timeout ctx ms)` | `[]any{ctx, cancel}` | Derive a child context that cancels after `ms` milliseconds |
+| `(ctx/cancel! cancel)` | nil | Call the cancel function returned by `with-cancel` / `with-timeout` |
+| `(ctx/value ctx key)` | any | Read a value stored in the context |
+| `(ctx/with-value ctx key val)` | context | Derive a child context with an added key-value pair |
+
+```clojure
+; Timeout example — always call cancel! to release resources
+(defn ^any fetch-with-deadline [^string url]
+  (let [[ctx cancel] (ctx/with-timeout (ctx/background) 3000)]
+    (defer (ctx/cancel! cancel))
+    (http/get url)))
+
+; Cancellation — cancel from another goroutine
+(defn ^any run-with-cancel []
+  (let [[ctx cancel] (ctx/with-cancel (ctx/background))]
+    (go (do (fmt/println "working...") (ctx/cancel! cancel)))
+    ctx))
+
+; Context values — propagate request-scoped data
+(defn ^any with-user [^any ctx ^string user]
+  (ctx/with-value ctx "user" user))
+
+(defn ^any get-user [^any ctx]
+  (ctx/value ctx "user"))
+```
+
 ## Errors and types
 
 | Form | Returns | Description |

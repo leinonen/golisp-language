@@ -50,9 +50,14 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	if builtins["_atom"] {
 		addImport("sync")
 	}
+	if builtins["_ctx"] {
+		addImport("context")
+		addImport("time")
+	}
 	// "_set" is a pseudo-package marker for set algebra helpers (no real import needed)
 	// "_file" is a pseudo-package marker for file I/O helpers (real imports: os, fmt)
 	// "_atom" is a pseudo-package marker for atom helpers (real import: sync)
+	// "_ctx" is a pseudo-package marker for context helpers (real imports: context, time)
 	// "regexp" gates regex helpers (real imports: regexp, fmt)
 
 	s := fmt.Sprintf("package %s\n", pkgName)
@@ -93,6 +98,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["_atom"] {
 		s += glispAtomRuntime
+	}
+	if builtins["_ctx"] {
+		s += glispCtxRuntime
 	}
 	return s
 }
@@ -1448,5 +1456,37 @@ func _glispAtomDeref(a any) any {
 	atom.mu.Lock()
 	defer atom.mu.Unlock()
 	return atom.val
+}
+`
+
+const glispCtxRuntime = `
+func _glispCtxWithCancel(parent any) []any {
+	ctx, cancel := context.WithCancel(parent.(context.Context))
+	return []any{ctx, cancel}
+}
+
+func _glispCtxWithTimeout(parent any, ms any) []any {
+	var dur time.Duration
+	switch v := ms.(type) {
+	case int64:
+		dur = time.Duration(v) * time.Millisecond
+	case int:
+		dur = time.Duration(v) * time.Millisecond
+	}
+	ctx, cancel := context.WithTimeout(parent.(context.Context), dur)
+	return []any{ctx, cancel}
+}
+
+func _glispCtxCancel(cancel any) any {
+	cancel.(context.CancelFunc)()
+	return nil
+}
+
+func _glispCtxValue(ctx any, key any) any {
+	return ctx.(context.Context).Value(key)
+}
+
+func _glispCtxWithValue(ctx any, key any, val any) any {
+	return context.WithValue(ctx.(context.Context), key, val)
 }
 `

@@ -302,10 +302,14 @@ Building blocks that close the gap between a toy language and one you'd stake pr
 ### 10f. with-open
 - [ ] `(with-open [f (os/Open path)] body...)` — wraps body in `defer f.Close()`; safe resource cleanup for files, HTTP responses, and anything with a `Close()` method
 
-### 10g. Context propagation
-- [ ] `(ctx/background)` — `context.Background()`
-- [ ] `(ctx/with-timeout ctx ms)` → `[ctx cancel error]` — `context.WithTimeout`
-- [ ] `(ctx/cancel! cancel-fn)` — call the cancel function returned by `with-timeout`
+### 10g. Context propagation ✓
+- [x] `(ctx/background)` — `context.Background()`
+- [x] `(ctx/todo)` — `context.TODO()`
+- [x] `(ctx/with-cancel ctx)` → `[]any{ctx, cancel}` — `context.WithCancel`
+- [x] `(ctx/with-timeout ctx ms)` → `[]any{ctx, cancel}` — `context.WithTimeout`; ms is milliseconds
+- [x] `(ctx/cancel! cancel)` — call the cancel function; type-asserts to `context.CancelFunc`
+- [x] `(ctx/value ctx key)` — `ctx.Value(key)` — read a value from context
+- [x] `(ctx/with-value ctx key val)` — `context.WithValue` — add key-value to context
 
 ---
 

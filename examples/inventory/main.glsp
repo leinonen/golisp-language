@@ -17,7 +17,8 @@
   price float64
   stock int)
 
-;;; Builds a Product; the {...} in return position becomes a Product{...} struct.
+;;; Builds a Product from raw values. The {...} in return position becomes a
+;;; Product{...} struct literal because the declared return type is Product.
 (defn product [name string category string price float64 stock int] -> Product
   {:name     name
    :category category

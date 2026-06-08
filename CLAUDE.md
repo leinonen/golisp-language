@@ -159,7 +159,7 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 
 ## Formatter
 
-`glisp fmt` pretty-prints `.glsp` source from the parsed AST. **Leading `;` and `;;` comments are preserved** (attached to the form they precede; blank lines between the comment and the form are normalized away). Trailing inline comments (after code on the same line) are not preserved. `;;;` docstrings are preserved via `DefnDecl.Doc`. Algorithm: try inline rendering first; use it if `indent*2 + len <= 80`, else multi-line. Map literals with >1 pair are always multi-line with value-column alignment. `defn`/`defstruct`/`definterface`/`defmethod`/`deftest`/`cond` are always multi-line.
+`glisp fmt` pretty-prints `.glsp` source from the parsed AST. **Leading `;` and `;;` comments are preserved** (attached to the form they precede; blank lines between the comment and the form are normalized away). Trailing inline comments (after code on the same line) are not preserved. `;;;` docstrings are preserved via `DefnDecl.Doc`/`MethodDecl.Doc`; consecutive `;;;` lines accumulate into one multi-line docstring (`Doc` holds the lines `\n`-joined; the parser appends in `parseAll`, the formatter re-emits one `;;;` line per line via `formatDoc`). Algorithm: try inline rendering first; use it if `indent*2 + len <= 80`, else multi-line. Map literals with >1 pair are always multi-line with value-column alignment. `defn`/`defstruct`/`definterface`/`defmethod`/`deftest`/`cond` are always multi-line.
 
 ```
 glisp fmt file.glsp          # format in-place

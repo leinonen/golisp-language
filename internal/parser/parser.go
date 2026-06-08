@@ -281,7 +281,13 @@ func (p *parser) parseAll() ([]ast.Node, error) {
 	var nodes []ast.Node
 	for p.peekType() != lexer.TokenEOF {
 		if p.peekType() == lexer.TokenDocComment {
-			p.pendingDoc = p.advance().Text
+			line := p.advance().Text
+			if p.pendingDoc == "" {
+				p.pendingDoc = line
+			} else {
+				// Consecutive ;;; lines accumulate into a multi-line docstring.
+				p.pendingDoc += "\n" + line
+			}
 			continue
 		}
 		if p.peekType() == lexer.TokenComment {

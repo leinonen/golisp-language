@@ -313,11 +313,11 @@ func TestDocComment(t *testing.T) {
 		}
 	})
 
-	t.Run("last of multiple comments wins", func(t *testing.T) {
+	t.Run("consecutive comments accumulate into a multi-line docstring", func(t *testing.T) {
 		nodes := mustParse(t, ";;; First.\n;;; Second.\n(defn f [] nil)")
 		fn := nodes[0].(*ast.DefnDecl)
-		if fn.Doc != "Second." {
-			t.Errorf("Doc: got %q, want %q", fn.Doc, "Second.")
+		if fn.Doc != "First.\nSecond." {
+			t.Errorf("Doc: got %q, want %q", fn.Doc, "First.\nSecond.")
 		}
 	})
 

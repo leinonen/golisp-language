@@ -790,11 +790,22 @@ func formatDef(v *ast.DefDecl, indent int) string {
 	return sb.String()
 }
 
+// formatDoc renders a (possibly multi-line) ;;; docstring, one ;;; line per
+// line of doc, at the given indent. Returns "" for an empty docstring.
+func formatDoc(doc string, indent int) string {
+	if doc == "" {
+		return ""
+	}
+	var sb strings.Builder
+	for _, line := range strings.Split(doc, "\n") {
+		sb.WriteString(ind(indent) + ";;; " + line + "\n")
+	}
+	return sb.String()
+}
+
 func formatDefn(v *ast.DefnDecl, indent int) string {
 	var sb strings.Builder
-	if v.Doc != "" {
-		sb.WriteString(ind(indent) + ";;; " + v.Doc + "\n")
-	}
+	sb.WriteString(formatDoc(v.Doc, indent))
 	sb.WriteString(ind(indent) + "(defn " + v.Name + " " + inlineParams(v.Params))
 	if v.ReturnType != nil {
 		sb.WriteString(" -> " + v.ReturnType.Text)
@@ -871,9 +882,7 @@ func formatInterface(v *ast.InterfaceDecl, indent int) string {
 
 func formatMethod(v *ast.MethodDecl, indent int) string {
 	var sb strings.Builder
-	if v.Doc != "" {
-		sb.WriteString(ind(indent) + ";;; " + v.Doc + "\n")
-	}
+	sb.WriteString(formatDoc(v.Doc, indent))
 	sb.WriteString(ind(indent) + "(defmethod " + v.ReceiverType.Text + " " + v.Name)
 	allParams := append([]ast.Param{{Name: v.ReceiverName}}, v.Params...)
 	sb.WriteString(" " + inlineParams(allParams))

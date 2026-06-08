@@ -125,7 +125,9 @@ func (s *Server) handleHover(req *Request) *Response {
 	}
 	value := "```clojure\n" + result.Sig + "\n```"
 	if result.Doc != "" {
-		value += "\n\n" + result.Doc
+		// Multi-line docstrings join their lines with "\n"; in Markdown a bare
+		// newline collapses, so emit hard line breaks to keep each line.
+		value += "\n\n" + strings.ReplaceAll(result.Doc, "\n", "  \n")
 	}
 	return s.ok(req, Hover{
 		Contents: MarkupContent{Kind: "markdown", Value: value},

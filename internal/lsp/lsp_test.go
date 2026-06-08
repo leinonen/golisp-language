@@ -150,6 +150,17 @@ func TestHover_defnDocString(t *testing.T) {
 	}
 }
 
+func TestHover_defnMultiLineDocString(t *testing.T) {
+	src := ";;; First line.\n;;; Second line.\n(defn greet [name] (str \"Hi \" name))"
+	result := FindHover(src, 2, 6)
+	if result == nil {
+		t.Fatal("expected hover for 'greet'")
+	}
+	if result.Doc != "First line.\nSecond line." {
+		t.Errorf("unexpected doc: %q", result.Doc)
+	}
+}
+
 func TestHover_defnLoneStringNotDoc(t *testing.T) {
 	// A defn whose sole body form is a string — should NOT be treated as a doc string.
 	src := `(defn greeting [] "Hello, World!")`

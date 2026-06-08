@@ -33,6 +33,9 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/lsp/hover.go` | Hover provider + `buildSymbolTable`, `symbolAtPosition` helpers |
 | `internal/lsp/definition.go` | Jump-to-definition provider |
 | `internal/lsp/completion.go` | Completion provider + `prefixAtPosition` |
+| `internal/lsp/references.go` | Find-references + shared `findOccurrences` (whole-symbol, skips comment lines; used by rename too) |
+| `internal/lsp/rename.go` | Rename provider (`FindRenameEdits`), built on `findOccurrences` |
+| `internal/lsp/symbols.go` | Document outline (`DocumentSymbols`) for `textDocument/documentSymbol` |
 | `internal/lsp/diagnostics.go` | Parse error → LSP diagnostic push |
 | `internal/lsp/builtins.go` | Doc map for built-in hover + completion detail (includes `web/Request`, `web/Response`, `web/Handler` type entries) |
 

@@ -9,6 +9,15 @@ const (
 	SeverityHint    = 4
 
 	TextDocumentSyncFull = 1
+
+	// LSP SymbolKind values used by documentSymbol.
+	SymbolModule    = 2
+	SymbolClass     = 5
+	SymbolMethod    = 6
+	SymbolInterface = 11
+	SymbolFunction  = 12
+	SymbolVariable  = 13
+	SymbolStruct    = 23
 )
 
 // LSP position — 0-based line and UTF-16 character offset.
@@ -82,6 +91,8 @@ type ServerCapabilities struct {
 	TextDocumentSync           int                `json:"textDocumentSync"`
 	HoverProvider              bool               `json:"hoverProvider"`
 	DefinitionProvider         bool               `json:"definitionProvider,omitempty"`
+	ReferencesProvider         bool               `json:"referencesProvider,omitempty"`
+	DocumentSymbolProvider     bool               `json:"documentSymbolProvider,omitempty"`
 	CompletionProvider         *CompletionOptions `json:"completionProvider,omitempty"`
 	DocumentFormattingProvider bool               `json:"documentFormattingProvider,omitempty"`
 	RenameProvider             bool               `json:"renameProvider,omitempty"`
@@ -174,6 +185,35 @@ type HoverParams struct {
 type PublishDiagnosticsParams struct {
 	URI         string       `json:"uri"`
 	Diagnostics []Diagnostic `json:"diagnostics"`
+}
+
+// References
+
+type ReferenceContext struct {
+	IncludeDeclaration bool `json:"includeDeclaration"`
+}
+
+type ReferenceParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Position     Position               `json:"position"`
+	Context      ReferenceContext       `json:"context"`
+}
+
+// Document symbols (outline)
+
+type DocumentSymbolParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+}
+
+// DocumentSymbol is the hierarchical outline entry. Children is always emitted
+// (never omitempty) because some clients reject a missing children field.
+type DocumentSymbol struct {
+	Name           string           `json:"name"`
+	Detail         string           `json:"detail,omitempty"`
+	Kind           int              `json:"kind"`
+	Range          Range            `json:"range"`
+	SelectionRange Range            `json:"selectionRange"`
+	Children       []DocumentSymbol `json:"children"`
 }
 
 // Rename

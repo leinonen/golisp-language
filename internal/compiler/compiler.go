@@ -2,8 +2,10 @@
 package compiler
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,9 +112,10 @@ func CompileAndBuildWithOptions(srcPath string, outBin string, opts Options) err
 
 	cmd := exec.Command("go", args...)
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	var stderr bytes.Buffer
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("go build: %w", err)
+		return buildError(stderr.String())
 	}
 	return nil
 }
@@ -211,13 +214,14 @@ func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 		return fmt.Errorf("glob %s: %w", srcDir, err)
 	}
 	if len(globs) == 0 {
-		return fmt.Errorf("no .glsp files found in %s", srcDir)
+		return fmt.Errorf("no .glsp files found in %s\n  a directory build compiles every .glsp file in the directory — check the path, or pass a single file instead", srcDir)
 	}
 
 	type fileResult struct {
-		goPath  string
-		goSrc   string
-		pkgName string
+		srcPath  string
+		goPath   string
+		goSrc    string
+		pkgName  string
 		builtins map[string]bool
 	}
 
@@ -258,17 +262,26 @@ func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 		}
 
 		goPath := strings.TrimSuffix(srcPath, filepath.Ext(srcPath)) + ".go"
-		results = append(results, fileResult{goPath: goPath, goSrc: goSrc, pkgName: pkgName, builtins: builtins})
+		results = append(results, fileResult{srcPath: srcPath, goPath: goPath, goSrc: goSrc, pkgName: pkgName, builtins: builtins})
 		for k := range builtins {
 			mergedBuiltins[k] = true
 		}
 	}
 
-	// All files must share the same package name
+	// All files must share the same package name (i.e. the same ns). Name the
+	// offending files so the conflict is actionable.
 	pkgName := results[0].pkgName
 	for _, r := range results[1:] {
 		if r.pkgName != pkgName {
-			return fmt.Errorf("mixed package names in %s: %q and %q (all files must share the same ns)", srcDir, pkgName, r.pkgName)
+			return fmt.Errorf(
+				"conflicting ns declarations in %s — all .glsp files in a directory must share the same ns:\n"+
+					"  %s declares package %q\n"+
+					"  %s declares package %q\n"+
+					"  fix: give every file the same (ns <name>) at the top (a file with no ns defaults to %q)",
+				srcDir,
+				filepath.Base(results[0].srcPath), pkgName,
+				filepath.Base(r.srcPath), r.pkgName,
+				"main")
 		}
 	}
 
@@ -313,9 +326,31 @@ func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 
 	cmd := exec.Command("go", args...)
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Stream the compiler output as usual, but keep a copy so we can add a
+	// short, friendly note explaining how the reported locations map back.
+	var stderr bytes.Buffer
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("go build: %w", err)
+		return buildError(stderr.String())
 	}
 	return nil
+}
+
+// buildError frames a failed `go build` of transpiled glisp code. The emitter
+// embeds //line directives, so the Go compiler already reports .glsp locations
+// for user code; this just tells the user that, and flags the rarer case where
+// an error lands in glisp-generated runtime code.
+func buildError(output string) error {
+	switch {
+	case strings.Contains(output, "go.mod file not found"):
+		return errors.New("build failed: no go.mod found — glisp builds with the Go toolchain, which needs a module.\n" +
+			"  fix: run `glisp mod init <module-path>` in this directory (or a parent), then build again")
+	case strings.Contains(output, "replacement directory") && strings.Contains(output, "does not exist"):
+		return errors.New("build failed: a required glisp module dependency is not downloaded.\n" +
+			"  fix: run `glisp get <module>[@version]` (or check the require list in glisp.mod), then build again")
+	case strings.Contains(output, "glisp_runtime.go"):
+		return errors.New("build failed: an error references glisp_runtime.go, which is glisp-generated runtime code — this is likely a glisp bug; please report it")
+	default:
+		return errors.New("build failed: the generated Go did not compile (file:line locations above point into your .glsp source)")
+	}
 }

@@ -139,7 +139,10 @@ internal/lsp/
 - [x] `textDocument/rename` — rename all occurrences in the current document
 
 ### 5g. Find references
-- [ ] `textDocument/references` — list all call sites of a symbol
+- [x] `textDocument/references` — list all references to a symbol, project-wide (current doc, other open docs, and sibling `.glsp` files on disk); skips full-comment lines
+
+### 5i. Document outline
+- [x] `textDocument/documentSymbol` — outline of top-level `ns`/`def`/`defn`/`defstruct`/`definterface`/`defmethod`/`deftype`/`deftest`; selection range targets the name
 
 ### 5h. Code actions
 - [ ] `textDocument/codeAction` — quick-fixes (e.g. add missing type annotation)

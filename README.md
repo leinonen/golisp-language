@@ -197,7 +197,7 @@ special forms) plus glisp-specific rules (positional type names, `defstruct`, `i
 
 ## LSP (Neovim 0.12+)
 
-`glisp-lsp` is a Language Server that provides diagnostics (parse errors highlighted inline), hover (show `defn`/`def` signatures and web package type definitions like `web/Request`), jump-to-definition, and completions.
+`glisp-lsp` is a Language Server that provides diagnostics (parse errors highlighted inline), hover (show `defn`/`def` signatures and web package type definitions like `web/Request`), jump-to-definition, find-references (project-wide, across open and sibling `.glsp` files), a document outline (`documentSymbol`), rename, formatting, and completions.
 
 ### Install
 
@@ -223,7 +223,7 @@ vim.lsp.config["glisp"] = {
 vim.lsp.enable("glisp")
 ```
 
-Diagnostics appear automatically as you edit. Hover with `K` (default Neovim mapping) over any `defn` or `def` name to see its signature. Jump to definition with `gd`. Completions trigger automatically as you type.
+Diagnostics appear automatically as you edit. Hover with `K` (default Neovim mapping) over any `defn` or `def` name to see its signature. Jump to definition with `gd`, list all references with `grr`, and open the document outline with `gO` (Neovim 0.11+ defaults). Completions trigger automatically as you type.
 
 ## Transpiler architecture
 

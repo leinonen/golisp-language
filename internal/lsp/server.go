@@ -43,6 +43,10 @@ func (s *Server) Handle(req *Request) (*Response, []*Notification) {
 		return s.handleHover(req), nil
 	case "textDocument/definition":
 		return s.handleDefinition(req), nil
+	case "textDocument/references":
+		return s.handleReferences(req), nil
+	case "textDocument/documentSymbol":
+		return s.handleDocumentSymbol(req), nil
 	case "textDocument/completion":
 		return s.handleCompletion(req), nil
 	case "textDocument/formatting":
@@ -63,6 +67,8 @@ func (s *Server) handleInitialize(req *Request) *Response {
 			TextDocumentSync:           TextDocumentSyncFull,
 			HoverProvider:              true,
 			DefinitionProvider:         true,
+			ReferencesProvider:         true,
+			DocumentSymbolProvider:     true,
 			CompletionProvider:         &CompletionOptions{},
 			DocumentFormattingProvider: true,
 			RenameProvider:             true,
@@ -185,6 +191,89 @@ func (s *Server) searchSiblingFiles(currentURI, name string) *Location {
 		}
 	}
 	return nil
+}
+
+func (s *Server) handleReferences(req *Request) *Response {
+	var p ReferenceParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.invalidParams(req, err.Error())
+	}
+	source, ok := s.docs[p.TextDocument.URI]
+	if !ok {
+		return s.ok(req, []Location{})
+	}
+	name := symbolAtPosition(source, p.Position.Line, p.Position.Character)
+	if name == "" {
+		return s.ok(req, []Location{})
+	}
+
+	var locs []Location
+	for _, r := range findOccurrences(source, name) {
+		locs = append(locs, Location{URI: p.TextDocument.URI, Range: r})
+	}
+	// Extend the search across the rest of the project so references are
+	// project-wide, not just current-file: other open docs, then sibling files
+	// on disk that aren't open.
+	searched := map[string]bool{p.TextDocument.URI: true}
+	for uri, src := range s.docs {
+		if searched[uri] {
+			continue
+		}
+		searched[uri] = true
+		for _, r := range findOccurrences(src, name) {
+			locs = append(locs, Location{URI: uri, Range: r})
+		}
+	}
+	s.appendSiblingReferences(p.TextDocument.URI, name, searched, &locs)
+
+	if locs == nil {
+		locs = []Location{}
+	}
+	return s.ok(req, locs)
+}
+
+// appendSiblingReferences scans .glsp files in the same directory that aren't
+// already searched and appends every reference to name found in them.
+func (s *Server) appendSiblingReferences(currentURI, name string, searched map[string]bool, locs *[]Location) {
+	path := strings.TrimPrefix(currentURI, "file://")
+	dir := filepath.Dir(path)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".glsp") {
+			continue
+		}
+		fileURI := "file://" + filepath.Join(dir, e.Name())
+		if searched[fileURI] {
+			continue
+		}
+		searched[fileURI] = true
+		src, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		for _, r := range findOccurrences(string(src), name) {
+			*locs = append(*locs, Location{URI: fileURI, Range: r})
+		}
+	}
+}
+
+func (s *Server) handleDocumentSymbol(req *Request) *Response {
+	var p DocumentSymbolParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return s.invalidParams(req, err.Error())
+	}
+	source, ok := s.docs[p.TextDocument.URI]
+	if !ok {
+		return s.ok(req, []DocumentSymbol{})
+	}
+	syms := DocumentSymbols(source)
+	if syms == nil {
+		syms = []DocumentSymbol{}
+	}
+	return s.ok(req, syms)
 }
 
 func (s *Server) handleCompletion(req *Request) *Response {

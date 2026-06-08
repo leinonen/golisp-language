@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -636,11 +637,11 @@ func TestSymbolAtPosition(t *testing.T) {
 		{"(defn foo [])", 0, 6, "foo"},
 		{"(defn foo [])", 0, 7, "foo"},
 		{"(defn foo [])", 0, 8, "foo"},
-		{"(defn foo [])", 0, 0, ""},   // '('
-		{"(defn foo [])", 0, 5, ""},   // ' '
-		{"(defn foo [])", 0, 9, ""},   // ' '
+		{"(defn foo [])", 0, 0, ""}, // '('
+		{"(defn foo [])", 0, 5, ""}, // ' '
+		{"(defn foo [])", 0, 9, ""}, // ' '
 		{"hello world", 0, 6, "world"},
-		{"hello world", 1, 0, ""},     // line out of range
+		{"hello world", 1, 0, ""}, // line out of range
 	}
 	for _, c := range cases {
 		got := symbolAtPosition(c.src, c.line, c.col)
@@ -652,31 +653,176 @@ func TestSymbolAtPosition(t *testing.T) {
 }
 
 func TestDiagnostics_transpileErrorLine(t *testing.T) {
-    // panic on line 4 (1-based) → LSP line 3 (0-based)
-    src := "(ns main)\n\n(defn bad []\n  (panic 1 2 3))"
-    diags := Diagnostics(src, "/fake/file.glsp")
-    if len(diags) == 0 {
-        t.Fatal("expected diagnostic")
-    }
-    t.Logf("diag: line=%d char=%d msg=%q", diags[0].Range.Start.Line, diags[0].Range.Start.Character, diags[0].Message)
-    if diags[0].Range.Start.Line != 3 {
-        t.Errorf("want LSP line 3 (source line 4), got %d", diags[0].Range.Start.Line)
-    }
+	// panic on line 4 (1-based) → LSP line 3 (0-based)
+	src := "(ns main)\n\n(defn bad []\n  (panic 1 2 3))"
+	diags := Diagnostics(src, "/fake/file.glsp")
+	if len(diags) == 0 {
+		t.Fatal("expected diagnostic")
+	}
+	t.Logf("diag: line=%d char=%d msg=%q", diags[0].Range.Start.Line, diags[0].Range.Start.Character, diags[0].Message)
+	if diags[0].Range.Start.Line != 3 {
+		t.Errorf("want LSP line 3 (source line 4), got %d", diags[0].Range.Start.Line)
+	}
 }
 
 func TestDiagnostics_transpileError_exactMsg(t *testing.T) {
-    // Check the exact error message and position for a known transpile error
-    // "panic" on line 5 col 3 of a file with specific indentation
-    src := "(ns main)\n\n(defn bad []\n  ; comment\n  (panic 1 2))"
-    // line 5 = "  (panic 1 2))"
-    diags := Diagnostics(src, "/tmp/myfile.glsp")
-    if len(diags) == 0 {
-        t.Fatal("expected diagnostic")
-    }
-    d := diags[0]
-    t.Logf("line=%d (expect 4), char=%d, msg=%q", d.Range.Start.Line, d.Range.Start.Character, d.Message)
-    // (panic ...) is on source line 5 (1-based) → LSP line 4 (0-based)
-    if d.Range.Start.Line != 4 {
-        t.Errorf("want LSP line 4 (source line 5), got %d", d.Range.Start.Line)
-    }
+	// Check the exact error message and position for a known transpile error
+	// "panic" on line 5 col 3 of a file with specific indentation
+	src := "(ns main)\n\n(defn bad []\n  ; comment\n  (panic 1 2))"
+	// line 5 = "  (panic 1 2))"
+	diags := Diagnostics(src, "/tmp/myfile.glsp")
+	if len(diags) == 0 {
+		t.Fatal("expected diagnostic")
+	}
+	d := diags[0]
+	t.Logf("line=%d (expect 4), char=%d, msg=%q", d.Range.Start.Line, d.Range.Start.Character, d.Message)
+	// (panic ...) is on source line 5 (1-based) → LSP line 4 (0-based)
+	if d.Range.Start.Line != 4 {
+		t.Errorf("want LSP line 4 (source line 5), got %d", d.Range.Start.Line)
+	}
+}
+
+// ── References ────────────────────────────────────────────────────────────────
+
+func TestReferences_basic(t *testing.T) {
+	src := "(defn add [a b] (+ a b))\n(add 1 2)\n(add 3 4)"
+	// cursor on "add" in the defn (line 0, col 6)
+	refs := FindReferences(src, 0, 6)
+	if len(refs) != 3 {
+		t.Fatalf("expected 3 references (decl + 2 calls), got %d: %+v", len(refs), refs)
+	}
+	if refs[0].Start.Line != 0 || refs[0].Start.Character != 6 {
+		t.Errorf("ref[0] start: want {0,6}, got {%d,%d}", refs[0].Start.Line, refs[0].Start.Character)
+	}
+	if refs[1].Start.Line != 1 || refs[2].Start.Line != 2 {
+		t.Errorf("call refs on wrong lines: %d, %d", refs[1].Start.Line, refs[2].Start.Line)
+	}
+}
+
+func TestReferences_skipsCommentLines(t *testing.T) {
+	src := "(defn add [a b] (+ a b))\n; add is great\n(add 1 2)"
+	refs := FindReferences(src, 0, 6)
+	if len(refs) != 2 {
+		t.Fatalf("expected 2 references (comment line skipped), got %d: %+v", len(refs), refs)
+	}
+	for _, r := range refs {
+		if r.Start.Line == 1 {
+			t.Errorf("reference found on comment line 1: %+v", r)
+		}
+	}
+}
+
+func TestReferences_noPartialMatch(t *testing.T) {
+	src := "(defn add [] nil)\n(addTwo)\n(add)"
+	refs := FindReferences(src, 0, 6)
+	if len(refs) != 2 {
+		t.Fatalf("expected 2 references (add, not addTwo), got %d", len(refs))
+	}
+}
+
+func TestReferences_noSymbol(t *testing.T) {
+	src := "(defn foo [] nil)"
+	if refs := FindReferences(src, 0, 0); refs != nil {
+		t.Errorf("expected nil for non-symbol position, got %+v", refs)
+	}
+}
+
+func TestReferences_crossFileOpenDocs(t *testing.T) {
+	fileA := "file:///project/a.glsp"
+	fileB := "file:///project/b.glsp"
+	s := NewServer()
+	s.docs[fileA] = "(ns main)\n(defn helper [x] x)"
+	s.docs[fileB] = "(ns main)\n(helper 1)\n(helper 2)"
+
+	params, _ := json.Marshal(ReferenceParams{
+		TextDocument: TextDocumentIdentifier{URI: fileA},
+		Position:     Position{Line: 1, Character: 6}, // "helper" in the defn
+	})
+	resp := s.handleReferences(&Request{Params: params})
+	locs, ok := resp.Result.([]Location)
+	if !ok {
+		t.Fatalf("result is %T, want []Location", resp.Result)
+	}
+	// 1 decl in A + 2 calls in B = 3
+	if len(locs) != 3 {
+		t.Fatalf("expected 3 cross-file references, got %d: %+v", len(locs), locs)
+	}
+	var inA, inB int
+	for _, l := range locs {
+		switch l.URI {
+		case fileA:
+			inA++
+		case fileB:
+			inB++
+		}
+	}
+	if inA != 1 || inB != 2 {
+		t.Errorf("want 1 ref in A and 2 in B, got %d in A, %d in B", inA, inB)
+	}
+}
+
+// ── Document symbols ──────────────────────────────────────────────────────────
+
+func TestDocumentSymbols_basic(t *testing.T) {
+	src := "(ns main)\n(def pi 3.14)\n(defn add [a int b int] -> int (+ a b))\n(defstruct Point x int y int)"
+	syms := DocumentSymbols(src)
+	if len(syms) != 4 {
+		t.Fatalf("expected 4 symbols, got %d: %+v", len(syms), syms)
+	}
+	want := []struct {
+		name string
+		kind int
+	}{
+		{"main", SymbolModule},
+		{"pi", SymbolVariable},
+		{"add", SymbolFunction},
+		{"Point", SymbolStruct},
+	}
+	for i, w := range want {
+		if syms[i].Name != w.name || syms[i].Kind != w.kind {
+			t.Errorf("sym[%d]: got (%q,%d), want (%q,%d)", i, syms[i].Name, syms[i].Kind, w.name, w.kind)
+		}
+	}
+	// defn detail should carry the signature
+	if syms[2].Detail == "" {
+		t.Errorf("expected a detail/signature for defn add")
+	}
+}
+
+func TestDocumentSymbols_selectionRangeOnName(t *testing.T) {
+	src := "(defn greet [name string] -> string name)"
+	syms := DocumentSymbols(src)
+	if len(syms) != 1 {
+		t.Fatalf("expected 1 symbol, got %d", len(syms))
+	}
+	sel := syms[0].SelectionRange
+	// "greet" starts at column 6 (0-based) on line 0
+	if sel.Start.Line != 0 || sel.Start.Character != 6 || sel.End.Character != 11 {
+		t.Errorf("selectionRange: got %+v, want name span [0,6)-[0,11)", sel)
+	}
+	// selectionRange must be contained within range
+	r := syms[0].Range
+	if sel.Start.Character < r.Start.Character || sel.End.Character > r.End.Character {
+		t.Errorf("selectionRange %+v not contained in range %+v", sel, r)
+	}
+}
+
+func TestDocumentSymbols_methodAndTest(t *testing.T) {
+	src := "(defmethod *Circle Area [c] -> float64 1.0)\n(deftest my-test (assert= 1 1))"
+	syms := DocumentSymbols(src)
+	if len(syms) != 2 {
+		t.Fatalf("expected 2 symbols, got %d: %+v", len(syms), syms)
+	}
+	if syms[0].Name != "Area" || syms[0].Kind != SymbolMethod {
+		t.Errorf("sym[0]: got (%q,%d), want (Area,%d)", syms[0].Name, syms[0].Kind, SymbolMethod)
+	}
+	if syms[1].Name != "my-test" || syms[1].Kind != SymbolFunction {
+		t.Errorf("sym[1]: got (%q,%d), want (my-test,%d)", syms[1].Name, syms[1].Kind, SymbolFunction)
+	}
+}
+
+func TestDocumentSymbols_parseErrorReturnsNil(t *testing.T) {
+	if syms := DocumentSymbols("(defn broken ["); syms != nil {
+		t.Errorf("expected nil on parse error, got %+v", syms)
+	}
 }

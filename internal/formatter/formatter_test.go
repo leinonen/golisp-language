@@ -324,6 +324,16 @@ func TestCommentPreservation(t *testing.T) {
 			want:  ";;; Docs\n(defn foo []\n  nil)\n",
 		},
 		{
+			name:  "multi-line doc comment preserved",
+			input: ";;; First line.\n;;; Second line.\n(defn foo [] nil)",
+			want:  ";;; First line.\n;;; Second line.\n(defn foo []\n  nil)\n",
+		},
+		{
+			name:  "multi-line doc comment on defmethod",
+			input: ";;; First.\n;;; Second.\n(defmethod Circle Name [c] -> string \"circle\")",
+			want:  ";;; First.\n;;; Second.\n(defmethod Circle Name [c] -> string\n  \"circle\")\n",
+		},
+		{
 			name:  "comment only file",
 			input: "; just a comment",
 			want:  "; just a comment\n",

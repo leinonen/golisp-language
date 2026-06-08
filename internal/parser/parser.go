@@ -12,15 +12,24 @@ import (
 
 // didYouMean maps common Lisp/Scheme/Clojure forms to their glisp equivalents.
 var didYouMean = map[string]string{
-	"defun":    "defn",
-	"define":   "def or defn",
-	"lambda":   "fn",
-	"begin":    "do",
-	"defmacro": "(macros not yet supported)",
-	"defvar":   "def",
-	"setq":     "def",
-	"progn":    "do",
-	"funcall":  "(just call the function directly)",
+	"defun":     "defn",
+	"define":    "def or defn",
+	"lambda":    "fn",
+	"fun":       "fn or defn",
+	"func":      "fn or defn",
+	"begin":     "do",
+	"progn":     "do",
+	"defmacro":  "(macros not yet supported)",
+	"defvar":    "def",
+	"defrecord": "defstruct",
+	"setq":      "def",
+	"set!":      "def, or reset! for atoms",
+	"let*":      "let",
+	"letrec":    "let",
+	"funcall":   "(just call the function directly)",
+	"car":       "first",
+	"cdr":       "rest",
+	"cons":      "conj",
 }
 
 // CommentMap maps 1-based source line numbers to the comment on that line.
@@ -101,6 +110,9 @@ type parser struct {
 	src        string // original source text for error context; may be empty
 	filename   string // source file path; when set, Position.File is populated
 	pendingDoc string // set by ;;; doc comment, consumed by parseDefn/parseDefmethod
+	// openStack tracks unclosed opening delimiters ( [ { #{ #( so EOF errors can
+	// point back at the opener instead of the end of the file.
+	openStack []lexer.Token
 }
 
 func (p *parser) peek() lexer.Token {
@@ -156,6 +168,15 @@ func (p *parser) advance() lexer.Token {
 	tok := p.peek()
 	if tok.Type != lexer.TokenEOF {
 		p.pos++
+		switch tok.Type {
+		case lexer.TokenLParen, lexer.TokenLBracket, lexer.TokenLBrace,
+			lexer.TokenHashLBrace, lexer.TokenHashLParen:
+			p.openStack = append(p.openStack, tok)
+		case lexer.TokenRParen, lexer.TokenRBracket, lexer.TokenRBrace:
+			if n := len(p.openStack); n > 0 {
+				p.openStack = p.openStack[:n-1]
+			}
+		}
 	}
 	return tok
 }
@@ -163,13 +184,55 @@ func (p *parser) advance() lexer.Token {
 func (p *parser) expect(tt lexer.TokenType) (lexer.Token, error) {
 	tok := p.peek()
 	if tok.Type != tt {
+		// Running off the end of the input while expecting a closing delimiter is
+		// almost always an unbalanced-parens mistake — point at the opener.
+		if tok.Type == lexer.TokenEOF && len(p.openStack) > 0 {
+			return tok, p.errUnclosed(p.openStack[0])
+		}
 		return tok, p.errorf("expected %v, got %v (%q)", tt, tok.Type, tok.Text)
 	}
 	return p.advance(), nil
 }
 
+// unexpectedEOF reports a friendly end-of-input error, pointing at the
+// outermost unclosed delimiter when one is open.
+func (p *parser) unexpectedEOF() error {
+	if len(p.openStack) > 0 {
+		return p.errUnclosed(p.openStack[0])
+	}
+	return p.errorf("unexpected end of input")
+}
+
+// errUnclosed reports an unterminated delimiter, with the caret pointing at the
+// opening delimiter that was never closed rather than at the end of the file.
+func (p *parser) errUnclosed(open lexer.Token) error {
+	want := matchingClose(open.Type)
+	msg := fmt.Sprintf("unclosed %q (opened at line %d, column %d) — missing %q",
+		open.Text, open.Line, open.Column, want)
+	if p.src != "" {
+		return fmt.Errorf("%d:%d: %s%s", open.Line, open.Column, msg, p.sourceContext(open.Line, open.Column))
+	}
+	return fmt.Errorf("%d:%d: %s", open.Line, open.Column, msg)
+}
+
+// matchingClose returns the closing delimiter string for an opening token type.
+func matchingClose(open lexer.TokenType) string {
+	switch open {
+	case lexer.TokenLBracket:
+		return "]"
+	case lexer.TokenLBrace, lexer.TokenHashLBrace:
+		return "}"
+	default: // TokenLParen, TokenHashLParen
+		return ")"
+	}
+}
+
 func (p *parser) errorf(format string, args ...any) error {
-	tok := p.peek()
+	return p.errorfTok(p.peek(), format, args...)
+}
+
+// errorfTok is like errorf but anchors the position and caret at a specific token.
+func (p *parser) errorfTok(tok lexer.Token, format string, args ...any) error {
 	msg := fmt.Sprintf(format, args...)
 	if p.src != "" {
 		ctx := p.sourceContext(tok.Line, tok.Column)
@@ -186,11 +249,26 @@ func (p *parser) sourceContext(line, col int) string {
 		return ""
 	}
 	srcLine := lines[line-1]
+	return fmt.Sprintf("\n  %s\n  %s", srcLine, caretLine(srcLine, col))
+}
+
+// caretLine builds a "^" pointer line aligned under column col of srcLine.
+// Leading tabs in srcLine are preserved in the pointer so the caret stays
+// aligned in terminals that render tabs as more than one column.
+func caretLine(srcLine string, col int) string {
 	if col < 1 {
 		col = 1
 	}
-	pointer := strings.Repeat(" ", col-1) + "^"
-	return fmt.Sprintf("\n  %s\n  %s", srcLine, pointer)
+	var b strings.Builder
+	for i := 0; i < col-1; i++ {
+		if i < len(srcLine) && srcLine[i] == '\t' {
+			b.WriteByte('\t')
+		} else {
+			b.WriteByte(' ')
+		}
+	}
+	b.WriteByte('^')
+	return b.String()
 }
 
 func (p *parser) mkpos(tok lexer.Token) ast.Position {
@@ -269,7 +347,10 @@ func (p *parser) parseExprInner() (ast.Node, error) {
 		p.advance()
 		return p.parseExprInner()
 	case lexer.TokenEOF:
-		return nil, p.errorf("unexpected EOF")
+		return nil, p.unexpectedEOF()
+	case lexer.TokenRParen, lexer.TokenRBracket, lexer.TokenRBrace:
+		tok := p.peek()
+		return nil, p.errorf("unexpected %q — no matching opening delimiter", tok.Text)
 	default:
 		return nil, p.errorf("unexpected token %v (%q)", p.peekType(), p.peek().Text)
 	}
@@ -455,8 +536,7 @@ func (p *parser) parseList() (ast.Node, error) {
 
 		// "Did you mean?" hints for common mistakes from other Lisps.
 		if hint, ok := didYouMean[head.Text]; ok {
-			p.advance() // consume the bad symbol so error points at it
-			return nil, p.errorf("%q is not valid glisp — did you mean %s?", head.Text, hint)
+			return nil, p.errorfTok(head, "%q is not valid glisp — did you mean %s?", head.Text, hint)
 		}
 
 		// Method call: (.MethodName obj args...)

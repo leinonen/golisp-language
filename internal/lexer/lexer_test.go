@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -134,5 +135,23 @@ func TestTokenizePosition(t *testing.T) {
 	}
 	if toks[1].Line != 2 {
 		t.Errorf("line: got %d, want 2", toks[1].Line)
+	}
+}
+
+func TestUnterminatedStringContext(t *testing.T) {
+	_, err := Tokenize(`(def name "hello)`)
+	if err == nil {
+		t.Fatal("expected error for unterminated string")
+	}
+	msg := err.Error()
+	// Reports the position of the opening quote (column 11) with a caret snippet.
+	if !strings.Contains(msg, "unterminated string") {
+		t.Errorf("error %q should mention unterminated string", msg)
+	}
+	if !strings.Contains(msg, "1:11") {
+		t.Errorf("error %q should point at the opening quote (1:11)", msg)
+	}
+	if !strings.Contains(msg, "^") {
+		t.Errorf("error %q should include a caret pointer", msg)
 	}
 }

@@ -56,7 +56,37 @@ func (l *lexer) advance() rune {
 }
 
 func (l *lexer) errorf(format string, args ...any) error {
-	return fmt.Errorf("%d:%d: %s", l.line, l.column, fmt.Sprintf(format, args...))
+	return l.errorfAt(l.line, l.column, format, args...)
+}
+
+// errorfAt formats a lexer error at a specific position, appending a two-line
+// source-context snippet with a caret pointing at the offending column.
+func (l *lexer) errorfAt(line, col int, format string, args ...any) error {
+	msg := fmt.Sprintf(format, args...)
+	return fmt.Errorf("%d:%d: %s%s", line, col, msg, l.sourceContext(line, col))
+}
+
+// sourceContext returns a two-line snippet: the offending source line and a
+// caret aligned under col. Leading tabs are preserved so the caret stays aligned.
+func (l *lexer) sourceContext(line, col int) string {
+	lines := strings.Split(string(l.src), "\n")
+	if line <= 0 || line > len(lines) {
+		return ""
+	}
+	srcLine := lines[line-1]
+	if col < 1 {
+		col = 1
+	}
+	var b strings.Builder
+	for i := 0; i < col-1; i++ {
+		if i < len(srcLine) && srcLine[i] == '\t' {
+			b.WriteByte('\t')
+		} else {
+			b.WriteByte(' ')
+		}
+	}
+	b.WriteByte('^')
+	return fmt.Sprintf("\n  %s\n  %s", srcLine, b.String())
 }
 
 func (l *lexer) tokenize() ([]Token, error) {
@@ -191,7 +221,7 @@ func (l *lexer) readString(line, col int) (Token, error) {
 		}
 		sb.WriteRune(ch)
 	}
-	return Token{}, l.errorf("unterminated string literal")
+	return Token{}, l.errorfAt(line, col, "unterminated string literal (opened here, missing closing \")")
 }
 
 

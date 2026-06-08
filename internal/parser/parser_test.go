@@ -338,6 +338,65 @@ func TestDocComment(t *testing.T) {
 	})
 }
 
+func TestUnclosedDelimiter(t *testing.T) {
+	// Missing the final ) on a multi-line defn: error should point at the
+	// opening ( on line 1, not the end of the file.
+	_, err := ParseString("(defn foo []\n  (+ 1 2)")
+	if err == nil {
+		t.Fatal("expected parse error for unclosed delimiter")
+	}
+	msg := err.Error()
+	for _, want := range []string{"unclosed", "1:1", `missing ")"`} {
+		if !contains(msg, want) {
+			t.Errorf("error %q should contain %q", msg, want)
+		}
+	}
+}
+
+func TestUnclosedBracket(t *testing.T) {
+	// A vector literal that runs off the end of the input.
+	_, err := ParseString("(def xs [1 2 3")
+	if err == nil {
+		t.Fatal("expected parse error for unclosed bracket")
+	}
+	if msg := err.Error(); !contains(msg, "unclosed") {
+		t.Errorf("error %q should report an unclosed delimiter", msg)
+	}
+}
+
+func TestStrayClosingDelimiter(t *testing.T) {
+	_, err := ParseString("(+ 1 2))")
+	if err == nil {
+		t.Fatal("expected parse error for stray )")
+	}
+	if msg := err.Error(); !contains(msg, "no matching opening delimiter") {
+		t.Errorf("error %q should report a stray closing delimiter", msg)
+	}
+}
+
+func TestDidYouMeanExtended(t *testing.T) {
+	cases := []struct {
+		src  string
+		hint string
+	}{
+		{"(let* [x 1] x)", "let"},
+		{"(car xs)", "first"},
+		{"(cdr xs)", "rest"},
+		{"(cons 1 xs)", "conj"},
+		{"(defrecord Point [x y])", "defstruct"},
+	}
+	for _, c := range cases {
+		_, err := ParseString(c.src)
+		if err == nil {
+			t.Errorf("%q: expected parse error", c.src)
+			continue
+		}
+		if !contains(err.Error(), c.hint) {
+			t.Errorf("%q: error %q should contain hint %q", c.src, err.Error(), c.hint)
+		}
+	}
+}
+
 func contains(s, sub string) bool {
 	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
 		func() bool {

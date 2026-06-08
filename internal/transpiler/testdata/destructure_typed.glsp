@@ -1,0 +1,16 @@
+(ns main)
+
+;;; Validates and echoes a signup request. Annotated destructuring pulls typed
+;;; locals straight out of an untyped request map: name/email become string and
+;;; age becomes int (with smart numeric conversion), so no per-field casts or
+;;; nil-guards are needed downstream.
+(defn signup [req map[string]any] -> string
+  (let [{name  :name  :- string
+         email :email :- string
+         age   :age   :- int
+         extra :extra} req]
+    (fmt/sprintf "%s <%s> age=%d extra=%v" name email age extra)))
+
+(defn main [] -> void
+  (let [req {:name "Ada" :email "ada@example.com" :age 36 :extra "vip"}]
+    (fmt/println (signup req))))

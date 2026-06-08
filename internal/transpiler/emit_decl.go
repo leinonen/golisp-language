@@ -69,12 +69,18 @@ func (e *Emitter) emitDefnDecl(n *ast.DefnDecl) error {
 	}
 	e.nl()
 	e.push()
+	saved := e.pushTypeScope()
+	savedRet := e.currentRetType
+	e.currentRetType = retStr
+	e.registerParamTypes(n.Params)
 	if err := e.emitParamDestructs(destructs); err != nil {
 		return err
 	}
 	if err := e.emitBody(n.Body, retStr != ""); err != nil {
 		return err
 	}
+	e.currentRetType = savedRet
+	e.popTypeScope(saved)
 	e.pop()
 	e.line("}")
 	return nil
@@ -167,12 +173,19 @@ func (e *Emitter) emitMethodDecl(n *ast.MethodDecl) error {
 	}
 	e.nl()
 	e.push()
+	saved := e.pushTypeScope()
+	savedRet := e.currentRetType
+	e.currentRetType = retStr
+	e.registerVarType(n.ReceiverName, receiverType)
+	e.registerParamTypes(n.Params)
 	if err := e.emitParamDestructs(destructs); err != nil {
 		return err
 	}
 	if err := e.emitBody(n.Body, retStr != ""); err != nil {
 		return err
 	}
+	e.currentRetType = savedRet
+	e.popTypeScope(saved)
 	e.pop()
 	e.line("}")
 	return nil

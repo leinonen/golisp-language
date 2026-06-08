@@ -1,18 +1,18 @@
-.PHONY: examples examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms
+.PHONY: examples examples-clean examples-tour examples-api examples-shapes examples-inventory examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms
 
 BIN ?= glisp
 
 # Each example target needs the glisp binary. The aggregate `examples` target
 # (main Makefile) gets `build` via its own prerequisite, but CI and ad-hoc runs
 # invoke the individual targets directly, so depend on `build` here too.
-examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms: build
+examples-tour examples-api examples-shapes examples-inventory examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms: build
 
 examples-clean:
-	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency examples/logparser/logparser examples/sec-pipeline/sec-pipeline examples/atoms/atoms
+	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/inventory/inventory examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency examples/logparser/logparser examples/sec-pipeline/sec-pipeline examples/atoms/atoms
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
 	rm -f examples/notes-api/glisp_runtime.go examples/notes-api/main.go examples/notes-api/handlers.go examples/notes-api/db.go examples/notes-api/helpers.go
 
-examples: examples-clean examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms
+examples: examples-clean examples-tour examples-api examples-shapes examples-inventory examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms
 
 examples-tour:
 	./$(BIN) build -o examples/tour/tour examples/tour/main.glsp
@@ -22,6 +22,9 @@ examples-api:
 
 examples-shapes:
 	./$(BIN) build -o examples/shapes/shapes examples/shapes/main.glsp
+
+examples-inventory:
+	./$(BIN) build -o examples/inventory/inventory examples/inventory/main.glsp
 
 examples-multifile:
 	./$(BIN) build -o examples/multifile/multifile examples/multifile/

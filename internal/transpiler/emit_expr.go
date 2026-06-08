@@ -66,11 +66,62 @@ func (e *Emitter) emitExprWithHint(n ast.Node, hint string) error {
 			return e.emitVectorLitElem(v, hint[2:])
 		}
 	case *ast.MapLit:
+		// An explicit map type annotation on the literal always wins.
+		if v.TypeAnnot == nil {
+			if name, ptr, ok := e.structHint(hint); ok {
+				return e.emitStructLitFromMap(v, name, ptr)
+			}
+		}
 		if strings.HasPrefix(hint, "map[") {
 			return e.emitMapLitTyped(v, hint)
 		}
 	}
 	return e.emitExpr(n)
+}
+
+// emitStructLitFromMap emits a struct literal from a plain map literal when the
+// surrounding context expects a declared struct type. Keyword/symbol/string keys
+// are matched against the struct's fields; an unknown field is a compile-time
+// glisp error (catching typos before Go ever sees the code).
+func (e *Emitter) emitStructLitFromMap(n *ast.MapLit, typeName string, ptr bool) error {
+	si := e.structs[typeName]
+	if ptr {
+		e.write("&")
+	}
+	e.writef("%s{", typeName)
+	for i, pair := range n.Pairs {
+		if i > 0 {
+			e.write(", ")
+		}
+		field, err := mapLitFieldName(pair.Key)
+		if err != nil {
+			return err
+		}
+		goField, ok := si.fields[field]
+		if !ok {
+			return fmt.Errorf("struct literal: %s has no field %q (at %s)", typeName, field, n.Pos())
+		}
+		e.writef("%s: ", goField)
+		if err := e.emitExpr(pair.Value); err != nil {
+			return err
+		}
+	}
+	e.write("}")
+	return nil
+}
+
+// mapLitFieldName extracts the glisp field name from a map-literal key node.
+func mapLitFieldName(key ast.Node) (string, error) {
+	switch k := key.(type) {
+	case *ast.KeywordLit:
+		return k.Value, nil
+	case *ast.Symbol:
+		return k.Name, nil
+	case *ast.StringLit:
+		return k.Value, nil
+	default:
+		return "", fmt.Errorf("struct literal field key must be a keyword, symbol, or string, got %T", key)
+	}
 }
 
 // emitMapLitTyped emits a map literal with an explicit map type string.
@@ -140,12 +191,18 @@ func (e *Emitter) emitFnExpr(n *ast.FnExpr) error {
 	}
 	e.nl()
 	e.push()
+	saved := e.pushTypeScope()
+	savedRet := e.currentRetType
+	e.currentRetType = retStr
+	e.registerParamTypes(n.Params)
 	if err := e.emitParamDestructs(destructs); err != nil {
 		return err
 	}
 	if err := e.emitBody(n.Body, !isVoid); err != nil {
 		return err
 	}
+	e.currentRetType = savedRet
+	e.popTypeScope(saved)
 	e.pop()
 	e.writeIndent()
 	e.write("}")
@@ -257,6 +314,8 @@ func (e *Emitter) emitLetExpr(n *ast.LetExpr) error {
 
 // emitLetExprReturn emits let in return position (no wrapping closure needed).
 func (e *Emitter) emitLetExprReturn(n *ast.LetExpr) error {
+	saved := e.pushTypeScope()
+	defer e.popTypeScope(saved)
 	if err := e.emitLetBindings(n.Bindings); err != nil {
 		return err
 	}
@@ -264,6 +323,8 @@ func (e *Emitter) emitLetExprReturn(n *ast.LetExpr) error {
 }
 
 func (e *Emitter) emitLetBody(n *ast.LetExpr) error {
+	saved := e.pushTypeScope()
+	defer e.popTypeScope(saved)
 	if err := e.emitLetBindings(n.Bindings); err != nil {
 		return err
 	}
@@ -285,10 +346,16 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 				if err := e.emitExprWithHint(b.Value, typeStr); err != nil {
 					return err
 				}
+				e.registerVarType(pat.Name, typeStr)
 			} else {
 				e.writef("%s := ", goName)
 				if err := e.emitExpr(b.Value); err != nil {
 					return err
+				}
+				// Infer struct type from the value (struct literal or known fn return)
+				// so keyword access on the binding resolves to field access.
+				if name := e.inferValueStructType(b.Value); name != "" && e.localTypes != nil {
+					e.localTypes[pat.Name] = name
 				}
 			}
 			e.nl()
@@ -1264,6 +1331,24 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		if len(n.Args) < 1 || len(n.Args) > 2 {
 			return fmt.Errorf("keyword call requires 1 or 2 arguments")
 		}
+		// Typed field access: when the single argument is a variable statically
+		// known to hold a declared struct, emit direct field access (x.Field)
+		// instead of the untyped runtime lookup. A keyword that names no field is
+		// a compile-time error — the struct cannot also be used as a map.
+		if len(n.Args) == 1 {
+			if sym, ok := n.Args[0].(*ast.Symbol); ok && e.localTypes != nil {
+				if typeName, found := e.localTypes[sym.Name]; found {
+					if si := e.structs[typeName]; si != nil {
+						goField, ok := si.fields[kw.Value]
+						if !ok {
+							return fmt.Errorf("%s has no field :%s (at %s)", typeName, kw.Value, n.Pos())
+						}
+						e.writef("%s.%s", identToGo(sym.Name), goField)
+						return nil
+					}
+				}
+			}
+		}
 		fn := "_glispGet"
 		if len(n.Args) == 2 {
 			fn = "_glispGetD"
@@ -1298,6 +1383,14 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 	}
 
 	// General function call: f(args...)
+	// When the callee is a known user function, thread each parameter's type to
+	// its argument so struct-typed params accept plain map literals.
+	var paramTypes []string
+	if sym, ok := n.Head.(*ast.Symbol); ok && e.symbols != nil {
+		if sig, found := e.symbols[sym.Name]; found {
+			paramTypes = sig.paramTypes
+		}
+	}
 	if err := e.emitExpr(n.Head); err != nil {
 		return err
 	}
@@ -1306,7 +1399,11 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		if i > 0 {
 			e.write(", ")
 		}
-		if err := e.emitExpr(arg); err != nil {
+		if i < len(paramTypes) && paramTypes[i] != "" {
+			if err := e.emitExprWithHint(arg, paramTypes[i]); err != nil {
+				return err
+			}
+		} else if err := e.emitExpr(arg); err != nil {
 			return err
 		}
 	}

@@ -1,0 +1,18 @@
+(ns main)
+
+(defstruct Product name string stock int unit-price float64)
+
+;; Typed keyword access: (:field p) becomes p.Field when p is a known struct.
+(defmethod *Product Label [self] -> string
+  (fmt/sprintf "%s (%d)" (:name self) (:stock self)))
+
+;; Map literals in a struct-typed param position become struct literals.
+(defn restock [p Product n int] -> Product
+  {:name (:name p) :stock (+ (:stock p) n) :unit-price (:unit-price p)})
+
+;; let inference: p is known to be a Product from the call's return type,
+;; so (:name p) resolves to field access; the plain map m stays a runtime lookup.
+(defn report [] -> string
+  (let [p (restock {:name "bolt" :stock 5 :unit-price 0.25} 10)
+        m {:tag "demo"}]
+    (fmt/sprintf "%s %v" (:name p) (:tag m))))

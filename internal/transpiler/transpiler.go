@@ -88,8 +88,10 @@ func TranspileNoRuntimeFileStrict(src, filename string) (string, map[string]bool
 
 // fnSig holds the arity information for a user-defined function.
 type fnSig struct {
-	minArity int
-	variadic bool
+	minArity   int
+	variadic   bool
+	paramTypes []string // Go type per positional (non-rest) param; "" if untyped
+	retType    string   // Go return type; "" if none/void/multi
 }
 
 // Emitter accumulates Go source text with indentation tracking.
@@ -120,6 +122,15 @@ type Emitter struct {
 	strict bool
 	// symbols: user-defined function signatures for arity checking (populated by pre-pass).
 	symbols map[string]*fnSig
+	// structs: declared struct types by glisp name (populated by pre-pass). Drives
+	// typed map literals and keyword field access.
+	structs map[string]*structInfo
+	// localTypes: in-scope variables (glisp name) known to hold a declared struct
+	// type. Managed with pushTypeScope/popTypeScope around function and let bodies.
+	localTypes map[string]string
+	// currentRetType: Go return type of the function currently being emitted, used
+	// to hint collection/struct literals in tail/return position. "" when none.
+	currentRetType string
 }
 
 func (e *Emitter) needImport(pkg string) {
@@ -212,12 +223,16 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 	}
 
-	// Pre-pass: collect user-defined function signatures for arity checking.
+	// Pre-pass: collect user-defined function signatures (arity + types) and
+	// declared struct types.
 	symbols := map[string]*fnSig{}
+	structs := map[string]*structInfo{}
 	for _, n := range nodes {
-		if d, ok := n.(*ast.DefnDecl); ok {
-			minArity, variadic := countParams(d.Params)
-			symbols[d.Name] = &fnSig{minArity: minArity, variadic: variadic}
+		switch d := n.(type) {
+		case *ast.DefnDecl:
+			symbols[d.Name] = buildFnSig(d.Params, d.ReturnType)
+		case *ast.StructDecl:
+			structs[d.Name] = buildStructInfo(d)
 		}
 	}
 
@@ -226,6 +241,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	declEmitter.emitRuntime = e.emitRuntime
 	declEmitter.strict = e.strict
 	declEmitter.symbols = symbols
+	declEmitter.structs = structs
 	declEmitter.pkg = e.pkg
 	declEmitter.imports = e.imports
 	declEmitter.requires = e.requires
@@ -654,6 +670,8 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 
 // emitLetStmt emits a let in statement position (no IIFE).
 func (e *Emitter) emitLetStmt(n *ast.LetExpr) error {
+	saved := e.pushTypeScope()
+	defer e.popTypeScope(saved)
 	if err := e.emitLetBindings(n.Bindings); err != nil {
 		return err
 	}
@@ -881,7 +899,11 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 	default:
 		e.writeIndent()
 		e.write("return ")
-		if err := e.emitExpr(n); err != nil {
+		if e.currentRetType != "" {
+			if err := e.emitExprWithHint(n, e.currentRetType); err != nil {
+				return err
+			}
+		} else if err := e.emitExpr(n); err != nil {
 			return err
 		}
 		e.nl()

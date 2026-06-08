@@ -639,6 +639,41 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(def f #(count %&))`,
 			wantSub: "func(_anonPRest ...any) any",
 		},
+		{
+			name:    "typed keyword access on struct param",
+			src:     `(defstruct P name string) (defn f [p P] -> string (:name p))`,
+			wantSub: "return p.Name",
+		},
+		{
+			name:    "typed keyword access kebab field",
+			src:     `(defstruct P unit-price float64) (defn f [p P] -> float64 (:unit-price p))`,
+			wantSub: "return p.UnitPrice",
+		},
+		{
+			name:    "keyword access on untyped map falls back",
+			src:     `(defn f [m] (:a m))`,
+			wantSub: `_glispGet(m, "a")`,
+		},
+		{
+			name:    "typed keyword access on pointer receiver",
+			src:     `(defstruct P name string) (defmethod *P Label [self] -> string (:name self))`,
+			wantSub: "return self.Name",
+		},
+		{
+			name:    "map literal to struct via call arg",
+			src:     `(defstruct P name string stock int) (defn f [p P] -> int (:stock p)) (defn g [] -> int (f {:name "x" :stock 3}))`,
+			wantSub: `f(P{Name: "x", Stock: 3})`,
+		},
+		{
+			name:    "map literal to struct via let annotation",
+			src:     `(defstruct P name string) (defn g [] -> string (let [p P {:name "x"}] (:name p)))`,
+			wantSub: `var p P = P{Name: "x"}`,
+		},
+		{
+			name:    "let struct inference from literal",
+			src:     `(defstruct P name string) (defn g [] -> string (let [p (P. {:name "x"})] (:name p)))`,
+			wantSub: "return p.Name",
+		},
 	}
 
 	for _, tt := range tests {

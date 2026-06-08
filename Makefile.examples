@@ -2,6 +2,11 @@
 
 BIN ?= glisp
 
+# Each example target needs the glisp binary. The aggregate `examples` target
+# (main Makefile) gets `build` via its own prerequisite, but CI and ad-hoc runs
+# invoke the individual targets directly, so depend on `build` here too.
+examples-tour examples-api examples-shapes examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms: build
+
 examples-clean:
 	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency examples/logparser/logparser examples/sec-pipeline/sec-pipeline examples/atoms/atoms
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go

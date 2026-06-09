@@ -348,6 +348,26 @@ func TestCommentPreservation(t *testing.T) {
 			input: "; just a comment",
 			want:  "; just a comment\n",
 		},
+		{
+			name:  "in-body comments between defn body forms stay in place",
+			input: "(defn f [] -> void\n  ; step one\n  (foo)\n  ; step two\n  (bar))",
+			want:  "(defn f [] -> void\n  ; step one\n  (foo)\n  ; step two\n  (bar))\n",
+		},
+		{
+			name:  "in-body comment in last top-level form not dumped at EOF",
+			input: "(defn main [] -> void\n  (a)\n  ; note\n  (b))",
+			want:  "(defn main [] -> void\n  (a)\n  ; note\n  (b))\n",
+		},
+		{
+			name:  "comment forces an otherwise-inline let multi-line",
+			input: "(defn g [] -> int\n  (let [x 1\n        ; explain y\n        y 2]\n    ; compute\n    (+ x y)))",
+			want:  "(defn g [] -> int\n  (let [x 1\n        ; explain y\n        y 2]\n    ; compute\n    (+ x y)))\n",
+		},
+		{
+			name:  "comment inside nested form is not relocated to next sibling",
+			input: "(defn f [] -> void\n  (when ok\n    ; inner\n    (go))\n  (after))",
+			want:  "(defn f [] -> void\n  (when ok\n    ; inner\n    (go))\n  (after))\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

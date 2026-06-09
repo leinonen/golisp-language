@@ -1,6 +1,8 @@
 // Package formatter pretty-prints glisp source from a parsed AST.
 // ;;; doc comments are preserved via DefnDecl.Doc / MethodDecl.Doc.
-// ; and ;; leading comments are preserved via a CommentMap from the parser.
+// ; and ;; comments are preserved via a CommentMap from the parser and emitted
+// in place — both as leading comments of top-level forms and interleaved within
+// form bodies (see cfmt) — rather than relocated to the next form or EOF.
 // Trailing inline comments (after code on the same line) are not preserved.
 package formatter
 
@@ -26,7 +28,17 @@ func Format(src string) (string, error) {
 	return formatFile(result.Nodes, result.Comments), nil
 }
 
+// cfmt carries comment state through the recursive formatters so that ; and ;;
+// comments inside forms are emitted in place rather than relocated to the next
+// top-level form or the end of the file. Comments are consumed depth-first; the
+// used set guarantees each is emitted exactly once.
+type cfmt struct {
+	comments parser.CommentMap
+	used     map[int]bool
+}
+
 func formatFile(nodes []ast.Node, comments parser.CommentMap) string {
+	c := &cfmt{comments: comments, used: map[int]bool{}}
 	if len(nodes) == 0 {
 		var sb strings.Builder
 		for _, l := range sortedCommentLines(comments, 1, math.MaxInt) {
@@ -40,27 +52,177 @@ func formatFile(nodes []ast.Node, comments parser.CommentMap) string {
 		if i > 0 {
 			lo = nodes[i-1].Pos().Line + 1
 		}
-		block := sortedCommentLines(comments, lo, n.Pos().Line-1)
+		// Leading comments of n. In-body comments of the previous top-level form
+		// were consumed while formatting it, so they are excluded here.
+		block := c.commentLines(lo, n.Pos().Line-1, 0)
 		if i > 0 {
 			sb.WriteString("\n\n")
 		}
-		for _, l := range block {
-			sb.WriteString(comments[l] + "\n")
+		for _, cl := range block {
+			sb.WriteString(cl + "\n")
 		}
-		sb.WriteString(format(n, 0))
+		sb.WriteString(c.format(n, 0))
 	}
-	// trailing comments after last node
+	// Any comments not consumed in place (e.g. immediately before a closing
+	// paren) are emitted after the last node so nothing is ever dropped.
 	lo := nodes[len(nodes)-1].Pos().Line + 1
-	trailing := sortedCommentLines(comments, lo, math.MaxInt)
+	trailing := c.commentLines(lo, math.MaxInt, 0)
 	if len(trailing) > 0 {
 		sb.WriteString("\n\n")
-		for _, l := range trailing {
-			sb.WriteString(comments[l] + "\n")
+		for _, cl := range trailing {
+			sb.WriteString(cl + "\n")
 		}
 		return sb.String()
 	}
 	sb.WriteString("\n")
 	return sb.String()
+}
+
+// takeComments returns the not-yet-used comment texts on lines in [lo,hi] and
+// marks them used. Callers add their own indentation.
+func (c *cfmt) takeComments(lo, hi int) []string {
+	var out []string
+	for _, l := range sortedCommentLines(c.comments, lo, hi) {
+		if c.used[l] {
+			continue
+		}
+		c.used[l] = true
+		out = append(out, c.comments[l])
+	}
+	return out
+}
+
+// commentLines is takeComments with each line prefixed by the given indent.
+func (c *cfmt) commentLines(lo, hi, indent int) []string {
+	out := c.takeComments(lo, hi)
+	for i := range out {
+		out[i] = ind(indent) + out[i]
+	}
+	return out
+}
+
+// hasComments reports whether any not-yet-used comment lies on a line in [lo,hi].
+// Used to force a form multi-line when it contains comments that an inline
+// rendering could not preserve.
+func (c *cfmt) hasComments(lo, hi int) bool {
+	for l := range c.comments {
+		if l >= lo && l <= hi && !c.used[l] {
+			return true
+		}
+	}
+	return false
+}
+
+// inlineOK reports whether node n may be rendered on one line: it must fit and
+// contain no comments within its source span (n's first line to its last
+// descendant's line).
+func (c *cfmt) inlineOK(n ast.Node, indent int, il string) bool {
+	return fits(il, indent) && !c.hasComments(n.Pos().Line+1, nodeMaxLine(n))
+}
+
+// nodeMaxLine returns the largest source line among n and its descendants — an
+// approximation of n's last line, used to bound the search for internal comments.
+func nodeMaxLine(n ast.Node) int {
+	max := n.Pos().Line
+	consider := func(x ast.Node) {
+		if x == nil {
+			return
+		}
+		if m := nodeMaxLine(x); m > max {
+			max = m
+		}
+	}
+	switch v := n.(type) {
+	case *ast.CallExpr:
+		consider(v.Head)
+		for _, a := range v.Args {
+			consider(a)
+		}
+	case *ast.FnExpr:
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.LetExpr:
+		for _, b := range v.Bindings {
+			consider(b.Pattern)
+			consider(b.Value)
+		}
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.LoopExpr:
+		for _, b := range v.Bindings {
+			consider(b.Pattern)
+			consider(b.Value)
+		}
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.IfExpr:
+		consider(v.Cond)
+		consider(v.Then)
+		consider(v.Else)
+	case *ast.WhenExpr:
+		consider(v.Cond)
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.DoExpr:
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.CondExpr:
+		for _, cl := range v.Clauses {
+			consider(cl.Test)
+			consider(cl.Body)
+		}
+		consider(v.Default)
+	case *ast.SwitchExpr:
+		consider(v.Expr)
+		for _, sc := range v.Cases {
+			consider(sc.Value)
+			consider(sc.Body)
+		}
+		consider(v.Default)
+	case *ast.IfErrExpr:
+		consider(v.Expr)
+		consider(v.OnErr)
+		consider(v.OnOk)
+	case *ast.IfLetExpr:
+		consider(v.Expr)
+		consider(v.Then)
+		consider(v.Else)
+	case *ast.WhenLetExpr:
+		consider(v.Expr)
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.VectorLit:
+		for _, e := range v.Elements {
+			consider(e)
+		}
+	case *ast.MapLit:
+		for _, p := range v.Pairs {
+			consider(p.Key)
+			consider(p.Value)
+		}
+	}
+	return max
+}
+
+// emitForms appends a body sequence to sb — one form per line at indent —
+// interleaving comments that appear between forms. afterLine is the source line
+// of the enclosing form's header; comments between it and the first body form
+// lead that form.
+func (c *cfmt) emitForms(sb *strings.Builder, body []ast.Node, indent, afterLine int) {
+	prev := afterLine
+	for _, b := range body {
+		for _, cl := range c.commentLines(prev+1, b.Pos().Line-1, indent) {
+			sb.WriteString("\n" + cl)
+		}
+		sb.WriteString("\n" + c.format(b, indent))
+		prev = b.Pos().Line
+	}
 }
 
 func sortedCommentLines(cm parser.CommentMap, lo, hi int) []int {
@@ -83,7 +245,7 @@ func fits(s string, indent int) bool {
 }
 
 // format renders node with indent*2 leading spaces.
-func format(n ast.Node, indent int) string {
+func (c *cfmt) format(n ast.Node, indent int) string {
 	switch v := n.(type) {
 	case *ast.NilLit, *ast.BoolLit, *ast.IntLit, *ast.FloatLit, *ast.StringLit, *ast.KeywordLit:
 		return ind(indent) + inline(n)
@@ -96,23 +258,23 @@ func format(n ast.Node, indent int) string {
 	case *ast.SetLit:
 		return ind(indent) + inline(n)
 	case *ast.CallExpr:
-		return formatCall(v, indent)
+		return c.formatCall(v, indent)
 	case *ast.FnExpr:
-		return formatFn(v, indent)
+		return c.formatFn(v, indent)
 	case *ast.LetExpr:
-		return formatLet("let", v.Bindings, v.Body, indent)
+		return c.formatLet("let", v.Bindings, v.Body, indent, v.Pos().Line)
 	case *ast.LoopExpr:
-		return formatLet("loop", v.Bindings, v.Body, indent)
+		return c.formatLet("loop", v.Bindings, v.Body, indent, v.Pos().Line)
 	case *ast.IfExpr:
-		return formatIf(v, indent)
+		return c.formatIf(v, indent)
 	case *ast.WhenExpr:
-		return formatWhen(v, indent)
+		return c.formatWhen(v, indent)
 	case *ast.CondExpr:
-		return formatCond(v, indent)
+		return c.formatCond(v, indent)
 	case *ast.SwitchExpr:
-		return formatSwitch(v, indent)
+		return c.formatSwitch(v, indent)
 	case *ast.DoExpr:
-		return formatDo(v, indent)
+		return c.formatDo(v, indent)
 	case *ast.QuoteExpr:
 		il := "'" + inline(v.Form)
 		return ind(indent) + il
@@ -139,13 +301,13 @@ func format(n ast.Node, indent int) string {
 		if fits(il, indent) {
 			return ind(indent) + il
 		}
-		return formatBody("go", v.Body, indent)
+		return c.formatBody("go", v.Body, indent, v.Pos().Line)
 	case *ast.DeferStmt:
 		il := inline(n)
 		if fits(il, indent) {
 			return ind(indent) + il
 		}
-		inner := format(v.Expr, indent+1)
+		inner := c.format(v.Expr, indent+1)
 		return ind(indent) + "(defer\n" + inner + ")"
 	case *ast.SendStmt:
 		return ind(indent) + inline(n)
@@ -156,7 +318,7 @@ func format(n ast.Node, indent int) string {
 	case *ast.ChanExpr:
 		return ind(indent) + inline(n)
 	case *ast.SelectStmt:
-		return formatSelect(v, indent)
+		return c.formatSelect(v, indent)
 	case *ast.MethodCallExpr:
 		il := inline(n)
 		if fits(il, indent) {
@@ -174,15 +336,15 @@ func format(n ast.Node, indent int) string {
 	case *ast.TypeAssertExpr:
 		return ind(indent) + inline(n)
 	case *ast.IfErrExpr:
-		return formatIfErr(v, indent)
+		return c.formatIfErr(v, indent)
 	case *ast.IfLetExpr:
-		return formatIfLet(v, indent)
+		return c.formatIfLet(v, indent)
 	case *ast.WhenLetExpr:
-		return formatWhenLet(v, indent)
+		return c.formatWhenLet(v, indent)
 	case *ast.DefDecl:
-		return formatDef(v, indent)
+		return c.formatDef(v, indent)
 	case *ast.DefnDecl:
-		return formatDefn(v, indent)
+		return c.formatDefn(v, indent)
 	case *ast.NSDecl:
 		return formatNS(v, indent)
 	case *ast.DefTypeDecl:
@@ -192,9 +354,9 @@ func format(n ast.Node, indent int) string {
 	case *ast.InterfaceDecl:
 		return formatInterface(v, indent)
 	case *ast.MethodDecl:
-		return formatMethod(v, indent)
+		return c.formatMethod(v, indent)
 	case *ast.DefTestDecl:
-		return formatDefTest(v, indent)
+		return c.formatDefTest(v, indent)
 	}
 	return ind(indent) + "???"
 }
@@ -537,12 +699,10 @@ func formatArgList(keyword string, args []ast.Node, indent int) string {
 }
 
 // formatBody renders (keyword body...) multi-line.
-func formatBody(keyword string, body []ast.Node, indent int) string {
+func (c *cfmt) formatBody(keyword string, body []ast.Node, indent, afterLine int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(" + keyword)
-	for _, b := range body {
-		sb.WriteString("\n" + format(b, indent+1))
-	}
+	c.emitForms(&sb, body, indent+1, afterLine)
 	sb.WriteString(")")
 	return sb.String()
 }
@@ -601,9 +761,9 @@ func formatMap(v *ast.MapLit, indent int) string {
 	return sb.String()
 }
 
-func formatCall(v *ast.CallExpr, indent int) string {
+func (c *cfmt) formatCall(v *ast.CallExpr, indent int) string {
 	il := inline(v)
-	if fits(il, indent) {
+	if c.inlineOK(v, indent, il) {
 		return ind(indent) + il
 	}
 	// head on first line, args indented
@@ -618,22 +778,18 @@ func formatCall(v *ast.CallExpr, indent int) string {
 	firstInline := inline(v.Args[0])
 	if _, isCall := v.Args[0].(*ast.CallExpr); !isCall && fits("("+headStr+" "+firstInline, indent) {
 		sb.WriteString(ind(indent) + "(" + headStr + " " + firstInline)
-		for _, a := range v.Args[1:] {
-			sb.WriteString("\n" + format(a, indent+1))
-		}
+		c.emitForms(&sb, v.Args[1:], indent+1, v.Args[0].Pos().Line)
 	} else {
 		sb.WriteString(ind(indent) + "(" + headStr)
-		for _, a := range v.Args {
-			sb.WriteString("\n" + format(a, indent+1))
-		}
+		c.emitForms(&sb, v.Args, indent+1, v.Pos().Line)
 	}
 	sb.WriteString(")")
 	return sb.String()
 }
 
-func formatFn(v *ast.FnExpr, indent int) string {
+func (c *cfmt) formatFn(v *ast.FnExpr, indent int) string {
 	il := inline(v)
-	if fits(il, indent) {
+	if c.inlineOK(v, indent, il) {
 		return ind(indent) + il
 	}
 	params := inlineParams(v.Params)
@@ -642,16 +798,15 @@ func formatFn(v *ast.FnExpr, indent int) string {
 	if v.ReturnType != nil {
 		sb.WriteString(" -> " + v.ReturnType.Text)
 	}
-	for _, b := range v.Body {
-		sb.WriteString("\n" + format(b, indent+1))
-	}
+	c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
 	sb.WriteString(")")
 	return sb.String()
 }
 
-func formatLet(keyword string, bindings []ast.LetBinding, body []ast.Node, indent int) string {
+func (c *cfmt) formatLet(keyword string, bindings []ast.LetBinding, body []ast.Node, indent, headLine int) string {
 	il := inlineBindingForm(keyword, bindings, body)
-	if fits(il, indent) {
+	// Inline only when it fits and the form holds no comments to preserve.
+	if fits(il, indent) && !c.hasComments(headLine+1, letMaxLine(bindings, body, headLine)) {
 		return ind(indent) + il
 	}
 	// multi-line: bindings vector may itself be multi-line
@@ -663,8 +818,13 @@ func formatLet(keyword string, bindings []ast.LetBinding, body []ast.Node, inden
 	contPad := strings.Repeat(" ", bindCol)
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + prefix)
+	prevLine := headLine
 	for i, b := range bindings {
 		if i > 0 {
+			// Comments between bindings, aligned under the binding column.
+			for _, ct := range c.takeComments(prevLine+1, b.Pattern.Pos().Line-1) {
+				sb.WriteString("\n" + contPad + ct)
+			}
 			sb.WriteString("\n" + contPad)
 		}
 		inlineB := inlineLetBinding(b)
@@ -674,15 +834,20 @@ func formatLet(keyword string, bindings []ast.LetBinding, body []ast.Node, inden
 			bindCol+len(inlineB) > maxLine {
 			if ml, ok := formatDestructurePattern(mapPat, bindCol); ok {
 				sb.WriteString(ml + " " + inline(b.Value))
+				prevLine = b.Value.Pos().Line
 				continue
 			}
 		}
 		sb.WriteString(inlineB)
+		prevLine = b.Value.Pos().Line
 	}
 	sb.WriteString("]")
-	for _, b := range body {
-		sb.WriteString("\n" + format(b, indent+1))
+	// Body comments start after the last binding (or the header if no bindings).
+	afterLine := headLine
+	if len(bindings) > 0 {
+		afterLine = bindings[len(bindings)-1].Value.Pos().Line
 	}
+	c.emitForms(&sb, body, indent+1, afterLine)
 	sb.WriteString(")")
 	return sb.String()
 }
@@ -759,36 +924,54 @@ func formatDestructurePattern(pat *ast.MapLit, col int) (string, bool) {
 	return sb.String(), true
 }
 
-func formatIf(v *ast.IfExpr, indent int) string {
+// letMaxLine returns the largest source line spanned by a let's bindings and body.
+func letMaxLine(bindings []ast.LetBinding, body []ast.Node, headLine int) int {
+	max := headLine
+	bump := func(n ast.Node) {
+		if n != nil {
+			if m := nodeMaxLine(n); m > max {
+				max = m
+			}
+		}
+	}
+	for _, b := range bindings {
+		bump(b.Pattern)
+		bump(b.Value)
+	}
+	for _, b := range body {
+		bump(b)
+	}
+	return max
+}
+
+func (c *cfmt) formatIf(v *ast.IfExpr, indent int) string {
 	il := inline(v)
-	if fits(il, indent) {
+	if c.inlineOK(v, indent, il) {
 		return ind(indent) + il
 	}
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(if " + inline(v.Cond) + "\n")
-	sb.WriteString(format(v.Then, indent+1))
+	sb.WriteString(c.format(v.Then, indent+1))
 	if v.Else != nil {
-		sb.WriteString("\n" + format(v.Else, indent+1))
+		sb.WriteString("\n" + c.format(v.Else, indent+1))
 	}
 	sb.WriteString(")")
 	return sb.String()
 }
 
-func formatWhen(v *ast.WhenExpr, indent int) string {
+func (c *cfmt) formatWhen(v *ast.WhenExpr, indent int) string {
 	il := inline(v)
-	if fits(il, indent) {
+	if c.inlineOK(v, indent, il) {
 		return ind(indent) + il
 	}
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(when " + inline(v.Cond))
-	for _, b := range v.Body {
-		sb.WriteString("\n" + format(b, indent+1))
-	}
+	c.emitForms(&sb, v.Body, indent+1, v.Cond.Pos().Line)
 	sb.WriteString(")")
 	return sb.String()
 }
 
-func formatCond(v *ast.CondExpr, indent int) string {
+func (c *cfmt) formatCond(v *ast.CondExpr, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(cond")
 	for _, cl := range v.Clauses {
@@ -800,7 +983,7 @@ func formatCond(v *ast.CondExpr, indent int) string {
 		if len(combined) <= maxLine {
 			sb.WriteString(" " + bodyStr)
 		} else {
-			sb.WriteString("\n" + format(cl.Body, indent+2))
+			sb.WriteString("\n" + c.format(cl.Body, indent+2))
 		}
 	}
 	if v.Default != nil {
@@ -810,14 +993,14 @@ func formatCond(v *ast.CondExpr, indent int) string {
 		if len(combined) <= maxLine {
 			sb.WriteString(" " + defStr)
 		} else {
-			sb.WriteString("\n" + format(v.Default, indent+2))
+			sb.WriteString("\n" + c.format(v.Default, indent+2))
 		}
 	}
 	sb.WriteString(")")
 	return sb.String()
 }
 
-func formatSwitch(v *ast.SwitchExpr, indent int) string {
+func (c *cfmt) formatSwitch(v *ast.SwitchExpr, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(switch " + inline(v.Expr))
 	for _, sc := range v.Cases {
@@ -828,7 +1011,7 @@ func formatSwitch(v *ast.SwitchExpr, indent int) string {
 		if len(combined) <= maxLine {
 			sb.WriteString(" " + bodyStr)
 		} else {
-			sb.WriteString("\n" + format(sc.Body, indent+2))
+			sb.WriteString("\n" + c.format(sc.Body, indent+2))
 		}
 	}
 	if v.Default != nil {
@@ -838,22 +1021,22 @@ func formatSwitch(v *ast.SwitchExpr, indent int) string {
 		if len(combined) <= maxLine {
 			sb.WriteString(" " + defStr)
 		} else {
-			sb.WriteString("\n" + format(v.Default, indent+2))
+			sb.WriteString("\n" + c.format(v.Default, indent+2))
 		}
 	}
 	sb.WriteString(")")
 	return sb.String()
 }
 
-func formatDo(v *ast.DoExpr, indent int) string {
+func (c *cfmt) formatDo(v *ast.DoExpr, indent int) string {
 	il := inline(v)
-	if fits(il, indent) {
+	if c.inlineOK(v, indent, il) {
 		return ind(indent) + il
 	}
-	return formatBody("do", v.Body, indent)
+	return c.formatBody("do", v.Body, indent, v.Pos().Line)
 }
 
-func formatDef(v *ast.DefDecl, indent int) string {
+func (c *cfmt) formatDef(v *ast.DefDecl, indent int) string {
 	il := inline(v)
 	if fits(il, indent) {
 		return ind(indent) + il
@@ -864,7 +1047,7 @@ func formatDef(v *ast.DefDecl, indent int) string {
 		sb.WriteString(" " + v.TypeAnnot.Text)
 	}
 	sb.WriteString("\n")
-	sb.WriteString(format(v.Value, indent+1))
+	sb.WriteString(c.format(v.Value, indent+1))
 	sb.WriteString(")")
 	return sb.String()
 }
@@ -882,16 +1065,14 @@ func formatDoc(doc string, indent int) string {
 	return sb.String()
 }
 
-func formatDefn(v *ast.DefnDecl, indent int) string {
+func (c *cfmt) formatDefn(v *ast.DefnDecl, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(formatDoc(v.Doc, indent))
 	sb.WriteString(ind(indent) + "(defn " + v.Name + " " + inlineParams(v.Params))
 	if v.ReturnType != nil {
 		sb.WriteString(" -> " + v.ReturnType.Text)
 	}
-	for _, b := range v.Body {
-		sb.WriteString("\n" + format(b, indent+1))
-	}
+	c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
 	sb.WriteString(")")
 	return sb.String()
 }
@@ -959,7 +1140,7 @@ func formatInterface(v *ast.InterfaceDecl, indent int) string {
 	return sb.String()
 }
 
-func formatMethod(v *ast.MethodDecl, indent int) string {
+func (c *cfmt) formatMethod(v *ast.MethodDecl, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(formatDoc(v.Doc, indent))
 	sb.WriteString(ind(indent) + "(defmethod " + v.ReceiverType.Text + " " + v.Name)
@@ -968,41 +1149,37 @@ func formatMethod(v *ast.MethodDecl, indent int) string {
 	if v.ReturnType != nil {
 		sb.WriteString(" -> " + v.ReturnType.Text)
 	}
-	for _, b := range v.Body {
-		sb.WriteString("\n" + format(b, indent+1))
-	}
+	c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
 	sb.WriteString(")")
 	return sb.String()
 }
 
-func formatDefTest(v *ast.DefTestDecl, indent int) string {
+func (c *cfmt) formatDefTest(v *ast.DefTestDecl, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(deftest " + v.Name)
-	for _, b := range v.Body {
-		sb.WriteString("\n" + format(b, indent+1))
-	}
+	c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
 	sb.WriteString(")")
 	return sb.String()
 }
 
-func formatSelect(v *ast.SelectStmt, indent int) string {
+func (c *cfmt) formatSelect(v *ast.SelectStmt, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(select!")
-	for _, c := range v.Cases {
+	for _, sc := range v.Cases {
 		sb.WriteString("\n" + ind(indent+1))
-		if c.IsDefault {
+		if sc.IsDefault {
 			sb.WriteString("(:default")
-		} else if c.IsSend {
-			sb.WriteString("(:send " + inline(c.ChanExpr) + " " + inline(c.SendVal))
+		} else if sc.IsSend {
+			sb.WriteString("(:send " + inline(sc.ChanExpr) + " " + inline(sc.SendVal))
 		} else {
-			if c.Binding != "" {
-				sb.WriteString("(:recv " + c.Binding + " " + inline(c.ChanExpr))
+			if sc.Binding != "" {
+				sb.WriteString("(:recv " + sc.Binding + " " + inline(sc.ChanExpr))
 			} else {
-				sb.WriteString("(:recv " + inline(c.ChanExpr))
+				sb.WriteString("(:recv " + inline(sc.ChanExpr))
 			}
 		}
-		for _, b := range c.Body {
-			sb.WriteString("\n" + format(b, indent+2))
+		for _, b := range sc.Body {
+			sb.WriteString("\n" + c.format(b, indent+2))
 		}
 		sb.WriteString(")")
 	}
@@ -1038,43 +1215,41 @@ func formatStructLit(v *ast.StructLitExpr, indent int) string {
 	return sb.String()
 }
 
-func formatIfErr(v *ast.IfErrExpr, indent int) string {
+func (c *cfmt) formatIfErr(v *ast.IfErrExpr, indent int) string {
 	il := inline(v)
-	if fits(il, indent) {
+	if c.inlineOK(v, indent, il) {
 		return ind(indent) + il
 	}
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(if-err [" + v.ValName + " " + v.ErrName + "] " + inline(v.Expr) + "\n")
-	sb.WriteString(format(v.OnErr, indent+1) + "\n")
-	sb.WriteString(format(v.OnOk, indent+1) + ")")
+	sb.WriteString(c.format(v.OnErr, indent+1) + "\n")
+	sb.WriteString(c.format(v.OnOk, indent+1) + ")")
 	return sb.String()
 }
 
-func formatIfLet(v *ast.IfLetExpr, indent int) string {
+func (c *cfmt) formatIfLet(v *ast.IfLetExpr, indent int) string {
 	il := inline(v)
-	if fits(il, indent) {
+	if c.inlineOK(v, indent, il) {
 		return ind(indent) + il
 	}
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(if-let [" + inline(v.Pattern) + " " + inline(v.Expr) + "]\n")
-	sb.WriteString(format(v.Then, indent+1))
+	sb.WriteString(c.format(v.Then, indent+1))
 	if v.Else != nil {
-		sb.WriteString("\n" + format(v.Else, indent+1))
+		sb.WriteString("\n" + c.format(v.Else, indent+1))
 	}
 	sb.WriteString(")")
 	return sb.String()
 }
 
-func formatWhenLet(v *ast.WhenLetExpr, indent int) string {
+func (c *cfmt) formatWhenLet(v *ast.WhenLetExpr, indent int) string {
 	il := inline(v)
-	if fits(il, indent) {
+	if c.inlineOK(v, indent, il) {
 		return ind(indent) + il
 	}
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(when-let [" + inline(v.Pattern) + " " + inline(v.Expr) + "]")
-	for _, b := range v.Body {
-		sb.WriteString("\n" + format(b, indent+1))
-	}
+	c.emitForms(&sb, v.Body, indent+1, v.Expr.Pos().Line)
 	sb.WriteString(")")
 	return sb.String()
 }

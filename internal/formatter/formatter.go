@@ -659,25 +659,104 @@ func formatLet(keyword string, bindings []ast.LetBinding, body []ast.Node, inden
 	//               b2name b2val]
 	//   body)
 	prefix := "(" + keyword + " ["
-	contPad := strings.Repeat(" ", indent*2+len(prefix))
+	bindCol := indent*2 + len(prefix)
+	contPad := strings.Repeat(" ", bindCol)
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + prefix)
 	for i, b := range bindings {
 		if i > 0 {
 			sb.WriteString("\n" + contPad)
 		}
-		sb.WriteString(inlineLetBinding(b))
+		inlineB := inlineLetBinding(b)
+		// A wide map destructure pattern is broken onto multiple aligned lines
+		// rather than overflowing as one long line.
+		if mapPat, ok := b.Pattern.(*ast.MapLit); ok && b.TypeAnnot == nil &&
+			bindCol+len(inlineB) > maxLine {
+			if ml, ok := formatDestructurePattern(mapPat, bindCol); ok {
+				sb.WriteString(ml + " " + inline(b.Value))
+				continue
+			}
+		}
+		sb.WriteString(inlineB)
 	}
-	if len(bindings) == 0 {
-		sb.WriteString("]")
-	} else {
-		sb.WriteString("]")
-	}
+	sb.WriteString("]")
 	for _, b := range body {
 		sb.WriteString("\n" + format(b, indent+1))
 	}
 	sb.WriteString(")")
 	return sb.String()
+}
+
+// fmtDestructEntry is one binding of a map destructure pattern, reconstructed
+// from the MapLit pairs for multi-line rendering.
+type fmtDestructEntry struct {
+	bind string // local name (symbol)
+	key  string // source keyword, including leading ":"
+	typ  string // ":- Type" annotation type, "" if none
+}
+
+// destructureEntries reconstructs the logical bindings of a map destructure
+// pattern, folding each ":- Type" annotation pair into the binding it follows.
+// Returns false if the map is not destructure-shaped (symbol → keyword pairs).
+func destructureEntries(pat *ast.MapLit) ([]fmtDestructEntry, bool) {
+	var entries []fmtDestructEntry
+	pairs := pat.Pairs
+	for i := 0; i < len(pairs); i++ {
+		sym, ok := pairs[i].Key.(*ast.Symbol)
+		if !ok {
+			return nil, false
+		}
+		kw, ok := pairs[i].Value.(*ast.KeywordLit)
+		if !ok {
+			return nil, false
+		}
+		ent := fmtDestructEntry{bind: sym.Name, key: ":" + kw.Value}
+		if i+1 < len(pairs) {
+			if ak, ok := pairs[i+1].Key.(*ast.KeywordLit); ok && ak.Value == "-" {
+				if tsym, ok := pairs[i+1].Value.(*ast.Symbol); ok {
+					ent.typ = tsym.Name
+					i++ // consume the annotation pair
+				}
+			}
+		}
+		entries = append(entries, ent)
+	}
+	return entries, len(entries) > 0
+}
+
+// formatDestructurePattern renders a map destructure pattern across multiple
+// lines with bind/key columns aligned, the opening "{" at column col and the
+// closing "}" attached to the last entry. Returns false to fall back to inline.
+func formatDestructurePattern(pat *ast.MapLit, col int) (string, bool) {
+	entries, ok := destructureEntries(pat)
+	if !ok || len(entries) < 2 {
+		return "", false
+	}
+	bindW, keyW := 0, 0
+	for _, e := range entries {
+		if len(e.bind) > bindW {
+			bindW = len(e.bind)
+		}
+		if len(e.key) > keyW {
+			keyW = len(e.key)
+		}
+	}
+	lines := make([]string, len(entries))
+	for i, e := range entries {
+		s := fmt.Sprintf("%-*s %-*s", bindW, e.bind, keyW, e.key)
+		if e.typ != "" {
+			s += " :- " + e.typ
+		}
+		lines[i] = strings.TrimRight(s, " ")
+	}
+	pad := strings.Repeat(" ", col+1) // align under the char after "{"
+	var sb strings.Builder
+	sb.WriteString("{" + lines[0])
+	for i := 1; i < len(lines); i++ {
+		sb.WriteString("\n" + pad + lines[i])
+	}
+	sb.WriteString("}")
+	return sb.String(), true
 }
 
 func formatIf(v *ast.IfExpr, indent int) string {

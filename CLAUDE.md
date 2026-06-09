@@ -169,6 +169,8 @@ glisp fmt --check file.glsp  # exit 1 if not already formatted
 make fmt-glsp                # format all examples/*.glsp
 ```
 
+Always format example `.glsp` files with a freshly built binary (`make fmt-glsp` rebuilds `glisp` first, then formats) — never a stale/cached one.
+
 ## Testing
 
 ```

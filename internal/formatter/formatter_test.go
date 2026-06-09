@@ -143,6 +143,16 @@ func TestFormat(t *testing.T) {
 			want:  "(let [some-long-name (some-function arg1 arg2)\n      another-binding (other-function)]\n  (process some-long-name another-binding))\n",
 		},
 		{
+			name:  "wide map destructure breaks multi-line and aligns",
+			input: "(let [{title :title :- string priority :priority :- string assignee :assignee :- string done :done :- bool} m] (use title))",
+			want:  "(let [{title    :title    :- string\n       priority :priority :- string\n       assignee :assignee :- string\n       done     :done     :- bool} m]\n  (use title))\n",
+		},
+		{
+			name:  "narrow map destructure stays inline",
+			input: "(let [{name :name :- string} m] name)",
+			want:  "(let [{name :name :- string} m] name)\n",
+		},
+		{
 			name:  "if inline",
 			input: "(if x 1 2)",
 			want:  "(if x 1 2)\n",

@@ -35,7 +35,9 @@
 ;;; bool — so the validation below needs no per-field casts or nil-guards.
 (defn create-task [req web/Request] -> web/Response
   (if-let [body (web/body-map req)]
-    (let [{title :title :- string priority :priority :- string done :done :- bool} body]
+    (let [{title    :title    :- string
+           priority :priority :- string
+           done     :done     :- bool} body]
       (if (= title "")
         (bad-request "title is required")
         (web/json-response 201

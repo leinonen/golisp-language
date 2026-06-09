@@ -282,6 +282,31 @@ func TestFormat(t *testing.T) {
 			input: "(def a 1)(def b 2)",
 			want:  "(def a 1)\n\n(def b 2)\n",
 		},
+		{
+			name:  "select! recv/timeout/default round-trip",
+			input: "(defn f [ch any out any] (select! ([v ch] (send! out v) (log v)) (:timeout 50 (close! out)) (:default (noop))))",
+			want:  "(defn f [ch any out any]\n  (select!\n    ([v ch]\n      (send! out v)\n      (log v))\n    (:timeout 50\n      (close! out))\n    (:default\n      (noop))))\n",
+		},
+		{
+			name:  "par with-lock recv-ok multi-line",
+			input: "(defn f [mu any ch any] (par (work-a) (work-b)) (with-lock mu (mutate) (commit)) (recv-ok! ch))",
+			want:  "(defn f [mu any ch any]\n  (par (work-a) (work-b))\n  (with-lock mu (mutate) (commit))\n  (recv-ok! ch))\n",
+		},
+		{
+			name:  "for-chan inline when it fits",
+			input: "(defn f [out any] (for-chan [r out] (when (not= r nil) (print r)) (track r)))",
+			want:  "(defn f [out any]\n  (for-chan [r out] (when (not= r nil) (print r)) (track r)))\n",
+		},
+		{
+			name:  "go-val with element type",
+			input: "(defn submit [job string] -> (chan string) (go-val string (process job)))",
+			want:  "(defn submit [job string] -> (chan string)\n  (go-val string (process job)))\n",
+		},
+		{
+			name:  "let-or flat bindings",
+			input: "(defn f [m any] (let-or [a (get m \"a\") :none b (get m \"b\") :none] (use a b)))",
+			want:  "(defn f [m any]\n  (let-or [a (get m \"a\") :none b (get m \"b\") :none] (use a b)))\n",
+		},
 	}
 
 	for _, tt := range tests {

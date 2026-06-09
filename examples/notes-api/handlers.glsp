@@ -1,12 +1,10 @@
-(ns main
-  (:import [golisp/web]))
+(ns main (:import [golisp/web]))
 
 (defn make-health [] -> web/Handler
   (fn [req web/Request] -> web/Response
     (web/json-response 200 {"status" "ok" "version" "1.0.0"})))
 
 ;;; User handlers
-
 (defn make-list-users [conn any] -> web/Handler
   (fn [req web/Request] -> web/Response
     (if-err [rows err] (db-list-users conn)
@@ -25,9 +23,9 @@
 
 (defn make-create-user [conn any] -> web/Handler
   (fn [req web/Request] -> web/Response
-    (let-or [body  (web/body-map req)  (bad-request "invalid JSON body")
-             name  (get body "name")   (bad-request "name required")
-             email (get body "email")  (bad-request "email required")]
+    (let-or [body (web/body-map req) (bad-request "invalid JSON body")
+             name (get body "name") (bad-request "name required")
+             email (get body "email") (bad-request "email required")]
       (if-err [user err] (db-create-user conn (str name) (str email))
         (bad-request (.Error err))
         (web/json-response 201 user)))))
@@ -41,13 +39,12 @@
         (web/json-response 200 rows)))))
 
 ;;; Note handlers
-
 (defn make-create-note [conn any] -> web/Handler
   (fn [req web/Request] -> web/Response
-    (let-or [body    (web/body-map req)    (bad-request "invalid JSON body")
-             user-id (get body "user_id")  (bad-request "user_id required")
-             title   (get body "title")    (bad-request "title required")
-             content (get body "content")  (bad-request "content required")]
+    (let-or [body (web/body-map req) (bad-request "invalid JSON body")
+             user-id (get body "user_id") (bad-request "user_id required")
+             title (get body "title") (bad-request "title required")
+             content (get body "content") (bad-request "content required")]
       (if-err [note err] (db-create-note conn user-id (str title) (str content))
         (bad-request (.Error err))
         (web/json-response 201 note)))))
@@ -66,8 +63,8 @@
   (fn [req web/Request] -> web/Response
     (if-err [id err] (strconv/atoi (web/path-param req "id"))
       (bad-request "invalid note id")
-      (let-or [body    (web/body-map req)   (bad-request "invalid JSON body")
-               title   (get body "title")   (bad-request "title required")
+      (let-or [body (web/body-map req) (bad-request "invalid JSON body")
+               title (get body "title") (bad-request "title required")
                content (get body "content") (bad-request "content required")]
         (if-err [note err] (db-update-note conn id (str title) (str content))
           (bad-request (.Error err))

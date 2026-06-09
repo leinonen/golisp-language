@@ -206,6 +206,64 @@ func nodeMaxLine(n ast.Node) int {
 			consider(p.Key)
 			consider(p.Value)
 		}
+	case *ast.SelectStmt:
+		for _, sc := range v.Cases {
+			consider(sc.ChanExpr)
+			consider(sc.SendVal)
+			consider(sc.TimeoutMs)
+			for _, b := range sc.Body {
+				consider(b)
+			}
+		}
+	case *ast.ForChanStmt:
+		consider(v.Chan)
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.ParStmt:
+		for _, b := range v.Bodies {
+			consider(b)
+		}
+	case *ast.WithLockExpr:
+		consider(v.Mutex)
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.PipelineExpr:
+		consider(v.Source)
+		for _, s := range v.Stages {
+			consider(s)
+		}
+	case *ast.FanOutStmt:
+		consider(v.N)
+		consider(v.Chan)
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.FanInExpr:
+		for _, ch := range v.Chans {
+			consider(ch)
+		}
+	case *ast.RecvOkExpr:
+		consider(v.Chan)
+	case *ast.LetOrExpr:
+		for _, b := range v.Bindings {
+			consider(b.Expr)
+			consider(b.Fallback)
+		}
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.GoStmt:
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.GoValExpr:
+		for _, b := range v.Body {
+			consider(b)
+		}
+	case *ast.DeferStmt:
+		consider(v.Expr)
 	}
 	return max
 }
@@ -376,6 +434,36 @@ func (c *cfmt) format(n ast.Node, indent int) string {
 		return c.formatMethod(v, indent)
 	case *ast.DefTestDecl:
 		return c.formatDefTest(v, indent)
+	case *ast.ForChanStmt:
+		return c.formatForChan(v, indent)
+	case *ast.ParStmt:
+		return c.formatPar(v, indent)
+	case *ast.WithLockExpr:
+		return c.formatWithLock(v, indent)
+	case *ast.PipelineExpr:
+		return c.formatPipeline(v, indent)
+	case *ast.FanOutStmt:
+		return c.formatFanOut(v, indent)
+	case *ast.FanInExpr:
+		return c.formatFanIn(v, indent)
+	case *ast.LetOrExpr:
+		return c.formatLetOr(v, indent)
+	case *ast.RecvOkExpr:
+		return ind(indent) + inline(n)
+	case *ast.GoValExpr:
+		il := inline(v)
+		if c.inlineOK(v, indent, il) {
+			return ind(indent) + il
+		}
+		head := "(go-val"
+		if v.ElemType != nil {
+			head += " " + tt(v.ElemType)
+		}
+		var sb strings.Builder
+		sb.WriteString(ind(indent) + head)
+		c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
+		sb.WriteString(")")
+		return sb.String()
 	}
 	return ind(indent) + "???"
 }
@@ -520,7 +608,15 @@ func inline(n ast.Node) string {
 		}
 		return "(chan " + tt(v.ElemType) + ")"
 	case *ast.SelectStmt:
-		return "(select! ...)"
+		parts := []string{"select!"}
+		for _, sc := range v.Cases {
+			caseStr := "(" + selectCaseHead(sc)
+			for _, b := range sc.Body {
+				caseStr += " " + inline(b)
+			}
+			parts = append(parts, caseStr+")")
+		}
+		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.MethodCallExpr:
 		parts := []string{"." + v.Method, inline(v.Object)}
 		for _, a := range v.Args {
@@ -604,6 +700,54 @@ func inline(n ast.Node) string {
 		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.DefTestDecl:
 		parts := []string{"deftest", v.Name}
+		for _, b := range v.Body {
+			parts = append(parts, inline(b))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
+	case *ast.ForChanStmt:
+		parts := []string{"for-chan", "[" + v.Binding.Name + " " + inline(v.Chan) + "]"}
+		for _, b := range v.Body {
+			parts = append(parts, inline(b))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
+	case *ast.ParStmt:
+		parts := []string{"par"}
+		for _, b := range v.Bodies {
+			parts = append(parts, inline(b))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
+	case *ast.RecvOkExpr:
+		return "(recv-ok! " + inline(v.Chan) + ")"
+	case *ast.WithLockExpr:
+		parts := []string{"with-lock", inline(v.Mutex)}
+		for _, b := range v.Body {
+			parts = append(parts, inline(b))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
+	case *ast.PipelineExpr:
+		parts := []string{"pipeline", "[" + v.Binding.Name + " " + inline(v.Source) + "]"}
+		for _, s := range v.Stages {
+			parts = append(parts, inline(s))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
+	case *ast.FanOutStmt:
+		parts := []string{"fan-out", inline(v.N), "[" + v.Binding.Name + " " + inline(v.Chan) + "]"}
+		for _, b := range v.Body {
+			parts = append(parts, inline(b))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
+	case *ast.FanInExpr:
+		parts := []string{"fan-in"}
+		for _, ch := range v.Chans {
+			parts = append(parts, inline(ch))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
+	case *ast.LetOrExpr:
+		var bps []string
+		for _, b := range v.Bindings {
+			bps = append(bps, b.Name, inline(b.Expr), inline(b.Fallback))
+		}
+		parts := []string{"let-or", "[" + strings.Join(bps, " ") + "]"}
 		for _, b := range v.Body {
 			parts = append(parts, inline(b))
 		}
@@ -1181,27 +1325,144 @@ func (c *cfmt) formatDefTest(v *ast.DefTestDecl, indent int) string {
 	return sb.String()
 }
 
+// selectCaseHead renders a select! case head in the syntax the parser accepts:
+// recv -> [binding chan], send -> [(send! chan val)], plus :default / :timeout ms.
+func selectCaseHead(sc ast.SelectCase) string {
+	switch {
+	case sc.IsDefault:
+		return ":default"
+	case sc.IsTimeout:
+		return ":timeout " + inline(sc.TimeoutMs)
+	case sc.IsSend:
+		return "[(send! " + inline(sc.ChanExpr) + " " + inline(sc.SendVal) + ")]"
+	default: // recv
+		return "[" + sc.Binding + " " + inline(sc.ChanExpr) + "]"
+	}
+}
+
+// selectCaseLine returns the source line of a case's head expression, used to
+// anchor in-body comment interleaving.
+func selectCaseLine(sc ast.SelectCase) int {
+	switch {
+	case sc.IsTimeout && sc.TimeoutMs != nil:
+		return sc.TimeoutMs.Pos().Line
+	case sc.ChanExpr != nil:
+		return sc.ChanExpr.Pos().Line
+	case len(sc.Body) > 0:
+		return sc.Body[0].Pos().Line - 1
+	}
+	return 0
+}
+
 func (c *cfmt) formatSelect(v *ast.SelectStmt, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(select!")
 	for _, sc := range v.Cases {
-		sb.WriteString("\n" + ind(indent+1))
-		if sc.IsDefault {
-			sb.WriteString("(:default")
-		} else if sc.IsSend {
-			sb.WriteString("(:send " + inline(sc.ChanExpr) + " " + inline(sc.SendVal))
-		} else {
-			if sc.Binding != "" {
-				sb.WriteString("(:recv " + sc.Binding + " " + inline(sc.ChanExpr))
-			} else {
-				sb.WriteString("(:recv " + inline(sc.ChanExpr))
-			}
-		}
-		for _, b := range sc.Body {
-			sb.WriteString("\n" + c.format(b, indent+2))
-		}
+		sb.WriteString("\n" + ind(indent+1) + "(" + selectCaseHead(sc))
+		c.emitForms(&sb, sc.Body, indent+2, selectCaseLine(sc))
 		sb.WriteString(")")
 	}
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatForChan(v *ast.ForChanStmt, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(for-chan [" + v.Binding.Name + " " + inline(v.Chan) + "]")
+	c.emitForms(&sb, v.Body, indent+1, v.Chan.Pos().Line)
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatPar(v *ast.ParStmt, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(par")
+	c.emitForms(&sb, v.Bodies, indent+1, v.Pos().Line)
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatWithLock(v *ast.WithLockExpr, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(with-lock " + inline(v.Mutex))
+	c.emitForms(&sb, v.Body, indent+1, v.Mutex.Pos().Line)
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatPipeline(v *ast.PipelineExpr, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(pipeline [" + v.Binding.Name + " " + inline(v.Source) + "]")
+	c.emitForms(&sb, v.Stages, indent+1, v.Source.Pos().Line)
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatFanOut(v *ast.FanOutStmt, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(fan-out " + inline(v.N) + " [" + v.Binding.Name + " " + inline(v.Chan) + "]")
+	c.emitForms(&sb, v.Body, indent+1, v.Chan.Pos().Line)
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatFanIn(v *ast.FanInExpr, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(fan-in")
+	c.emitForms(&sb, v.Chans, indent+1, v.Pos().Line)
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatLetOr(v *ast.LetOrExpr, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	prefix := "(let-or ["
+	contPad := strings.Repeat(" ", indent*2+len(prefix))
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + prefix)
+	for i, b := range v.Bindings {
+		if i > 0 {
+			sb.WriteString("\n" + contPad)
+		}
+		sb.WriteString(b.Name + " " + inline(b.Expr) + " " + inline(b.Fallback))
+	}
+	sb.WriteString("]")
+	afterLine := v.Pos().Line
+	if n := len(v.Bindings); n > 0 {
+		afterLine = nodeMaxLine(v.Bindings[n-1].Fallback)
+	}
+	c.emitForms(&sb, v.Body, indent+1, afterLine)
 	sb.WriteString(")")
 	return sb.String()
 }

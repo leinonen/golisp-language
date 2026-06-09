@@ -244,6 +244,25 @@ func fits(s string, indent int) bool {
 	return indent*2+len(s) <= maxLine
 }
 
+// tt renders a type expression's text. Channel types ((chan T)) lose their
+// delimiting parens at parse time (Text is "chan T"); tt re-adds them so the
+// formatted source round-trips. Bracketed types ([]T, [T1 T2], map[K]V) and
+// plain names self-delimit and pass through unchanged.
+func tt(t *ast.TypeExpr) string {
+	if t == nil {
+		return ""
+	}
+	return wrapChanType(t.Text)
+}
+
+func wrapChanType(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "chan ") {
+		return "(chan " + wrapChanType(s[len("chan "):]) + ")"
+	}
+	return s
+}
+
 // format renders node with indent*2 leading spaces.
 func (c *cfmt) format(n ast.Node, indent int) string {
 	switch v := n.(type) {
@@ -414,7 +433,7 @@ func inline(n ast.Node) string {
 	case *ast.FnExpr:
 		head := "(fn " + inlineParams(v.Params)
 		if v.ReturnType != nil {
-			head += " -> " + v.ReturnType.Text
+			head += " -> " + tt(v.ReturnType)
 		}
 		var bodyParts []string
 		for _, b := range v.Body {
@@ -497,9 +516,9 @@ func inline(n ast.Node) string {
 		return "(close! " + inline(v.Chan) + ")"
 	case *ast.ChanExpr:
 		if v.Cap != nil {
-			return "(chan " + v.ElemType.Text + " " + inline(v.Cap) + ")"
+			return "(chan " + tt(v.ElemType) + " " + inline(v.Cap) + ")"
 		}
-		return "(chan " + v.ElemType.Text + ")"
+		return "(chan " + tt(v.ElemType) + ")"
 	case *ast.SelectStmt:
 		return "(select! ...)"
 	case *ast.MethodCallExpr:
@@ -517,7 +536,7 @@ func inline(n ast.Node) string {
 		}
 		return "(" + v.TypeName + ". {" + strings.Join(pairParts, " ") + "})"
 	case *ast.TypeAssertExpr:
-		return "(as " + v.Type.Text + " " + inline(v.Value) + ")"
+		return "(as " + tt(v.Type) + " " + inline(v.Value) + ")"
 	case *ast.IfErrExpr:
 		return "(if-err [" + v.ValName + " " + v.ErrName + "] " +
 			inline(v.Expr) + " " + inline(v.OnErr) + " " + inline(v.OnOk) + ")"
@@ -536,13 +555,13 @@ func inline(n ast.Node) string {
 	case *ast.DefDecl:
 		s := "(def " + v.Name
 		if v.TypeAnnot != nil {
-			s += " " + v.TypeAnnot.Text
+			s += " " + tt(v.TypeAnnot)
 		}
 		return s + " " + inline(v.Value) + ")"
 	case *ast.DefnDecl:
 		head := "(defn " + v.Name + " " + inlineParams(v.Params)
 		if v.ReturnType != nil {
-			head += " -> " + v.ReturnType.Text
+			head += " -> " + tt(v.ReturnType)
 		}
 		var bodyParts []string
 		for _, b := range v.Body {
@@ -557,13 +576,13 @@ func inline(n ast.Node) string {
 			if f.Tag != "" {
 				parts = append(parts, f.Name)
 				if f.TypeAnnot != nil {
-					parts = append(parts, f.TypeAnnot.Text)
+					parts = append(parts, tt(f.TypeAnnot))
 				}
 				parts = append(parts, fmt.Sprintf("%q", f.Tag))
 			} else {
 				parts = append(parts, f.Name)
 				if f.TypeAnnot != nil {
-					parts = append(parts, f.TypeAnnot.Text)
+					parts = append(parts, tt(f.TypeAnnot))
 				}
 			}
 		}
@@ -571,13 +590,13 @@ func inline(n ast.Node) string {
 	case *ast.InterfaceDecl:
 		return "(definterface " + v.Name + " ...)"
 	case *ast.MethodDecl:
-		return "(defmethod " + v.ReceiverType.Text + " " + v.Name + " ...)"
+		return "(defmethod " + tt(v.ReceiverType) + " " + v.Name + " ...)"
 	case *ast.DefTypeDecl:
-		return "(deftype " + v.Name + " " + v.BaseType.Text + ")"
+		return "(deftype " + v.Name + " " + tt(v.BaseType) + ")"
 	case *ast.GoValExpr:
 		parts := []string{"go-val"}
 		if v.ElemType != nil {
-			parts = append(parts, v.ElemType.Text)
+			parts = append(parts, tt(v.ElemType))
 		}
 		for _, b := range v.Body {
 			parts = append(parts, inline(b))
@@ -603,12 +622,12 @@ func inlineParams(params []ast.Param) string {
 		} else if p.IsRest {
 			parts = append(parts, "& "+p.Name)
 			if p.TypeAnnot != nil {
-				parts[len(parts)-1] += " " + p.TypeAnnot.Text
+				parts[len(parts)-1] += " " + tt(p.TypeAnnot)
 			}
 		} else {
 			parts = append(parts, p.Name)
 			if p.TypeAnnot != nil {
-				parts = append(parts, p.TypeAnnot.Text)
+				parts = append(parts, tt(p.TypeAnnot))
 			}
 		}
 	}
@@ -617,7 +636,7 @@ func inlineParams(params []ast.Param) string {
 
 func inlineLetBinding(b ast.LetBinding) string {
 	if b.TypeAnnot != nil {
-		return inline(b.Pattern) + " " + b.TypeAnnot.Text + " " + inline(b.Value)
+		return inline(b.Pattern) + " " + tt(b.TypeAnnot) + " " + inline(b.Value)
 	}
 	return inline(b.Pattern) + " " + inline(b.Value)
 }
@@ -796,7 +815,7 @@ func (c *cfmt) formatFn(v *ast.FnExpr, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(fn " + params)
 	if v.ReturnType != nil {
-		sb.WriteString(" -> " + v.ReturnType.Text)
+		sb.WriteString(" -> " + tt(v.ReturnType))
 	}
 	c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
 	sb.WriteString(")")
@@ -1044,7 +1063,7 @@ func (c *cfmt) formatDef(v *ast.DefDecl, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(def " + v.Name)
 	if v.TypeAnnot != nil {
-		sb.WriteString(" " + v.TypeAnnot.Text)
+		sb.WriteString(" " + tt(v.TypeAnnot))
 	}
 	sb.WriteString("\n")
 	sb.WriteString(c.format(v.Value, indent+1))
@@ -1070,7 +1089,7 @@ func (c *cfmt) formatDefn(v *ast.DefnDecl, indent int) string {
 	sb.WriteString(formatDoc(v.Doc, indent))
 	sb.WriteString(ind(indent) + "(defn " + v.Name + " " + inlineParams(v.Params))
 	if v.ReturnType != nil {
-		sb.WriteString(" -> " + v.ReturnType.Text)
+		sb.WriteString(" -> " + tt(v.ReturnType))
 	}
 	c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
 	sb.WriteString(")")
@@ -1116,7 +1135,7 @@ func formatStruct(v *ast.StructDecl, indent int) string {
 	for _, f := range v.Fields {
 		sb.WriteString("\n" + ind(indent+1) + f.Name)
 		if f.TypeAnnot != nil {
-			sb.WriteString(" " + f.TypeAnnot.Text)
+			sb.WriteString(" " + tt(f.TypeAnnot))
 		}
 		if f.Tag != "" {
 			sb.WriteString(" " + fmt.Sprintf("%q", f.Tag))
@@ -1132,7 +1151,7 @@ func formatInterface(v *ast.InterfaceDecl, indent int) string {
 	for _, m := range v.Methods {
 		sb.WriteString("\n" + ind(indent+1) + "(" + m.Name + " " + inlineParams(m.Params))
 		if m.ReturnType != nil {
-			sb.WriteString(" -> " + m.ReturnType.Text)
+			sb.WriteString(" -> " + tt(m.ReturnType))
 		}
 		sb.WriteString(")")
 	}
@@ -1143,11 +1162,11 @@ func formatInterface(v *ast.InterfaceDecl, indent int) string {
 func (c *cfmt) formatMethod(v *ast.MethodDecl, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(formatDoc(v.Doc, indent))
-	sb.WriteString(ind(indent) + "(defmethod " + v.ReceiverType.Text + " " + v.Name)
+	sb.WriteString(ind(indent) + "(defmethod " + tt(v.ReceiverType) + " " + v.Name)
 	allParams := append([]ast.Param{{Name: v.ReceiverName}}, v.Params...)
 	sb.WriteString(" " + inlineParams(allParams))
 	if v.ReturnType != nil {
-		sb.WriteString(" -> " + v.ReturnType.Text)
+		sb.WriteString(" -> " + tt(v.ReturnType))
 	}
 	c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
 	sb.WriteString(")")

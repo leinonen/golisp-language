@@ -4,14 +4,13 @@
 ;;; Five goroutines each increment a shared counter 1000 times (5000 total).
 ;;; Without atom the result would be unpredictable — swap! holds an internal
 ;;; mutex so concurrent increments never conflict.
-
 (ns main)
 
 ; ── counter ─────────────────────────────────────────────────────────────────
 ; A plain atom wrapping an integer.  swap! takes a function (any → any) and
 ; applies it atomically: lock, call f with current value, store result, unlock.
-
-(defn make-counter [] -> any (atom 0))
+(defn make-counter [] -> any
+  (atom 0))
 
 (defn increment! [c any] -> any
   (swap! c (fn [n any] (+ (int n) 1))))
@@ -23,32 +22,27 @@
   (int (deref c)))
 
 ; ── main ─────────────────────────────────────────────────────────────────────
-
 (defn main [] -> void
-  (let [counter       (make-counter)
-        n-goroutines  5
-        n-per         1000
-        done          (chan bool n-goroutines)]
-
+  (let [counter (make-counter)
+        n-goroutines 5
+        n-per 1000
+        done (chan bool n-goroutines)]
     ; ── launch ──────────────────────────────────────────────────────
     ; Spawn n-goroutines goroutines.  Each does n-per increments, then
     ; signals completion on the done channel.
-    (fmt/println "Launching" n-goroutines "goroutines, each doing" n-per "increments")
+    (fmt/println "Launching"
+      n-goroutines
+      "goroutines, each doing"
+      n-per
+      "increments")
     (doseq [_ (range n-goroutines)]
-      (go
-        (doseq [_ (range n-per)]
-          (increment! counter))
-        (send! done true)))
-
+      (go (doseq [_ (range n-per)] (increment! counter)) (send! done true)))
     ; ── wait ────────────────────────────────────────────────────────
-    (doseq [_ (range n-goroutines)]
-      (recv! done))
-
+    (doseq [_ (range n-goroutines)] (recv! done))
     ; ── report ──────────────────────────────────────────────────────
-    (let [got      (current counter)
+    (let [got (current counter)
           expected (* n-goroutines n-per)]
       (fmt/println "Expected:" expected)
       (fmt/println "Got:     " got)
-      (fmt/println (if (= got expected)
-        "No data races."
-        "Race condition detected!")))))
+      (fmt/println
+        (if (= got expected) "No data races." "Race condition detected!")))))

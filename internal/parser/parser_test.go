@@ -336,6 +336,29 @@ func TestDocComment(t *testing.T) {
 			t.Errorf("Doc: got %q, want empty", fn.Doc)
 		}
 	})
+
+	t.Run("orphan ;;; before non-defn surfaces as a comment", func(t *testing.T) {
+		res, err := ParseWithComments(";;; File doc.\n(ns main)")
+		if err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if got := res.Comments[1]; got != ";;; File doc." {
+			t.Errorf("orphan doc: got %q, want %q", got, ";;; File doc.")
+		}
+	})
+
+	t.Run("attached ;;; is not surfaced as a comment", func(t *testing.T) {
+		res, err := ParseWithComments(";;; Attached.\n(defn f [] nil)")
+		if err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if got, ok := res.Comments[1]; ok {
+			t.Errorf("attached doc leaked into comments: %q", got)
+		}
+		if res.Nodes[0].(*ast.DefnDecl).Doc != "Attached." {
+			t.Errorf("Doc not attached: %q", res.Nodes[0].(*ast.DefnDecl).Doc)
+		}
+	})
 }
 
 func TestUnclosedDelimiter(t *testing.T) {

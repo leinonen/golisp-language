@@ -1,7 +1,6 @@
 ; Shape area calculator — demonstrates definterface, defstruct, defmethod.
 ; Each shape type implements the Shape interface independently;
 ; print-shape dispatches through the interface without knowing the concrete type.
-
 (ns main)
 
 (definterface Shape
@@ -48,6 +47,6 @@
 
 (defn main [] -> void
   (fmt/println "Shapes:")
-  (print-shape (Circle.   {:radius 5.0}))
-  (print-shape (Rect.     {:width 4.0 :height 6.0}))
-  (print-shape (Triangle. {:a 3.0 :b 4.0 :c 5.0})))
+  (print-shape (Circle. {:radius 5}))
+  (print-shape (Rect. {:width 4 :height 6}))
+  (print-shape (Triangle. {:a 3 :b 4 :c 5})))

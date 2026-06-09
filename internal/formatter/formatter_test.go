@@ -368,6 +368,26 @@ func TestCommentPreservation(t *testing.T) {
 			input: "(defn f [] -> void\n  (when ok\n    ; inner\n    (go))\n  (after))",
 			want:  "(defn f [] -> void\n  (when ok\n    ; inner\n    (go))\n  (after))\n",
 		},
+		{
+			name:  "channel type keeps parens in as (round-trips)",
+			input: "(defn f [w any] (as (chan string) w))",
+			want:  "(defn f [w any]\n  (as (chan string) w))\n",
+		},
+		{
+			name:  "channel return type keeps parens",
+			input: "(defn mk [] -> (chan string) (chan string 1))",
+			want:  "(defn mk [] -> (chan string)\n  (chan string 1))\n",
+		},
+		{
+			name:  "orphan ;;; docstring before ns is preserved",
+			input: ";;; File docstring.\n(ns main)",
+			want:  ";;; File docstring.\n(ns main)\n",
+		},
+		{
+			name:  "attached ;;; not duplicated when also orphan-eligible",
+			input: ";;; header\n(def x 1)\n;;; doc\n(defn f [] nil)",
+			want:  ";;; header\n(def x 1)\n\n;;; doc\n(defn f []\n  nil)\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

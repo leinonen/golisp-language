@@ -4,18 +4,16 @@
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
 ;               destructuring (map and sequential), keyword lookup (:key m),
 ;               panic/recover, format, parse-int, parse-float, repeat, interpose
-
 (ns main)
 
 ; --- Named types (deftype) ---
-
 ; deftype emits a Go named type, giving semantic meaning to primitives.
 ; type Score int / type Label string — usable anywhere the base type is.
 (deftype Score int)
+
 (deftype Label string)
 
 ; --- Control flow ---
-
 ;;; Returns the letter grade for a numeric score (0-100).
 (defn grade [score int] -> string
   (cond
@@ -23,7 +21,7 @@
     (>= score 80) "B"
     (>= score 70) "C"
     (>= score 60) "D"
-    :else         "F"))
+    :else "F"))
 
 ;;; Returns a human-readable HTTP status description.
 (defn http-status [code int] -> string
@@ -38,65 +36,49 @@
     :default "Unknown"))
 
 ; --- Panic and recover ---
-
 ; recover must be called from a deferred function to catch panics.
 ; Defer a named handler so recover() runs in the right stack frame.
-
 (defn catch-panic [] -> void
-  (let [r (recover)]
-    (when (not= r nil)
-      (fmt/println "caught panic:" r))))
+  (let [r (recover)] (when (not= r nil) (fmt/println "caught panic:" r))))
 
 ;;; Returns a/b, or 0 if b is zero (panic caught by deferred handler).
 (defn safe-divide [a int b int] -> int
   (defer (catch-panic))
-  (when (= b 0)
-    (panic "divide by zero"))
+  (when (= b 0) (panic "divide by zero"))
   (/ a b))
 
 ; --- Tail-recursive loop ---
-
-;;; Returns the nth Fibonacci number using tail-recursive loop/recur.
 ; Typed loop bindings: var i int, var a int, var b int — no any-boxing.
 ; Arithmetic on concrete ints stays int throughout; recur values match.
+;;; Returns the nth Fibonacci number using tail-recursive loop/recur.
 (defn fib [n int] -> int
-  (loop [i int n  a int 0  b int 1]
-    (if (<= i 0) a (recur (- i 1) b (+ a b)))))
+  (loop [i int n a int 0 b int 1] (if (<= i 0) a (recur (- i 1) b (+ a b)))))
 
 ; --- Higher-order functions ---
 ; (str w) coerces any→string so (len (str w)) compiles on any-typed values.
-
 ;;; Returns words longer than 3 characters, lowercased and sorted.
 (defn long-words [text string] -> []any
   (let [ws (split (lower-case (trim text)) " ")]
-    (sort-by (fn [w] w)
-             (filter (fn [w] (> (len (str w)) 3)) ws))))
+    (sort-by (fn [w] w) (filter (fn [w] (> (len (str w)) 3)) ws))))
 
 ; --- Concurrent class analysis ---
-
 ; Typed def: names is []string, not []any. Go catches element-type mismatches.
-(def months []string ["Jan" "Feb" "Mar" "Apr" "May" "Jun"
-                      "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"])
+(def months []string
+  ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"])
 
 (defn main [] -> void
-
   ; Panic and recover
   (fmt/println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)
-
   ; Fibonacci via typed loop/recur (i, a, b are int — no any-boxing)
   (let [fibs (map (fn [n] (fib (int n))) (range 10))]
     (fmt/println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))
-
   ; Typed let binding: sep is string, not any
   (let [sep string ", "
         words (long-words "the quick brown fox jumps over the lazy dog")]
     (fmt/println "long words:" (join words sep)))
-
   ; Typed def: months []string — element access needs no type cast
-  (let [q1 string (join (take 3 months) "/")]
-    (fmt/println "Q1:" q1))
-
+  (let [q1 string (join (take 3 months) "/")] (fmt/println "Q1:" q1))
   ; format, parse-int, parse-float, repeat, interpose
   (fmt/println (format "grade for 87: %s (score: %d)" (grade 87) 87))
   (if-err [n err] (parse-int "42")
@@ -106,54 +88,48 @@
     (fmt/println "parse-float error:" err)
     (fmt/println (format "parse-float: %.3f" x)))
   (fmt/println "repeat:   " (join (repeat 5 "*") ""))
-  (fmt/println "interpose:" (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
-
+  (fmt/println "interpose:"
+    (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
   ; Analyze student classes concurrently.
   ; Map destructuring in fn params: {name :name scores :scores}
-  (let [classes
-        [{:name "Math"    :scores [85 92 78 61 79 88 95]}
-         {:name "English" :scores [76 85 90 55 68 73 82]}
-         {:name "Science" :scores [91 94 87 98 79 85 92]}]]
-
+  (let [classes [{:name "Math" :scores [85 92 78 61 79 88 95]} {:name "English" :scores [76 85 90 55 68 73 82]} {:name "Science" :scores [91 94 87 98 79 85 92]}]]
     (let [ch (chan map[string]any (len classes))]
-
       ; Spawn one goroutine per class using map destructuring on the param
       (map
         (fn [{name :name scores :scores}]
-          (let [total  (reduce (fn [acc s] (+ (int acc) (int s))) 0 scores)
-                n      (int (reduce (fn [k _] (+ (int k) 1)) 0 scores))
-                avg    (/ (int total) n)
-                pass   (filter (fn [s] (>= (int s) 60)) scores)
+          (let [total (reduce (fn [acc s] (+ (int acc) (int s))) 0 scores)
+                n (int (reduce (fn [k _] (+ (int k) 1)) 0 scores))
+                avg (/ (int total) n)
+                pass (filter (fn [s] (>= (int s) 60)) scores)
                 pass-n (int (reduce (fn [k _] (+ (int k) 1)) 0 pass))]
-            (go (send! ch
-                  {:name    (str name)
-                   :avg     avg
-                   :grade   (grade avg)
-                   :passing (str pass-n "/" n)}))
+            (go
+              (send! ch {:name (str name) :avg avg :grade (grade avg) :passing (str pass-n "/" n)}))
             nil))
         classes)
-
       ; Collect and rank by average score.
       ; Sequential destructuring: [[top second third] ranked]
       (let [results (map (fn [_] (recv! ch)) classes)
-            ranked  (sort-by (fn [{avg :avg}] avg) results)
+            ranked (sort-by (fn [{avg :avg}] avg) results)
             [top second third] ranked]
-
         (fmt/println "\n=== Class Report ===")
         (map
           (fn [{name :name avg :avg grade :grade passing :passing}]
             (fmt/println " "
               name
-              "| avg:" avg
-              "| grade:" grade
-              "| passing:" passing))
+              "| avg:"
+              avg
+              "| grade:"
+              grade
+              "| passing:"
+              passing))
           ranked)
-
         ; keyword lookup: (:name m) extracts the :name key from a map
-        (fmt/println "\nbottom:" (:name top)
-                     " mid:" (:name second)
-                     " top:" (:name third))
-
+        (fmt/println "\nbottom:"
+          (:name top)
+          " mid:"
+          (:name second)
+          " top:"
+          (:name third))
         ; JSON export via if-err
         (if-err [out err] (json/encode {"report" ranked})
           (fmt/println "encode error:" err)

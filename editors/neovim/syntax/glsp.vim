@@ -19,6 +19,16 @@ syn keyword glispTypeName
   \ bool byte rune string error any
 hi def link glispTypeName Type
 
+" Annotated map destructuring: `[{name :name :- string age :age :- Product} m]`
+" The `:-` marker introduces a type annotation on the preceding binding. Match
+" the marker and the type token that follows it (primitive, struct name, `*T`,
+" or package-qualified `web/Request`). Defined after the clojure runtime so this
+" match wins over clojure's generic `:keyword` highlighting of `:-`.
+syn match glispAnnotMarker /:-/ skipwhite nextgroup=glispAnnotType
+syn match glispAnnotType contained /\*\?[A-Za-z_][A-Za-z0-9_-]*\%(\/[A-Za-z_][A-Za-z0-9_-]*\)\?/
+hi def link glispAnnotMarker Operator
+hi def link glispAnnotType Type
+
 " Core special forms (may not be in clojure.vim if runtime is absent)
 syn keyword glispCore
   \ def defn fn let if when cond do ns loop recur
@@ -33,6 +43,6 @@ syn keyword glispSpecial
 hi def link glispSpecial Statement
 
 " Add glisp groups to Clojure's top-level cluster so they match inside parens
-syn cluster clojureTop add=glispCore,glispSpecial,glispTypeName
+syn cluster clojureTop add=glispCore,glispSpecial,glispTypeName,glispAnnotMarker
 
 let b:current_syntax = 'glsp'

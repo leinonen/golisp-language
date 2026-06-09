@@ -1,5 +1,4 @@
-(ns main
-  (:import [golisp/web]))
+(ns main (:import [golisp/web]))
 
 (defn bad-request [msg string] -> web/Response
   (web/json-response 400 {"error" msg}))

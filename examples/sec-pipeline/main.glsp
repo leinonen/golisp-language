@@ -12,49 +12,43 @@
 ;;;               stage2: format line       |
 ;;;                                         v
 ;;;                                    results chan --> summary
-
 (ns main)
 
 ; -- event data ----------------------------------------------------------------
-
 (def fw-log []any
-  [{"src" "fw"   "type" "block"  "ip" "203.0.113.42" "msg" "SSH brute force"}
-   {"src" "fw"   "type" "allow"  "ip" "198.51.100.7" "msg" "HTTPS request ok"}
-   {"src" "fw"   "type" "block"  "ip" "203.0.113.99" "msg" "RDP scan blocked"}
-   {"src" "fw"   "type" "drop"   "ip" "192.0.2.55"   "msg" "Telnet probe dropped"}])
+  [{"src" "fw" "type" "block" "ip" "203.0.113.42" "msg" "SSH brute force"}
+   {"src" "fw" "type" "allow" "ip" "198.51.100.7" "msg" "HTTPS request ok"}
+   {"src" "fw" "type" "block" "ip" "203.0.113.99" "msg" "RDP scan blocked"}
+   {"src" "fw" "type" "drop" "ip" "192.0.2.55" "msg" "Telnet probe dropped"}])
 
 (def ids-log []any
-  [{"src" "ids"  "type" "alert"  "ip" "203.0.113.42" "msg" "SQL injection attempt"}
-   {"src" "ids"  "type" "info"   "ip" "198.51.100.8" "msg" "Port scan detected"}
-   {"src" "ids"  "type" "alert"  "ip" "203.0.113.15" "msg" "Reflected XSS"}
-   {"src" "ids"  "type" "alert"  "ip" "203.0.113.42" "msg" "Path traversal"}])
+  [{"src" "ids" "type" "alert" "ip" "203.0.113.42" "msg" "SQL injection attempt"}
+   {"src" "ids" "type" "info" "ip" "198.51.100.8" "msg" "Port scan detected"}
+   {"src" "ids" "type" "alert" "ip" "203.0.113.15" "msg" "Reflected XSS"}
+   {"src" "ids" "type" "alert" "ip" "203.0.113.42" "msg" "Path traversal"}])
 
 (def auth-log []any
-  [{"src" "auth" "type" "login"  "ip" "10.0.0.1"     "msg" "Admin login (internal)"}
-   {"src" "auth" "type" "login"  "ip" "203.0.113.42" "msg" "DB service login from external"}
-   {"src" "auth" "type" "access" "ip" "10.0.0.1"     "msg" "Config file read"}
-   {"src" "auth" "type" "login"  "ip" "203.0.113.55" "msg" "Root login attempt"}])
+  [{"src" "auth" "type" "login" "ip" "10.0.0.1" "msg" "Admin login (internal)"}
+   {"src" "auth" "type" "login" "ip" "203.0.113.42" "msg" "DB service login from external"}
+   {"src" "auth" "type" "access" "ip" "10.0.0.1" "msg" "Config file read"}
+   {"src" "auth" "type" "login" "ip" "203.0.113.55" "msg" "Root login attempt"}])
 
 ; Emit delays as typed time.Duration so time.Sleep receives the right type.
-(def fw-delay   time/Duration (* 10 time/Millisecond))
-(def ids-delay  time/Duration (* 25 time/Millisecond))
+(def fw-delay time/Duration (* 10 time/Millisecond))
+
+(def ids-delay time/Duration (* 25 time/Millisecond))
+
 (def auth-delay time/Duration (* 15 time/Millisecond))
 
 ; -- source emitters -----------------------------------------------------------
-
 ;;; Emit each event to a channel with a per-event delay, then close it.
 ;;; Each call spawns one goroutine, so three concurrent streams run in parallel.
 (defn emit-log [events []any delay time/Duration] -> (chan any)
   (let [ch (chan any 8)]
-    (go
-      (doseq [ev events]
-        (time/sleep delay)
-        (send! ch ev))
-      (close! ch))
+    (go (doseq [ev events] (time/sleep delay) (send! ch ev)) (close! ch))
     ch))
 
 ; -- threat classification -----------------------------------------------------
-
 ;;; IPs known to be hostile.
 (def bad-ips any #{"203.0.113.42" "203.0.113.15" "203.0.113.55" "203.0.113.99"})
 
@@ -65,37 +59,34 @@
 ;;; HIGH = loud type from an unknown IP.
 ;;; INFO = everything else.
 (defn classify [ev any] -> string
-  (let [t  (str (get ev "type"))
+  (let [t (str (get ev "type"))
         ip (str (get ev "ip"))]
     (if (contains? loud-types t)
       (if (contains? bad-ips ip) "CRITICAL" "HIGH")
       "INFO")))
 
 ; -- pipeline stage functions --------------------------------------------------
-
 ;;; Stage 1: add a "level" field derived from type and IP reputation.
 (defn stage-classify [ev any] -> any
   (assoc ev "level" (classify ev)))
 
 ;;; Stage 2: build a fixed-width display line for terminal output.
 (defn stage-format [ev any] -> any
-  (assoc ev "line"
+  (assoc ev
+    "line"
     (format "  %-8s | %-4s | %-15s | %s"
-            (get ev "level")
-            (get ev "src")
-            (get ev "ip")
-            (get ev "msg"))))
+      (get ev "level")
+      (get ev "src")
+      (get ev "ip")
+      (get ev "msg"))))
 
 ; -- thread-safe output --------------------------------------------------------
-
 (def print-mu sync/Mutex (sync/Mutex. {}))
 
 (defn say [s string] -> void
-  (with-lock print-mu
-    (fmt/println s)))
+  (with-lock print-mu (fmt/println s)))
 
 ; -- main ----------------------------------------------------------------------
-
 (defn main [] -> void
   (say "Parallel Security Event Analyzer")
   (say "=================================")
@@ -106,19 +97,12 @@
   (say "Events (arrival order reflects concurrent sources):")
   (say "  LEVEL    | SRC  | IP              | MESSAGE")
   (say "  ---------+------+-----------------+--------------------------------")
-
   ; Step 1: fan-in -- merge three concurrent streams.
   ; Events arrive interleaved because each source runs at its own cadence.
-  (let [merged (fan-in (emit-log fw-log   fw-delay)
-                        (emit-log ids-log  ids-delay)
-                        (emit-log auth-log auth-delay))]
-
+  (let [merged (fan-in (emit-log fw-log fw-delay) (emit-log ids-log ids-delay) (emit-log auth-log auth-delay))]
     ; Step 2: pipeline -- two enrichment stages chained via internal channels.
     ; stage-classify adds "level"; stage-format builds the display line.
-    (let [enriched (pipeline [ev merged]
-                     (stage-classify ev)
-                     (stage-format   ev))]
-
+    (let [enriched (pipeline [ev merged] (stage-classify ev) (stage-format ev))]
       ; Step 3: fan-out -- 4 workers drain the enriched channel concurrently.
       ; Each prints the event and sends the threat level to results.
       ; Wrapped in (go ...) so main can collect from results while workers run.
@@ -128,19 +112,9 @@
             (say (str (get ev "line")))
             (send! results (str (get ev "level"))))
           (close! results))
-
         ; Step 4: drain results and tally threat levels.
         ; Loop bindings are int (scalar init), so + is direct Go arithmetic.
-        (let [counts (loop [crit 0 high 0 info 0]
-                       (let [[v ok] (recv-ok! results)]
-                         (if (not= ok true)
-                           {"CRITICAL" crit "HIGH" high "INFO" info
-                            "TOTAL" (+ crit (+ high info))}
-                           (let [lvl (str v)]
-                             (cond
-                               (= lvl "CRITICAL") (recur (+ crit 1) high info)
-                               (= lvl "HIGH")     (recur crit (+ high 1) info)
-                               true               (recur crit high (+ info 1)))))))]
+        (let [counts (loop [crit 0 high 0 info 0] (let [[v ok] (recv-ok! results)] (if (not= ok true) {"CRITICAL" crit "HIGH" high "INFO" info "TOTAL" (+ crit (+ high info))} (let [lvl (str v)] (cond (= lvl "CRITICAL") (recur (+ crit 1) high info) (= lvl "HIGH") (recur crit (+ high 1) info) true (recur crit high (+ info 1)))))))]
           (say "")
           (say "Threat summary")
           (say "--------------")

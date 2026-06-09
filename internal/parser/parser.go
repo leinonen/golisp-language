@@ -63,6 +63,11 @@ func ParseWithComments(src string) (ParseResult, error) {
 	if err != nil {
 		return ParseResult{}, err
 	}
+	// Orphan ;;; docstrings (not attached to any defn/defmethod Doc) are surfaced
+	// to the formatter as comments so they are preserved in place.
+	for line, text := range p.orphanDocs {
+		comments[line] = text
+	}
 	return ParseResult{Nodes: nodes, Comments: comments}, nil
 }
 
@@ -110,6 +115,13 @@ type parser struct {
 	src        string // original source text for error context; may be empty
 	filename   string // source file path; when set, Position.File is populated
 	pendingDoc string // set by ;;; doc comment, consumed by parseDefn/parseDefmethod
+	// pendingDocLines/Texts track the source lines and rendered text of the
+	// accumulating ;;; block so unconsumed (orphan) docstrings can be preserved.
+	pendingDocLines []int
+	pendingDocTexts []string
+	// orphanDocs holds ;;; doc-comment lines that were not attached to any
+	// defn/defmethod Doc (e.g. a file-level docstring before ns), keyed by line.
+	orphanDocs map[int]string
 	// openStack tracks unclosed opening delimiters ( [ { #{ #( so EOF errors can
 	// point back at the opener instead of the end of the file.
 	openStack []lexer.Token
@@ -281,13 +293,15 @@ func (p *parser) parseAll() ([]ast.Node, error) {
 	var nodes []ast.Node
 	for p.peekType() != lexer.TokenEOF {
 		if p.peekType() == lexer.TokenDocComment {
-			line := p.advance().Text
+			tok := p.advance()
 			if p.pendingDoc == "" {
-				p.pendingDoc = line
+				p.pendingDoc = tok.Text
 			} else {
 				// Consecutive ;;; lines accumulate into a multi-line docstring.
-				p.pendingDoc += "\n" + line
+				p.pendingDoc += "\n" + tok.Text
 			}
+			p.pendingDocLines = append(p.pendingDocLines, tok.Line)
+			p.pendingDocTexts = append(p.pendingDocTexts, strings.TrimRight(";;; "+tok.Text, " "))
 			continue
 		}
 		if p.peekType() == lexer.TokenComment {
@@ -298,10 +312,28 @@ func (p *parser) parseAll() ([]ast.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		p.pendingDoc = ""
+		// A ;;; block the parsed node did not consume as its Doc is an orphan
+		// (e.g. a file-level docstring before ns); record it so the formatter can
+		// still preserve it. parseDefn/parseMethod clear pendingDoc on consume.
+		if p.pendingDoc != "" {
+			for i, ln := range p.pendingDocLines {
+				if p.orphanDocs == nil {
+					p.orphanDocs = map[int]string{}
+				}
+				p.orphanDocs[ln] = p.pendingDocTexts[i]
+			}
+		}
+		p.clearPendingDoc()
 		nodes = append(nodes, node)
 	}
 	return nodes, nil
+}
+
+// clearPendingDoc resets the accumulating ;;; docstring state.
+func (p *parser) clearPendingDoc() {
+	p.pendingDoc = ""
+	p.pendingDocLines = nil
+	p.pendingDocTexts = nil
 }
 
 // ---------- expression dispatch ----------
@@ -757,6 +789,7 @@ func (p *parser) parseDefn(pos ast.Position) (*ast.DefnDecl, error) {
 	doc, body := extractDoc(rawBody)
 	if p.pendingDoc != "" {
 		doc = p.pendingDoc
+		p.clearPendingDoc() // consumed: not an orphan
 	}
 	return ast.NewDefnDecl(pos, nameTok.Text, params, retType, doc, body), nil
 }
@@ -887,6 +920,7 @@ func (p *parser) parseDefmethod(pos ast.Position) (*ast.MethodDecl, error) {
 	doc, body := extractDoc(rawBody)
 	if p.pendingDoc != "" {
 		doc = p.pendingDoc
+		p.clearPendingDoc() // consumed: not an orphan
 	}
 	return ast.NewMethodDecl(pos, recvType, recvName, nameTok.Text, params, retType, doc, body), nil
 }

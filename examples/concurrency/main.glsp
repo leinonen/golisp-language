@@ -6,22 +6,18 @@
 ;;;   recv-ok!    — comma-ok receive to detect a closed channel
 ;;;   with-lock   — mutex-protected critical section (IIFE with Lock/defer Unlock)
 ;;;   :timeout    — select! case that fires after N milliseconds
-
 (ns main)
 
 ; ── shared log mutex ──────────────────────────────────────────────
 ; with-lock ensures log lines from concurrent goroutines don't interleave.
-
 (def log-mu sync/Mutex (sync/Mutex. {}))
 
 (defn log! [msg string] -> void
-  (with-lock log-mu
-    (fmt/println msg)))
+  (with-lock log-mu (fmt/println msg)))
 
 ; ── simulated job ─────────────────────────────────────────────────
 ; Short names (≤8 chars) sleep 30ms — finish within the 100ms timeout.
 ; Long names (>8 chars) sleep 200ms — exceed the timeout, so they're skipped.
-
 (defn process [job string] -> string
   (if (> (len job) 8)
     (time/sleep (* 200 time/Millisecond))
@@ -36,64 +32,52 @@
 ; ── collect results from a closed channel ─────────────────────────
 ; recv-ok! returns [value ok]; loop/recur accumulates values until closed.
 ; Accepts chan string — the typed channel produced by go-val.
-
 (defn collect [ch (chan string)] -> []any
   (loop [acc []]
     (let [[val ok] (recv-ok! ch)]
-      (if (= ok true)
-        (recur (conj acc val))
-        (as []any acc)))))
+      (if (= ok true) (recur (conj acc val)) (as []any acc)))))
 
 ; ── main ──────────────────────────────────────────────────────────
-
 (defn main [] -> void
-
   ; 1. par — three independent startup steps, synchronized by WaitGroup.
   ;    All three run concurrently; main blocks until all finish.
-  (fmt/println "── startup (par) ────────────────────")
+  (fmt/println
+    "── startup (par) ────────────────────")
   (par
     (log! "  cache:   ready")
     (log! "  db:      connected")
     (log! "  metrics: active"))
-
   ; 2. Submit jobs as futures with go-val.
   ;    "ping", "auth" → fast (30ms).  "render-report", "archive-logs" → slow (200ms).
   (fmt/println "── submitting jobs (go-val) ─────────")
   (let [jobs ["ping" "auth" "render-report" "archive-logs" "sync"]]
-
     (let [work (map (fn [j] {:job j :future (submit (str j))}) jobs)
-          out  (chan any (len jobs))]
-
+          out (chan any (len jobs))]
       ; 3. Await each future — :timeout fires if the job takes > 100ms.
       (fmt/println "── awaiting results (100ms timeout) ")
       (doseq [w work]
-        (let [job    (str (:job w))
+        (let [job (str (:job w))
               future (as (chan string) (:future w))]
           (select!
             ([result future]
-             (send! out result)
-             (log! (str "  ✓  " job " → " result)))
+              (send! out result)
+              (log! (str "  ✓  " job " → " result)))
             (:timeout 100
-             (send! out nil)
-             (log! (str "  ✗  " job " timed out"))))
+              (send! out nil)
+              (log! (str "  ✗  " job " timed out"))))
           nil))
       (close! out)
-
       ; 4. for-chan — drain the output channel, print non-nil results.
       ;    The range stops automatically when out is closed above.
       (fmt/println "── completed results (for-chan) ─────")
-      (for-chan [r out]
-        (when (not= r nil)
-          (fmt/println "    →" r)))
-
+      (for-chan [r out] (when (not= r nil) (fmt/println "    →" r)))
       ; 5. recv-ok! — demonstrate manual channel drain via typed collect.
       ;    Fill a typed chan string with job names and collect into []string.
-      (fmt/println "── collect via recv-ok! ─────────────")
+      (fmt/println
+        "── collect via recv-ok! ─────────────")
       (let [buf (chan string (len jobs))]
-        (doseq [j jobs]
-          (send! buf (str j)))
+        (doseq [j jobs] (send! buf (str j)))
         (close! buf)
         (let [names (collect buf)]
           (fmt/println "    job count:" (len names))
-          (doseq [n names]
-            (fmt/println "    -" n)))))))
+          (doseq [n names] (fmt/println "    -" n)))))))

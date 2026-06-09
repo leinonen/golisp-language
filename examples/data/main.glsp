@@ -3,141 +3,144 @@
 ;   second, last, empty?, not-empty, get-in, assoc-in, update, update-in,
 ;   select-keys, rename-keys, group-by, frequencies, into, concat, mapcat,
 ;   take-while, drop-while, zipmap, partition, partition-by
-
 (ns main)
 
 (def products []any
-  [{:id 1 :name "Widget A"   :category "hardware"    :price 999  :stock 50  :supplier {:name "AcmeCo"   :tier 1}}
-   {:id 2 :name "Widget B"   :category "hardware"    :price 2499 :stock 12  :supplier {:name "BetaInc"  :tier 2}}
-   {:id 3 :name "Gadget X"   :category "electronics" :price 4999 :stock 8   :supplier {:name "AcmeCo"   :tier 1}}
-   {:id 4 :name "Gadget Y"   :category "electronics" :price 8999 :stock 3   :supplier {:name "GammaLtd" :tier 3}}
-   {:id 5 :name "Bolt Pack"  :category "hardware"    :price 399  :stock 200 :supplier {:name "BetaInc"  :tier 2}}
-   {:id 6 :name "LED Strip"  :category "electronics" :price 1499 :stock 25  :supplier {:name "GammaLtd" :tier 3}}
-   {:id 7 :name "Wrench Set" :category "hardware"    :price 3999 :stock 0   :supplier {:name "AcmeCo"   :tier 1}}])
+  [{:id 1 :name "Widget A" :category "hardware" :price 999 :stock 50 :supplier {:name "AcmeCo" :tier 1}}
+   {:id 2 :name "Widget B" :category "hardware" :price 2499 :stock 12 :supplier {:name "BetaInc" :tier 2}}
+   {:id 3 :name "Gadget X" :category "electronics" :price 4999 :stock 8 :supplier {:name "AcmeCo" :tier 1}}
+   {:id 4 :name "Gadget Y" :category "electronics" :price 8999 :stock 3 :supplier {:name "GammaLtd" :tier 3}}
+   {:id 5 :name "Bolt Pack" :category "hardware" :price 399 :stock 200 :supplier {:name "BetaInc" :tier 2}}
+   {:id 6 :name "LED Strip" :category "electronics" :price 1499 :stock 25 :supplier {:name "GammaLtd" :tier 3}}
+   {:id 7 :name "Wrench Set" :category "hardware" :price 3999 :stock 0 :supplier {:name "AcmeCo" :tier 1}}])
 
 (defn main [] -> void
-
   ; --- second / last ---
   ; second and last are runtime helpers, so they accept any (including []any).
   (fmt/println "=== second / last ===")
   (fmt/println "  second product:" (get (second products) "name"))
   (fmt/println "  last product:  " (get (last products) "name"))
-
   ; --- empty? / not-empty ---
   ; filter returns []any; use (len ...) not (count ...) on it.
   (fmt/println "\n=== empty? / not-empty ===")
-  (let [out-of-stock (filter #(= (int (get % "stock")) 0) products)
-        refurbished  (filter #(= (get % "category") "refurbished") products)]
+  (let [out-of-stock (filter (fn [_anonP1] (= (int (get _anonP1 "stock")) 0)) products)
+        refurbished (filter (fn [_anonP1] (= (get _anonP1 "category") "refurbished")) products)]
     (fmt/println "  out-of-stock empty?" (empty? out-of-stock))
     (fmt/println "  refurbished empty? " (empty? refurbished))
-    (fmt/println "  out-of-stock:"       (map #(get % "name") out-of-stock))
+    (fmt/println "  out-of-stock:"
+      (map (fn [_anonP1] (get _anonP1 "name")) out-of-stock))
     (fmt/println "  not-empty nil check:" (= (not-empty refurbished) nil)))
-
   ; --- select-keys ---
   (fmt/println "\n=== select-keys ===")
-  (let [summaries (map #(select-keys % ["name" "price" "stock"]) products)]
-    (map #(fmt/println " " %) (take 3 summaries)))
-
+  (let [summaries (map (fn [_anonP1] (select-keys _anonP1 ["name" "price" "stock"])) products)]
+    (map (fn [_anonP1] (fmt/println " " _anonP1)) (take 3 summaries)))
   ; --- rename-keys ---
   ; (get products 0) uses _glispGet which accepts any — works on []any.
   (fmt/println "\n=== rename-keys ===")
   (let [renamed (rename-keys (get products 0) {"name" "title" "price" "cost" "stock" "qty"})]
     (fmt/println " " (select-keys renamed ["id" "title" "cost" "qty"])))
-
   ; --- get-in / assoc-in ---
   (fmt/println "\n=== get-in / assoc-in ===")
-  (let [pa       (get products 0)
+  (let [pa (get products 0)
         promoted (assoc-in pa ["supplier" "tier"] 0)]
     (fmt/println "  supplier:      " (get-in pa ["supplier" "name"]))
     (fmt/println "  tier before:   " (get-in pa ["supplier" "tier"]))
     (fmt/println "  tier after:    " (get-in promoted ["supplier" "tier"])))
-
   ; --- update / update-in ---
   ; second returns any, so all built-ins work normally.
   (fmt/println "\n=== update / update-in ===")
-  (let [pb        (second products)
-        restocked (update pb "stock" #(* (int %) 3))
-        tiered    (update-in pb ["supplier" "tier"] #(- (int %) 1))]
-    (fmt/println "  stock before:" (get pb "stock") " after x3:" (get restocked "stock"))
-    (fmt/println "  tier before: " (get-in pb ["supplier" "tier"]) " after -1:" (get-in tiered ["supplier" "tier"])))
-
+  (let [pb (second products)
+        restocked (update pb "stock" (fn [_anonP1] (* (int _anonP1) 3)))
+        tiered (update-in pb ["supplier" "tier"] (fn [_anonP1] (- (int _anonP1) 1)))]
+    (fmt/println "  stock before:"
+      (get pb "stock")
+      " after x3:"
+      (get restocked "stock"))
+    (fmt/println "  tier before: "
+      (get-in pb ["supplier" "tier"])
+      " after -1:"
+      (get-in tiered ["supplier" "tier"])))
   ; --- group-by ---
   ; Values from (get m k) are any — count and map work on them directly.
   (fmt/println "\n=== group-by ===")
   (let [by-cat (group-by "category" products)
-        hw     (get by-cat "hardware")
-        el     (get by-cat "electronics")]
-    (fmt/println "  hardware:"    (count hw) "products")
+        hw (get by-cat "hardware")
+        el (get by-cat "electronics")]
+    (fmt/println "  hardware:" (count hw) "products")
     (fmt/println "  electronics:" (count el) "products")
-    (fmt/println "  hw names:"    (map #(get % "name") hw)))
-
+    (fmt/println "  hw names:" (map (fn [_anonP1] (get _anonP1 "name")) hw)))
   ; --- frequencies ---
   (fmt/println "\n=== frequencies ===")
-  (let [suppliers (map #(get-in % ["supplier" "name"]) products)
-        freq      (frequencies suppliers)]
+  (let [suppliers (map (fn [_anonP1] (get-in _anonP1 ["supplier" "name"])) products)
+        freq (frequencies suppliers)]
     (fmt/println " " freq))
-
   ; --- zipmap ---
   (fmt/println "\n=== zipmap ===")
-  (let [names  (map #(get % "name") products)
-        prices (map #(get % "price") products)
+  (let [names (map (fn [_anonP1] (get _anonP1 "name")) products)
+        prices (map (fn [_anonP1] (get _anonP1 "price")) products)
         lookup (zipmap names prices)]
-    (fmt/println "  Widget A:"   (get lookup "Widget A"))
-    (fmt/println "  Gadget Y:"   (get lookup "Gadget Y"))
+    (fmt/println "  Widget A:" (get lookup "Widget A"))
+    (fmt/println "  Gadget Y:" (get lookup "Gadget Y"))
     (fmt/println "  Wrench Set:" (get lookup "Wrench Set")))
-
   ; --- into: collect name→stock pairs into a map ---
   ; into returns any; get works on any directly.
   (fmt/println "\n=== into ===")
-  (let [pairs  (map #([(get % "name") (get % "stock")]) products)
+  (let [pairs (map (fn [_anonP1] [(get _anonP1 "name") (get _anonP1 "stock")]) products)
         stocks (into {} pairs)]
-    (fmt/println "  Widget B stock:"   (get stocks "Widget B"))
+    (fmt/println "  Widget B stock:" (get stocks "Widget B"))
     (fmt/println "  Wrench Set stock:" (get stocks "Wrench Set")))
-
   ; --- concat ---
   ; Use (len ...) on []any results from filter/concat.
   (fmt/println "\n=== concat ===")
-  (let [cheap    (filter #(< (int (get % "price")) 1000) products)
-        pricey   (filter #(>= (int (get % "price")) 5000) products)
+  (let [cheap (filter (fn [_anonP1] (< (int (get _anonP1 "price")) 1000)) products)
+        pricey (filter (fn [_anonP1] (>= (int (get _anonP1 "price")) 5000)) products)
         extremes (concat cheap pricey)]
-    (fmt/println "  cheap (<$10):"  (map #(get % "name") cheap))
-    (fmt/println "  pricey (≥$50):" (map #(get % "name") pricey))
-    (fmt/println "  combined:"      (len extremes) "products"))
-
+    (fmt/println "  cheap (<$10):"
+      (map (fn [_anonP1] (get _anonP1 "name")) cheap))
+    (fmt/println "  pricey (≥$50):"
+      (map (fn [_anonP1] (get _anonP1 "name")) pricey))
+    (fmt/println "  combined:" (len extremes) "products"))
   ; --- mapcat ---
   (fmt/println "\n=== mapcat ===")
-  (let [tags (mapcat #([(get % "name") (get % "category")]) (take 3 products))]
+  (let [tags (mapcat (fn [_anonP1] [(get _anonP1 "name") (get _anonP1 "category")]) (take 3 products))]
     (fmt/println " " tags))
-
   ; --- take-while / drop-while ---
   (fmt/println "\n=== take-while / drop-while ===")
-  (let [price-sorted (sort-by #(get % "price") products)
-        budget  (take-while #(< (int (get % "price")) 2000) price-sorted)
-        premium (drop-while #(< (int (get % "price")) 2000) price-sorted)]
-    (fmt/println "  budget (<$20): " (map #(get % "name") budget))
-    (fmt/println "  premium (≥$20):" (map #(get % "name") premium)))
-
+  (let [price-sorted (sort-by (fn [_anonP1] (get _anonP1 "price")) products)
+        budget (take-while (fn [_anonP1] (< (int (get _anonP1 "price")) 2000)) price-sorted)
+        premium (drop-while (fn [_anonP1] (< (int (get _anonP1 "price")) 2000)) price-sorted)]
+    (fmt/println "  budget (<$20): "
+      (map (fn [_anonP1] (get _anonP1 "name")) budget))
+    (fmt/println "  premium (≥$20):"
+      (map (fn [_anonP1] (get _anonP1 "name")) premium)))
   ; --- partition ---
   ; partition returns []any of []any batches.
   ; (batch) is any inside the map callback — first/count work on it.
   (fmt/println "\n=== partition ===")
   (let [batches (partition 3 products)]
-    (fmt/println "  products:" (len products) " batch-size: 3  batches:" (len batches))
-    (map (fn [batch]
-           (do
-             (fmt/println "  batch:" (map #(get % "name") batch))
-             nil))
-         batches))
-
+    (fmt/println "  products:"
+      (len products)
+      " batch-size: 3  batches:"
+      (len batches))
+    (map
+      (fn [batch]
+        (do
+          (fmt/println "  batch:"
+            (map (fn [_anonP1] (get _anonP1 "name")) batch))
+          nil))
+      batches))
   ; --- partition-by ---
   ; run is any inside map callback — first/count work on it.
   (fmt/println "\n=== partition-by ===")
-  (let [runs (->> products
-               (sort-by #(get % "category"))
-               (partition-by #(get % "category")))]
-    (map (fn [run]
-           (do
-             (fmt/println " " (get-in (first run) ["category"]) "x" (count run) ":"
-                          (map #(get % "name") run))
-             nil))
-         runs)))
+  (let [runs (->> products (sort-by (fn [_anonP1] (get _anonP1 "category"))) (partition-by (fn [_anonP1] (get _anonP1 "category"))))]
+    (map
+      (fn [run]
+        (do
+          (fmt/println " "
+            (get-in (first run) ["category"])
+            "x"
+            (count run)
+            ":"
+            (map (fn [_anonP1] (get _anonP1 "name")) run))
+          nil))
+      runs)))

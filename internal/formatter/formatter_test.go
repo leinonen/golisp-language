@@ -282,6 +282,31 @@ func TestFormat(t *testing.T) {
 			input: "(def a 1)(def b 2)",
 			want:  "(def a 1)\n\n(def b 2)\n",
 		},
+		{
+			name:  "select! recv/timeout/default round-trip",
+			input: "(defn f [ch any out any] (select! ([v ch] (send! out v) (log v)) (:timeout 50 (close! out)) (:default (noop))))",
+			want:  "(defn f [ch any out any]\n  (select!\n    ([v ch]\n      (send! out v)\n      (log v))\n    (:timeout 50\n      (close! out))\n    (:default\n      (noop))))\n",
+		},
+		{
+			name:  "par with-lock recv-ok multi-line",
+			input: "(defn f [mu any ch any] (par (work-a) (work-b)) (with-lock mu (mutate) (commit)) (recv-ok! ch))",
+			want:  "(defn f [mu any ch any]\n  (par (work-a) (work-b))\n  (with-lock mu (mutate) (commit))\n  (recv-ok! ch))\n",
+		},
+		{
+			name:  "for-chan inline when it fits",
+			input: "(defn f [out any] (for-chan [r out] (when (not= r nil) (print r)) (track r)))",
+			want:  "(defn f [out any]\n  (for-chan [r out] (when (not= r nil) (print r)) (track r)))\n",
+		},
+		{
+			name:  "go-val with element type",
+			input: "(defn submit [job string] -> (chan string) (go-val string (process job)))",
+			want:  "(defn submit [job string] -> (chan string)\n  (go-val string (process job)))\n",
+		},
+		{
+			name:  "let-or flat bindings",
+			input: "(defn f [m any] (let-or [a (get m \"a\") :none b (get m \"b\") :none] (use a b)))",
+			want:  "(defn f [m any]\n  (let-or [a (get m \"a\") :none b (get m \"b\") :none] (use a b)))\n",
+		},
 	}
 
 	for _, tt := range tests {
@@ -347,6 +372,46 @@ func TestCommentPreservation(t *testing.T) {
 			name:  "comment only file",
 			input: "; just a comment",
 			want:  "; just a comment\n",
+		},
+		{
+			name:  "in-body comments between defn body forms stay in place",
+			input: "(defn f [] -> void\n  ; step one\n  (foo)\n  ; step two\n  (bar))",
+			want:  "(defn f [] -> void\n  ; step one\n  (foo)\n  ; step two\n  (bar))\n",
+		},
+		{
+			name:  "in-body comment in last top-level form not dumped at EOF",
+			input: "(defn main [] -> void\n  (a)\n  ; note\n  (b))",
+			want:  "(defn main [] -> void\n  (a)\n  ; note\n  (b))\n",
+		},
+		{
+			name:  "comment forces an otherwise-inline let multi-line",
+			input: "(defn g [] -> int\n  (let [x 1\n        ; explain y\n        y 2]\n    ; compute\n    (+ x y)))",
+			want:  "(defn g [] -> int\n  (let [x 1\n        ; explain y\n        y 2]\n    ; compute\n    (+ x y)))\n",
+		},
+		{
+			name:  "comment inside nested form is not relocated to next sibling",
+			input: "(defn f [] -> void\n  (when ok\n    ; inner\n    (go))\n  (after))",
+			want:  "(defn f [] -> void\n  (when ok\n    ; inner\n    (go))\n  (after))\n",
+		},
+		{
+			name:  "channel type keeps parens in as (round-trips)",
+			input: "(defn f [w any] (as (chan string) w))",
+			want:  "(defn f [w any]\n  (as (chan string) w))\n",
+		},
+		{
+			name:  "channel return type keeps parens",
+			input: "(defn mk [] -> (chan string) (chan string 1))",
+			want:  "(defn mk [] -> (chan string)\n  (chan string 1))\n",
+		},
+		{
+			name:  "orphan ;;; docstring before ns is preserved",
+			input: ";;; File docstring.\n(ns main)",
+			want:  ";;; File docstring.\n(ns main)\n",
+		},
+		{
+			name:  "attached ;;; not duplicated when also orphan-eligible",
+			input: ";;; header\n(def x 1)\n;;; doc\n(defn f [] nil)",
+			want:  ";;; header\n(def x 1)\n\n;;; doc\n(defn f []\n  nil)\n",
 		},
 	}
 	for _, tt := range tests {

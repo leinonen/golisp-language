@@ -14,6 +14,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 			imports = append(imports, `"`+pkg+`"`)
 		}
 	}
+	// _glispToInt/_glispToFloat64 in glispRuntime (always emitted) parse numeric
+	// strings via strconv.
+	addImport("strconv")
 	if builtins["sort"] {
 		addImport("sort")
 	}
@@ -276,6 +279,13 @@ func _glispToInt(v any) int {
 		return int(n)
 	case float64:
 		return int(n)
+	case string:
+		if i, err := strconv.Atoi(n); err == nil {
+			return i
+		}
+		if f, err := strconv.ParseFloat(n, 64); err == nil {
+			return int(f)
+		}
 	}
 	return 0
 }
@@ -288,6 +298,10 @@ func _glispToFloat64(v any) float64 {
 		return float64(n)
 	case int64:
 		return float64(n)
+	case string:
+		if f, err := strconv.ParseFloat(n, 64); err == nil {
+			return f
+		}
 	}
 	return 0.0
 }

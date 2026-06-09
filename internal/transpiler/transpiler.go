@@ -265,6 +265,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	// Runtimes that use fmt/os: mark those imports needed in single-file mode only.
 	// RuntimeSource handles them for multi-file.
 	if e.emitRuntime {
+		// _glispToInt/_glispToFloat64 (always in glispRuntime) parse numeric
+		// strings via strconv, so the runtime always needs it.
+		e.needImport("strconv")
 		if e.builtinImports["data"] {
 			e.needImport("fmt")
 		}

@@ -5,31 +5,18 @@ import (
 	"strconv"
 )
 
-func greet(users any, id any) any {
-	user := _glispGet(users, id)
-	if user != nil {
-		return (fmt.Sprintf("%v", "hello ") + fmt.Sprintf("%v", _glispGet(user, "name")))
-	} else {
-		return "unknown user"
-	}
+func signup(req map[string]any) string {
+	_m1 := req
+	name := _glispToString(_glispGet(_m1, "name"))
+	email := _glispToString(_glispGet(_m1, "email"))
+	age := _glispToInt(_glispGet(_m1, "age"))
+	extra := _glispGet(_m1, "extra")
+	return fmt.Sprintf("%s <%s> age=%d extra=%v", name, email, age, extra)
 }
 
-func displayName(users any, id any) any {
-	_t1 := _glispGet(users, id)
-	if _t1 != nil {
-		name := _glispGet(_t1, "name")
-		return name
-	} else {
-		return "anon"
-	}
-}
-
-func maybeName(users any, id any) any {
-	user := _glispGet(users, id)
-	if user != nil {
-		return _glispGet(user, "name")
-	}
-	return nil
+func main() {
+	req := map[string]any{"name": "Ada", "email": "ada@example.com", "age": 36, "extra": "vip"}
+	fmt.Println(signup(req))
 }
 
 // --- glisp runtime helpers (generated) ---

@@ -674,6 +674,36 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defstruct P name string) (defn g [] -> string (let [p (P. {:name "x"})] (:name p)))`,
 			wantSub: "return p.Name",
 		},
+		{
+			name:    "annotated destructure string field",
+			src:     `(defn f [m] (let [{name :name :- string} m] name))`,
+			wantSub: `name := _glispToString(_glispGet(`,
+		},
+		{
+			name:    "annotated destructure int field uses smart conversion",
+			src:     `(defn f [m] (let [{age :age :- int} m] age))`,
+			wantSub: `age := _glispToInt(_glispGet(`,
+		},
+		{
+			name:    "numeric coercion parses strings (strconv)",
+			src:     `(defn f [m] (let [{age :age :- int} m] age))`,
+			wantSub: `if i, err := strconv.Atoi(n); err == nil {`,
+		},
+		{
+			name:    "annotated destructure other type uses checked assertion",
+			src:     `(defn f [m] (let [{ok :ok :- bool} m] ok))`,
+			wantSub: `ok, _ := _glispGet(`,
+		},
+		{
+			name:    "unannotated destructure stays any",
+			src:     `(defn f [m] (let [{raw :raw} m] raw))`,
+			wantSub: `raw := _glispGet(`,
+		},
+		{
+			name:    "struct-annotated destructure enables keyword access",
+			src:     `(defstruct P name string) (defn f [m] -> string (let [{p :product :- P} m] (:name p)))`,
+			wantSub: "return p.Name",
+		},
 	}
 
 	for _, tt := range tests {

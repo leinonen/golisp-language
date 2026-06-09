@@ -18,10 +18,10 @@
 (defn list-tasks [req web/Request] -> web/Response
   (let [done-param (web/query-param req "done")]
     (switch done-param
-      "true"  (web/json-response 200
-                (filter (fn [t] (= (get t "done") true)) tasks))
-      "false" (web/json-response 200
-                (filter (fn [t] (= (get t "done") false)) tasks))
+      "true"
+        (web/json-response 200 (filter (fn [t] (= (get t "done") true)) tasks))
+      "false"
+        (web/json-response 200 (filter (fn [t] (= (get t "done") false)) tasks))
       :default (web/json-response 200 tasks))))
 
 (defn get-task [req web/Request] -> web/Response
@@ -30,16 +30,24 @@
       (web/json-response 200 task)
       (not-found (str "task " id " not found")))))
 
+;;; Creates a task from the JSON body. Annotated destructuring pulls typed
+;;; locals straight out of the parsed body — title/priority as string, done as
+;;; bool — so the validation below needs no per-field casts or nil-guards.
 (defn create-task [req web/Request] -> web/Response
   (if-let [body (web/body-map req)]
-    (web/json-response 201 (assoc body "id" "new"))
+    (let [{title :title :- string priority :priority :- string done :done :- bool} body]
+      (if (= title "")
+        (bad-request "title is required")
+        (web/json-response 201
+          {"id"       "new"
+           "title"    title
+           "priority" priority
+           "done"     done})))
     (bad-request "invalid or missing JSON body")))
 
 (defn delete-task [req web/Request] -> web/Response
   (let [id (web/path-param req "id")]
-    (web/json-response 200
-      {"deleted" id
-       "note"    "demo only — no persistence"})))
+    (web/json-response 200 {"deleted" id "note" "demo only — no persistence"})))
 
 (defn export-tasks [req web/Request] -> web/Response
   (web/json-response 200

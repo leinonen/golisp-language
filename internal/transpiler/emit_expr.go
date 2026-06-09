@@ -255,6 +255,54 @@ func (e *Emitter) emitParamDestructs(destructs []paramDestruct) error {
 	return nil
 }
 
+// mapDestructEntry is one binding from a map destructure pattern: the local name,
+// the source key it reads, and an optional Go type from a ":- Type" annotation.
+type mapDestructEntry struct {
+	bind string
+	key  string
+	typ  string // Go type, "" when untyped
+}
+
+// mapDestructureEntries flattens a map destructure pattern's pairs into bindings,
+// folding any ":- Type" annotation pair into the binding it follows. The pattern
+// {name :name :- string age :age} yields name:string (typed) and age (untyped).
+// Annotation types must be simple type names (string, int, Product, *Product,
+// web/Request); bracketed types like []string are not supported here.
+func mapDestructureEntries(pat *ast.MapLit) ([]mapDestructEntry, error) {
+	var entries []mapDestructEntry
+	pairs := pat.Pairs
+	for i := 0; i < len(pairs); i++ {
+		if isAnnotKey(pairs[i].Key) {
+			return nil, fmt.Errorf("destructure annotation ':-' has no preceding binding")
+		}
+		sym, ok := pairs[i].Key.(*ast.Symbol)
+		if !ok {
+			return nil, fmt.Errorf("map destructure keys must be symbols, got %T", pairs[i].Key)
+		}
+		kw, ok := pairs[i].Value.(*ast.KeywordLit)
+		if !ok {
+			return nil, fmt.Errorf("map destructure values must be keywords, got %T", pairs[i].Value)
+		}
+		ent := mapDestructEntry{bind: sym.Name, key: kw.Value}
+		if i+1 < len(pairs) && isAnnotKey(pairs[i+1].Key) {
+			tsym, ok := pairs[i+1].Value.(*ast.Symbol)
+			if !ok {
+				return nil, fmt.Errorf("destructure type annotation for %q must be a simple type name, got %T", sym.Name, pairs[i+1].Value)
+			}
+			ent.typ = typeExprToGo(tsym.Name)
+			i++ // consume the annotation pair
+		}
+		entries = append(entries, ent)
+	}
+	return entries, nil
+}
+
+// isAnnotKey reports whether a map-pair key is the ":-" destructure annotation marker.
+func isAnnotKey(key ast.Node) bool {
+	kw, ok := key.(*ast.KeywordLit)
+	return ok && kw.Value == "-"
+}
+
 // emitDestructureBindings emits variable bindings from a VectorLit or MapLit pattern.
 func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
 	switch pat := pattern.(type) {
@@ -271,20 +319,33 @@ func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
 			e.writef("%s := _glispGet(%s, int64(%d))\n", identToGo(sym.Name), src, i)
 		}
 	case *ast.MapLit:
-		for _, pair := range pat.Pairs {
-			sym, ok := pair.Key.(*ast.Symbol)
-			if !ok {
-				return fmt.Errorf("map destructure keys must be symbols, got %T", pair.Key)
-			}
-			kw, ok := pair.Value.(*ast.KeywordLit)
-			if !ok {
-				return fmt.Errorf("map destructure values must be keywords, got %T", pair.Value)
-			}
-			if sym.Name == "_" {
+		entries, err := mapDestructureEntries(pat)
+		if err != nil {
+			return err
+		}
+		for _, ent := range entries {
+			if ent.bind == "_" {
 				continue // discard
 			}
+			name := identToGo(ent.bind)
 			e.writeIndent()
-			e.writef("%s := _glispGet(%s, \"%s\")\n", identToGo(sym.Name), src, kw.Value)
+			switch ent.typ {
+			case "":
+				// Untyped: value stays any via the runtime lookup.
+				e.writef("%s := _glispGet(%s, %q)\n", name, src, ent.key)
+			case "string":
+				e.writef("%s := _glispToString(_glispGet(%s, %q))\n", name, src, ent.key)
+			case "int":
+				e.writef("%s := _glispToInt(_glispGet(%s, %q))\n", name, src, ent.key)
+			case "float64":
+				e.writef("%s := _glispToFloat64(_glispGet(%s, %q))\n", name, src, ent.key)
+			default:
+				// Checked assertion: zero value if absent or the wrong type.
+				e.writef("%s, _ := _glispGet(%s, %q).(%s)\n", name, src, ent.key, ent.typ)
+			}
+			if ent.typ != "" {
+				e.registerVarType(ent.bind, ent.typ)
+			}
 		}
 	default:
 		return fmt.Errorf("unsupported destructure pattern: %T", pattern)

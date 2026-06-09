@@ -685,6 +685,11 @@ func TestTranspileSnippets(t *testing.T) {
 			wantSub: `age := _glispToInt(_glispGet(`,
 		},
 		{
+			name:    "numeric coercion parses strings (strconv)",
+			src:     `(defn f [m] (let [{age :age :- int} m] age))`,
+			wantSub: `if i, err := strconv.Atoi(n); err == nil {`,
+		},
+		{
 			name:    "annotated destructure other type uses checked assertion",
 			src:     `(defn f [m] (let [{ok :ok :- bool} m] ok))`,
 			wantSub: `ok, _ := _glispGet(`,

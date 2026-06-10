@@ -1081,3 +1081,47 @@ func TestMultiReturnDiagnostics(t *testing.T) {
 		})
 	}
 }
+
+// TestLineDirectives verifies //line mapping behavior in file mode:
+// runtime helpers are re-anchored to a virtual glisp_runtime.go (so panics
+// inside them don't point at bogus .glsp lines), and deftest assertions are
+// pinned to their own source line (so a failing t.Errorf reports it exactly).
+func TestLineDirectives(t *testing.T) {
+	src := `(ns main)
+
+(defn add [a int b int] -> int (+ a b))
+
+(deftest add-works
+  (assert= (add 2 2) 5))
+
+(defn main [] -> void
+  (fmt/println (add 1 2)))
+`
+	out, err := TranspileFile(src, "x.glsp")
+	if err != nil {
+		t.Fatalf("TranspileFile: %v", err)
+	}
+	for _, want := range []string{
+		"//line glisp_runtime.go:1", // helpers re-anchored
+		"//line x.glsp:5",           // deftest decl
+		"//line x.glsp:6",           // the assert= line (also pins t.Errorf)
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q", want)
+		}
+	}
+	// The t.Errorf call must be re-pinned to the assertion line: two
+	// directives for line 6 (one before the if, one before t.Errorf).
+	if got := strings.Count(out, "//line x.glsp:6"); got < 2 {
+		t.Errorf("want >= 2 directives for the assert line, got %d", got)
+	}
+
+	// Without a filename (print/golden paths) no directives are emitted.
+	plain, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("Transpile: %v", err)
+	}
+	if strings.Contains(plain, "//line") {
+		t.Error("Transpile without filename must not emit //line directives")
+	}
+}

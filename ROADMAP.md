@@ -354,6 +354,6 @@ either gets absorbed by emission or becomes a glisp-level diagnostic.
 - [x] Statement-only forms (`go`, `select!`, `send!`, `close!`, `par`, `for-chan`, `fan-out`, `defer`) in tail position auto-emit `return nil`
 - [x] Multi-return call as a single value — transpile-time diagnostic (suggests `if-err` / `(do ... nil)`) for multi-return built-ins and user `-> [T E]` fns, in fn/loop tails and `let`/`if-let`/`let-or`/`def` bindings; unknown Go interop fns rely on //line-mapped Go errors
 - [x] `_glispToSlice` over common concrete slice types (`[]string`, `[]int`, `[]int64`, `[]float64`, `[]bool`, `[]map[string]any`) — `first`/`rest`/`conj`/`contains?`/`get`/`flatten` all route through it; `(rest os/args)` works
-- [ ] Map leaked Go build errors back to `.glsp` file/line
+- [x] Go-error → `.glsp` mapping audited — build errors and panic user-frames already mapped via //line; fixed: runtime-helper panic frames re-anchored to `glisp_runtime.go` (were misattributed to bogus `.glsp` lines in single-file builds), deftest assertion failures pinned to the exact assert line (were drifting)
 - [x] `glisp run file.glsp` — one-shot compile-and-run for a fast edit-run loop (also takes a dir; passes args, propagates exit code, leaves no artifacts)
 - [ ] `glisp run --watch` — re-run on save

@@ -122,7 +122,7 @@ type parser struct {
 	// orphanDocs holds ;;; doc-comment lines that were not attached to any
 	// defn/defmethod Doc (e.g. a file-level docstring before ns), keyed by line.
 	orphanDocs map[int]string
-	// openStack tracks unclosed opening delimiters ( [ { #{ #( so EOF errors can
+	// openStack tracks unclosed opening delimiters ( [ { #{ so EOF errors can
 	// point back at the opener instead of the end of the file.
 	openStack []lexer.Token
 }
@@ -182,7 +182,7 @@ func (p *parser) advance() lexer.Token {
 		p.pos++
 		switch tok.Type {
 		case lexer.TokenLParen, lexer.TokenLBracket, lexer.TokenLBrace,
-			lexer.TokenHashLBrace, lexer.TokenHashLParen:
+			lexer.TokenHashLBrace:
 			p.openStack = append(p.openStack, tok)
 		case lexer.TokenRParen, lexer.TokenRBracket, lexer.TokenRBrace:
 			if n := len(p.openStack); n > 0 {
@@ -234,7 +234,7 @@ func matchingClose(open lexer.TokenType) string {
 		return "]"
 	case lexer.TokenLBrace, lexer.TokenHashLBrace:
 		return "}"
-	default: // TokenLParen, TokenHashLParen
+	default: // TokenLParen
 		return ")"
 	}
 }
@@ -352,8 +352,6 @@ func (p *parser) parseExprInner() (ast.Node, error) {
 		return p.parseMap()
 	case lexer.TokenHashLBrace:
 		return p.parseSet()
-	case lexer.TokenHashLParen:
-		return p.parseAnonFn()
 	case lexer.TokenQuote:
 		return p.parseQuote()
 	case lexer.TokenNil:

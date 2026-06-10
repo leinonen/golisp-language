@@ -30,12 +30,12 @@
   (go-val string (process job)))
 
 ; ── collect results from a closed channel ─────────────────────────
-; recv-ok! returns [value ok]; loop/recur accumulates values until closed.
+; recv-ok! returns [value ok]; ok is usable directly as a condition
+; (truthiness: nil and false are falsy). loop/recur accumulates until closed.
 ; Accepts chan string — the typed channel produced by go-val.
 (defn collect [ch (chan string)] -> []any
   (loop [acc []]
-    (let [[val ok] (recv-ok! ch)]
-      (if (= ok true) (recur (conj acc val)) (as []any acc)))))
+    (let [[val ok] (recv-ok! ch)] (if ok (recur (conj acc val)) (as []any acc)))))
 
 ; ── main ──────────────────────────────────────────────────────────
 (defn main [] -> void
@@ -70,7 +70,7 @@
       ; 4. for-chan — drain the output channel, print non-nil results.
       ;    The range stops automatically when out is closed above.
       (fmt/println "── completed results (for-chan) ─────")
-      (for-chan [r out] (when (not= r nil) (fmt/println "    →" r)))
+      (for-chan [r out] (when r (fmt/println "    →" r)))
       ; 5. recv-ok! — demonstrate manual channel drain via typed collect.
       ;    Fill a typed chan string with job names and collect into []string.
       (fmt/println

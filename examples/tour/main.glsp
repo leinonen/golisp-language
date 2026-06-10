@@ -1,6 +1,6 @@
 ; glisp language tour
 ; Demonstrates: defn, type annotations, typed let/loop bindings, deftype,
-;               cond, switch, loop/recur, map/filter/reduce,
+;               cond, switch, loop/recur, map/filter/reduce, truthiness,
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
 ;               destructuring (map and sequential), keyword lookup (:key m),
 ;               panic/recover, format, parse-int, parse-float, repeat, interpose
@@ -35,11 +35,22 @@
     500 "Internal Server Error"
     :default "Unknown"))
 
+; --- Truthiness ---
+; nil and false are falsy; every other value is truthy (ADR-011).
+; any-typed values — map lookups, find results — work directly as conditions,
+; so no (not= x nil) boilerplate. A stored false is correctly falsy.
+;;; Describes a user map by its "name" and "admin" keys.
+(defn describe-user [u any] -> string
+  (cond
+    (get u "admin") (str (get u "name") " (admin)")
+    (get u "name") (str (get u "name"))
+    :else "anonymous"))
+
 ; --- Panic and recover ---
 ; recover must be called from a deferred function to catch panics.
 ; Defer a named handler so recover() runs in the right stack frame.
 (defn catch-panic [] -> void
-  (let [r (recover)] (when (not= r nil) (fmt/println "caught panic:" r))))
+  (let [r (recover)] (when r (fmt/println "caught panic:" r))))
 
 ;;; Returns a/b, or 0 if b is zero (panic caught by deferred handler).
 (defn safe-divide [a int b int] -> int
@@ -67,6 +78,13 @@
   ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"])
 
 (defn main [] -> void
+  ; Truthiness: bob is admin, ada's false admin flag is falsy, {} has no name
+  (fmt/println "users:"
+    (describe-user {"name" "ada" "admin" false})
+    "|"
+    (describe-user {"name" "bob" "admin" true})
+    "|"
+    (describe-user {}))
   ; Panic and recover
   (fmt/println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)
@@ -102,9 +120,10 @@
                 avg (/ (int total) n)
                 pass (filter (fn [s] (>= (int s) 60)) scores)
                 pass-n (int (reduce (fn [k _] (+ (int k) 1)) 0 pass))]
+            ; go in tail position needs no trailing nil — statement-only
+            ; forms auto-return nil (ADR-011)
             (go
-              (send! ch {:name (str name) :avg avg :grade (grade avg) :passing (str pass-n "/" n)}))
-            nil))
+              (send! ch {:name (str name) :avg avg :grade (grade avg) :passing (str pass-n "/" n)}))))
         classes)
       ; Collect and rank by average score.
       ; Sequential destructuring: [[top second third] ranked]

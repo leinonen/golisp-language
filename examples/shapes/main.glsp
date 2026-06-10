@@ -43,7 +43,7 @@
 
 ;;; Prints a shape's description and area to stdout.
 (defn print-shape [s Shape] -> void
-  (fmt/printf "  %-28s  area = %.4f\n" (.Describe s) (.Area s)))
+  (fmt/printf "  %-28s  area = %.4f\n" (describe s) (area s)))
 
 (defn main [] -> void
   (fmt/println "Shapes:")

@@ -819,6 +819,104 @@ func TestArityChecking(t *testing.T) {
 	}
 }
 
+// TestMethodDispatch verifies dot-free method dispatch: (area s) emits
+// s.Area() when s is statically known to hold a declared struct or interface
+// type with a matching method, with built-ins, user functions, and in-scope
+// bindings all shadowing the method.
+func TestMethodDispatch(t *testing.T) {
+	const decls = `
+(definterface Shape
+  (Area [] -> float64))
+(defstruct Circle radius float64)
+(defmethod Circle Area [c] -> float64 (* 3.14 (:radius c) (:radius c)))
+(defmethod Circle Grow [c f float64] -> float64 (* f (:radius c)))
+(defmethod Circle Drained? [c] -> bool (= (:radius c) 0.0))
+(defmethod Circle Load [c] -> [string error] (read-file "x"))
+`
+	tests := []struct {
+		name    string
+		src     string
+		wantSub string // substring that must appear in output ("" = skip)
+		wantErr string // expected error substring ("" = no error)
+	}{
+		{
+			name:    "interface-typed param",
+			src:     decls + `(defn f [s Shape] -> float64 (area s))`,
+			wantSub: "return s.Area()",
+		},
+		{
+			name:    "struct-typed param with extra arg",
+			src:     decls + `(defn f [c Circle] -> float64 (grow c 2.0))`,
+			wantSub: "return c.Grow(2.0)",
+		},
+		{
+			name:    "inferred let binding",
+			src:     decls + `(defn f [] -> float64 (let [c (Circle. {:radius 2})] (area c)))`,
+			wantSub: "c.Area()",
+		},
+		{
+			name:    "struct literal receiver",
+			src:     decls + `(defn f [] -> float64 (area (Circle. {:radius 2})))`,
+			wantSub: "Circle{Radius: 2}.Area()",
+		},
+		{
+			name:    "bool method in condition skips truthy wrapper",
+			src:     decls + `(defn f [c Circle] -> string (if (drained? c) "y" "n"))`,
+			wantSub: "if c.isDrained() {",
+		},
+		{
+			name:    "user fn shadows method",
+			src:     decls + `(defn area [c Circle] -> string "fn") (defn f [c Circle] -> string (area c))`,
+			wantSub: "return area(c)",
+		},
+		{
+			name:    "local binding shadows method",
+			src:     decls + `(defn f [c Circle] -> any (let [area (fn [x Circle] -> string "local")] (area c)))`,
+			wantSub: "area(c)",
+		},
+		{
+			name:    "param shadows method",
+			src:     decls + `(defn f [area any c Circle] -> any (area c))`,
+			wantSub: "area(c)",
+		},
+		{
+			name:    "untyped receiver stays plain call",
+			src:     decls + `(defn f [s any] -> any (area s))`,
+			wantSub: "area(s)",
+		},
+		{
+			name:    "wrong arity",
+			src:     decls + `(defn f [c Circle] -> float64 (area c 1))`,
+			wantErr: "arity error: method Area on Circle called with 1 arg(s) after the receiver, expected 0",
+		},
+		{
+			name:    "multi-return method as single value",
+			src:     decls + `(defn f [c Circle] -> any (let [v (load c)] v))`,
+			wantErr: "load returns multiple values (string, error)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Transpile(tt.src)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("expected error %q\ngot: %v", tt.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantSub != "" && !strings.Contains(got, tt.wantSub) {
+				t.Errorf("output missing %q\n--- got ---\n%s", tt.wantSub, got)
+			}
+		})
+	}
+}
+
 // TestBuiltinArity verifies that built-in call forms are checked against the
 // central arity table and report a position-tagged error rather than panicking
 // on a downstream slice index.

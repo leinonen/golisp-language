@@ -17,4 +17,4 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 )
 
-replace github.com/leinonen/glispdb v0.2.0 => /home/leinonen/.glisp/pkg/mod/github.com/leinonen/glispdb@v0.2.0
+replace github.com/leinonen/glispdb v0.2.0 => /root/.glisp/pkg/mod/github.com/leinonen/glispdb@v0.2.0

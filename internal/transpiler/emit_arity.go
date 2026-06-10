@@ -161,6 +161,9 @@ func (e *Emitter) multiReturnCall(n ast.Node) (name, shape string, ok bool) {
 	if shape, found := multiReturnBuiltins[sym.Name]; found {
 		return sym.Name, shape, true
 	}
+	if info, ok := e.resolveMethodCall(call); ok && strings.HasPrefix(info.sig.retType, "(") {
+		return sym.Name, info.sig.retType, true
+	}
 	return "", "", false
 }
 

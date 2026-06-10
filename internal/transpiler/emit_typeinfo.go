@@ -65,50 +65,79 @@ func (e *Emitter) structHint(goType string) (name string, ptr bool, ok bool) {
 	return "", false, false
 }
 
-// pushTypeScope shallow-copies the current local type environment so that
-// registrations inside a function/let body do not leak to sibling scopes. The
-// returned value is passed back to popTypeScope on exit.
-func (e *Emitter) pushTypeScope() map[string]string {
-	saved := e.localTypes
-	nw := make(map[string]string, len(saved))
-	for k, v := range saved {
-		nw[k] = v
+// typeScope captures the local type/binding environment saved by pushTypeScope.
+type typeScope struct {
+	types map[string]string
+	vars  map[string]bool
+}
+
+// pushTypeScope shallow-copies the current local type and binding environments
+// so that registrations inside a function/let body do not leak to sibling
+// scopes. The returned value is passed back to popTypeScope on exit.
+func (e *Emitter) pushTypeScope() typeScope {
+	saved := typeScope{types: e.localTypes, vars: e.localVars}
+	nt := make(map[string]string, len(saved.types))
+	for k, v := range saved.types {
+		nt[k] = v
 	}
-	e.localTypes = nw
+	nv := make(map[string]bool, len(saved.vars))
+	for k, v := range saved.vars {
+		nv[k] = v
+	}
+	e.localTypes = nt
+	e.localVars = nv
 	return saved
 }
 
-// popTypeScope restores the local type environment captured by pushTypeScope.
-func (e *Emitter) popTypeScope(saved map[string]string) {
-	e.localTypes = saved
+// popTypeScope restores the environments captured by pushTypeScope.
+func (e *Emitter) popTypeScope(saved typeScope) {
+	e.localTypes = saved.types
+	e.localVars = saved.vars
 }
 
-// registerVarType records that the glisp variable glispName has the struct type
-// described by goType, if goType in fact names a declared struct. Non-struct
-// types are ignored (the variable stays untyped from keyword access's view).
+// registerLocalVar records glispName as an in-scope value binding so it
+// shadows dot-free method dispatch.
+func (e *Emitter) registerLocalVar(glispName string) {
+	if e.localVars == nil || glispName == "" || glispName == "_" {
+		return
+	}
+	e.localVars[glispName] = true
+}
+
+// registerVarType records that the glisp variable glispName has the declared
+// struct or interface type described by goType. Other types are ignored (the
+// variable stays untyped from keyword access and method dispatch's view).
+// The name is always recorded as an in-scope binding.
 func (e *Emitter) registerVarType(glispName, goType string) {
+	e.registerLocalVar(glispName)
 	if e.localTypes == nil || glispName == "" || glispName == "_" {
 		return
 	}
-	if name, _, ok := e.structHint(goType); ok {
+	if name, ok := e.namedTypeHint(goType); ok {
 		e.localTypes[glispName] = name
 	}
 }
 
-// registerParamTypes records struct types for any struct-typed (non-destructured)
-// params in the current scope. Used at function/method entry.
+// registerParamTypes records struct/interface types for any typed
+// (non-destructured) params in the current scope, and every param name as an
+// in-scope binding. Used at function/method entry.
 func (e *Emitter) registerParamTypes(params []ast.Param) {
 	for _, p := range params {
-		if p.Pattern != nil || p.IsRest || p.TypeAnnot == nil {
+		if p.Pattern != nil {
+			continue
+		}
+		e.registerLocalVar(p.Name)
+		if p.IsRest || p.TypeAnnot == nil {
 			continue
 		}
 		e.registerVarType(p.Name, typeExprToGo(p.TypeAnnot.Text))
 	}
 }
 
-// inferValueStructType returns the struct type name a binding value is known to
-// produce, or "" if unknown. It recognises struct literals and calls to
-// user-defined functions with a struct return type.
+// inferValueStructType returns the declared struct/interface type name a
+// binding value is known to produce, or "" if unknown. It recognises struct
+// literals, calls to user-defined functions with a declared return type, and
+// dot-free method calls.
 func (e *Emitter) inferValueStructType(value ast.Node) string {
 	switch v := value.(type) {
 	case *ast.StructLitExpr:
@@ -118,9 +147,15 @@ func (e *Emitter) inferValueStructType(value ast.Node) string {
 	case *ast.CallExpr:
 		if sym, ok := v.Head.(*ast.Symbol); ok && e.symbols != nil {
 			if sig, found := e.symbols[sym.Name]; found {
-				if name, _, ok := e.structHint(sig.retType); ok {
+				if name, ok := e.namedTypeHint(sig.retType); ok {
 					return name
 				}
+				return ""
+			}
+		}
+		if info, ok := e.resolveMethodCall(v); ok {
+			if name, ok := e.namedTypeHint(info.sig.retType); ok {
+				return name
 			}
 		}
 	}

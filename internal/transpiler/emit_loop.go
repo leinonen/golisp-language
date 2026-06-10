@@ -45,6 +45,7 @@ func (e *Emitter) emitLoopBlock(n *ast.LoopExpr, retVar string, inReturn bool) e
 			return fmt.Errorf("loop binding pattern must be a symbol, got %T", b.Pattern)
 		}
 		bindingNames[i] = identToGo(sym.Name)
+		e.registerLocalVar(sym.Name)
 	}
 
 	// Emit initial bindings.

@@ -138,8 +138,21 @@ type Emitter struct {
 	// typed map literals and keyword field access.
 	structs map[string]*structInfo
 	// localTypes: in-scope variables (glisp name) known to hold a declared struct
-	// type. Managed with pushTypeScope/popTypeScope around function and let bodies.
+	// or interface type. Managed with pushTypeScope/popTypeScope around function
+	// and let bodies.
 	localTypes map[string]string
+	// localVars: every in-scope value binding by glisp name (params, receiver,
+	// let/loop bindings), regardless of type. A binding here shadows dot-free
+	// method dispatch — (area s) with a local `area` stays a plain call. Scoped
+	// together with localTypes.
+	localVars map[string]bool
+	// ifaces: definterface method tables by interface name (populated by pre-pass).
+	ifaces map[string]methodSet
+	// methods: defmethod method tables by bare receiver struct name (pre-pass).
+	methods map[string]methodSet
+	// defGlobals: names bound by top-level def (pre-pass); they shadow method
+	// dispatch like locals do.
+	defGlobals map[string]bool
 	// currentRetType: Go return type of the function currently being emitted, used
 	// to hint collection/struct literals in tail/return position. "" when none.
 	currentRetType string
@@ -239,8 +252,8 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 	}
 
-	// Pre-pass: collect user-defined function signatures (arity + types) and
-	// declared struct types.
+	// Pre-pass: collect user-defined function signatures (arity + types),
+	// declared struct types, and method tables for dot-free method dispatch.
 	symbols := map[string]*fnSig{}
 	structs := map[string]*structInfo{}
 	for _, n := range nodes {
@@ -251,6 +264,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			structs[d.Name] = buildStructInfo(d)
 		}
 	}
+	ifaces, methods, defGlobals := collectMethodTables(nodes)
 
 	// Pass 1: emit declarations into a side buffer to discover import needs
 	declEmitter := newEmitter()
@@ -258,6 +272,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	declEmitter.strict = e.strict
 	declEmitter.symbols = symbols
 	declEmitter.structs = structs
+	declEmitter.ifaces = ifaces
+	declEmitter.methods = methods
+	declEmitter.defGlobals = defGlobals
 	declEmitter.pkg = e.pkg
 	declEmitter.imports = e.imports
 	declEmitter.requires = e.requires

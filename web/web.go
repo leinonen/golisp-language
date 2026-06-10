@@ -145,8 +145,17 @@ func WrapRecover(h Handler) Handler {
 }
 
 // JsonResponse creates a Ring-style response with a JSON-encoded body.
+// If the body cannot be encoded, logs the error and returns a 500 response.
 func JsonResponse(status int, body any) Response {
-	b, _ := json.Marshal(body)
+	b, err := json.Marshal(body)
+	if err != nil {
+		slog.Error("json-response: encode failed", "error", err)
+		return map[string]any{
+			"status":  500,
+			"headers": map[string]any{"Content-Type": "application/json"},
+			"body":    `{"error":"failed to encode response body"}`,
+		}
+	}
 	return map[string]any{
 		"status":  status,
 		"headers": map[string]any{"Content-Type": "application/json"},
@@ -229,6 +238,14 @@ func Delete(pattern string, h Handler) Route { return Route{"DELETE", pattern, h
 
 // Patch creates a route that matches PATCH requests on pattern.
 func Patch(pattern string, h Handler) Route { return Route{"PATCH", pattern, h} }
+
+// Head creates a route that matches HEAD requests on pattern.
+func Head(pattern string, h Handler) Route { return Route{"HEAD", pattern, h} }
+
+// Options creates a route that matches OPTIONS requests on pattern.
+// Note: WrapCors answers OPTIONS preflight requests before routing, so
+// explicit OPTIONS routes only fire when wrap-cors is not in the chain.
+func Options(pattern string, h Handler) Route { return Route{"OPTIONS", pattern, h} }
 
 // Context groups routes under a common path prefix. Accepts Route values and
 // []Route groups, so contexts nest. glisp usage:
@@ -388,7 +405,9 @@ func WrapAuthFunc(check func(token string) bool) Middleware {
 }
 
 // WrapTimeout wraps a handler with a deadline of `seconds` seconds.
-// Returns 503 if the handler does not respond in time.
+// Returns 503 if the handler does not respond in time. Note: Ring handlers
+// take no context, so the timed-out handler keeps running in the background;
+// its eventual response is discarded.
 func WrapTimeout(seconds int) Middleware {
 	d := time.Duration(seconds) * time.Second
 	return func(h Handler) Handler {

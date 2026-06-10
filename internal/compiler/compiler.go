@@ -126,6 +126,69 @@ func TranspileDir(srcDir string) error {
 	return compileDir(srcDir, "", false, Options{})
 }
 
+// Run compiles target (a .glsp file or a directory) to a temporary binary,
+// executes it with progArgs and the standard streams, and returns the
+// program's exit code. No binary is left behind; for a single file, a
+// generated .go that did not exist before the run is removed as well.
+func Run(target string, opts Options, progArgs []string) (int, error) {
+	return RunWithIO(target, opts, progArgs, os.Stdin, os.Stdout, os.Stderr)
+}
+
+// RunWithIO is like Run but with explicit standard streams (for tests).
+func RunWithIO(target string, opts Options, progArgs []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
+	tmpDir, err := os.MkdirTemp("", "glisp-run-")
+	if err != nil {
+		return 1, err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	info, statErr := os.Stat(target)
+	if statErr != nil {
+		return 1, fmt.Errorf("run %s: %w", target, statErr)
+	}
+
+	var binName string
+	if info.IsDir() {
+		binName = filepath.Base(strings.TrimRight(target, "/"))
+	} else {
+		binName = strings.TrimSuffix(filepath.Base(target), filepath.Ext(target))
+	}
+	if binName == "" || binName == "." {
+		binName = "main"
+	}
+	bin := filepath.Join(tmpDir, binName)
+
+	if info.IsDir() {
+		// Directory builds leave their .go files in place, same as `glisp build`.
+		if err := CompileDirWithOptions(target, bin, opts); err != nil {
+			return 1, err
+		}
+	} else {
+		goPath := strings.TrimSuffix(target, filepath.Ext(target)) + ".go"
+		_, preErr := os.Stat(goPath)
+		goPreexisted := preErr == nil
+		if err := CompileAndBuildWithOptions(target, bin, opts); err != nil {
+			return 1, err
+		}
+		if !goPreexisted {
+			os.Remove(goPath)
+		}
+	}
+
+	cmd := exec.Command(bin, progArgs...)
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	if err := cmd.Run(); err != nil {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			return ee.ExitCode(), nil
+		}
+		return 1, fmt.Errorf("run %s: %w", target, err)
+	}
+	return 0, nil
+}
+
 // GetModule downloads, transpiles, and registers a glisp module in projectDir.
 // modulePath is like "github.com/user/lib" or "./local/path"; version like "v1.0.0".
 func GetModule(projectDir, modulePath, version string) error {

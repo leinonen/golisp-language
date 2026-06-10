@@ -21,6 +21,7 @@ make install
 ```
 glisp build   file.glsp         # compile to binary
 glisp build   dir/              # compile all .glsp in dir to binary
+glisp run     file.glsp [args]  # compile and run, no artifacts left behind
 glisp fmt     file.glsp         # format in-place
 glisp fmt     --check file.glsp # exit 1 if not formatted
 glisp compile file.glsp         # write file.go

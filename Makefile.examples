@@ -10,7 +10,7 @@ examples-tour examples-api examples-shapes examples-inventory examples-multifile
 examples-clean:
 	rm -f examples/tour/tour examples/api/api examples/shapes/shapes examples/inventory/inventory examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency examples/logparser/logparser examples/sec-pipeline/sec-pipeline examples/atoms/atoms
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
-	rm -f examples/notes-api/glisp_runtime.go examples/notes-api/main.go examples/notes-api/handlers.go examples/notes-api/db.go examples/notes-api/helpers.go
+	rm -f examples/notes-api/glisp_runtime.go examples/notes-api/main.go examples/notes-api/handlers.go examples/notes-api/db.go
 
 examples: examples-clean examples-tour examples-api examples-shapes examples-inventory examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms
 

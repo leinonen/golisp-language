@@ -37,6 +37,53 @@ func TestMatchPath_multiParam(t *testing.T) {
 	}
 }
 
+func TestMatchPath_paramDecoded(t *testing.T) {
+	params, ok := matchPath("/users/:name", "/users/john%20doe")
+	if !ok {
+		t.Fatal("expected match")
+	}
+	if params["name"] != "john doe" {
+		t.Fatalf("expected decoded param, got %v", params["name"])
+	}
+}
+
+func TestMatchPath_wildcard(t *testing.T) {
+	params, ok := matchPath("/static/*path", "/static/css/main.css")
+	if !ok {
+		t.Fatal("expected match")
+	}
+	if params["path"] != "css/main.css" {
+		t.Fatalf("expected path=css/main.css, got %v", params["path"])
+	}
+}
+
+func TestMatchPath_wildcardEmpty(t *testing.T) {
+	params, ok := matchPath("/static/*path", "/static/")
+	if !ok {
+		t.Fatal("expected match")
+	}
+	if params["path"] != "" {
+		t.Fatalf("expected empty path, got %v", params["path"])
+	}
+}
+
+func TestMatchPath_wildcardWithParam(t *testing.T) {
+	params, ok := matchPath("/users/:id/files/*file", "/users/7/files/docs/a.txt")
+	if !ok {
+		t.Fatal("expected match")
+	}
+	if params["id"] != "7" || params["file"] != "docs/a.txt" {
+		t.Fatalf("unexpected params: %v", params)
+	}
+}
+
+func TestMatchPath_wildcardTooShort(t *testing.T) {
+	_, ok := matchPath("/static/assets/*path", "/static")
+	if ok {
+		t.Fatal("expected no match")
+	}
+}
+
 func TestMatchPath_lengthMismatch(t *testing.T) {
 	_, ok := matchPath("/users/:id", "/users/42/extra")
 	if ok {
@@ -96,10 +143,17 @@ func TestRoutes_methodMismatch(t *testing.T) {
 		Get("/items", func(req map[string]any) map[string]any {
 			return map[string]any{"status": 200}
 		}),
+		Put("/items", func(req map[string]any) map[string]any {
+			return map[string]any{"status": 200}
+		}),
 	)
 	resp := app(map[string]any{"method": "POST", "path": "/items"})
-	if resp["status"] != 404 {
-		t.Fatalf("expected 404, got %v", resp["status"])
+	if resp["status"] != 405 {
+		t.Fatalf("expected 405, got %v", resp["status"])
+	}
+	hdrs, _ := resp["headers"].(map[string]any)
+	if hdrs["Allow"] != "GET, PUT" {
+		t.Fatalf("expected Allow: GET, PUT, got %v", hdrs["Allow"])
 	}
 }
 
@@ -179,6 +233,25 @@ func TestWrapCors_preservesExistingHeaders(t *testing.T) {
 	}
 	if hdrs["Access-Control-Allow-Origin"] != "*" {
 		t.Fatalf("expected CORS header added, got %v", hdrs)
+	}
+}
+
+func TestWrapCors_preflight(t *testing.T) {
+	called := false
+	h := WrapCors(func(req map[string]any) map[string]any {
+		called = true
+		return map[string]any{"status": 404, "body": "not found"}
+	})
+	resp := h(map[string]any{"method": "OPTIONS", "path": "/tasks"})
+	if called {
+		t.Fatal("expected preflight to short-circuit, but handler was called")
+	}
+	if resp["status"] != 204 {
+		t.Fatalf("expected 204, got %v", resp["status"])
+	}
+	hdrs, _ := resp["headers"].(map[string]any)
+	if hdrs["Access-Control-Allow-Origin"] != "*" {
+		t.Fatalf("expected CORS headers on preflight, got %v", hdrs)
 	}
 }
 
@@ -317,6 +390,69 @@ func TestHeader(t *testing.T) {
 	}
 	if Header(req, "Missing") != "" {
 		t.Fatalf("expected empty, got %q", Header(req, "Missing"))
+	}
+}
+
+func TestHeader_caseInsensitive(t *testing.T) {
+	req := map[string]any{"headers": map[string]any{"Content-Type": "application/json"}}
+	if Header(req, "content-type") != "application/json" {
+		t.Fatalf("expected case-insensitive lookup, got %q", Header(req, "content-type"))
+	}
+}
+
+func TestResponseHelpers(t *testing.T) {
+	cases := []struct {
+		resp   map[string]any
+		status int
+		body   string
+	}{
+		{BadRequest("oops"), 400, `{"error":"oops"}`},
+		{Unauthorized("nope"), 401, `{"error":"nope"}`},
+		{NotFound("missing"), 404, `{"error":"missing"}`},
+		{ServerError("boom"), 500, `{"error":"boom"}`},
+	}
+	for _, c := range cases {
+		if c.resp["status"] != c.status {
+			t.Fatalf("expected status %d, got %v", c.status, c.resp["status"])
+		}
+		if c.resp["body"] != c.body {
+			t.Fatalf("expected body %q, got %v", c.body, c.resp["body"])
+		}
+		hdrs, _ := c.resp["headers"].(map[string]any)
+		if hdrs["Content-Type"] != "application/json" {
+			t.Fatalf("expected JSON content type, got %v", hdrs)
+		}
+	}
+}
+
+func TestNoContent(t *testing.T) {
+	resp := NoContent()
+	if resp["status"] != 204 {
+		t.Fatalf("expected 204, got %v", resp["status"])
+	}
+	if resp["body"] != "" {
+		t.Fatalf("expected empty body, got %v", resp["body"])
+	}
+}
+
+func TestRoutes_wildcardServesFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/app.css", []byte("body{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	app := Routes(
+		Get("/static/*path", ServeFiles("/static/", dir)),
+		Get("/", func(req map[string]any) map[string]any {
+			return map[string]any{"status": 200}
+		}),
+	)
+	resp := app(map[string]any{"method": "GET", "path": "/static/app.css"})
+	if resp["status"] != 200 {
+		t.Fatalf("expected 200, got %v", resp["status"])
+	}
+	body, _ := resp["body"].([]byte)
+	if string(body) != "body{}" {
+		t.Fatalf("expected file contents, got %q", string(body))
 	}
 }
 

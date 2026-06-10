@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"net/url"
 	"os"
 	"os/signal"
@@ -161,6 +162,31 @@ func Redirect(location string) Response {
 	}
 }
 
+// BadRequest creates a 400 JSON response: {"error": msg}.
+func BadRequest(msg string) Response {
+	return JsonResponse(400, map[string]any{"error": msg})
+}
+
+// Unauthorized creates a 401 JSON response: {"error": msg}.
+func Unauthorized(msg string) Response {
+	return JsonResponse(401, map[string]any{"error": msg})
+}
+
+// NotFound creates a 404 JSON response: {"error": msg}.
+func NotFound(msg string) Response {
+	return JsonResponse(404, map[string]any{"error": msg})
+}
+
+// ServerError creates a 500 JSON response: {"error": msg}.
+func ServerError(msg string) Response {
+	return JsonResponse(500, map[string]any{"error": msg})
+}
+
+// NoContent creates an empty 204 response.
+func NoContent() Response {
+	return map[string]any{"status": 204, "body": ""}
+}
+
 // Serve starts an HTTP server on the given address with the given handler.
 func Serve(addr string, h Handler) error {
 	return http.ListenAndServe(addr, RingToHTTP(h))
@@ -190,21 +216,36 @@ func Patch(pattern string, h Handler) Route { return Route{"PATCH", pattern, h} 
 
 // Routes combines multiple routes into a single Handler. Tries each route in
 // order; the first matching method+pattern wins. Path params (e.g. :id) are
-// extracted and stored in req["params"]. Returns 404 if no route matches.
+// extracted and stored in req["params"]; a trailing *name segment captures the
+// rest of the path. Returns 405 with an Allow header if the path matches a
+// route but the method does not, or 404 if no route matches.
 func Routes(rs ...Route) Handler {
 	return func(req Request) Response {
 		method, _ := req["method"].(string)
 		path, _ := req["path"].(string)
+		var allowed []string
+		seen := map[string]bool{}
 		for _, r := range rs {
-			if r.method != method {
-				continue
-			}
 			params, ok := matchPath(r.pattern, path)
 			if !ok {
 				continue
 			}
+			if r.method != method {
+				if !seen[r.method] {
+					seen[r.method] = true
+					allowed = append(allowed, r.method)
+				}
+				continue
+			}
 			req["params"] = params
 			return r.handler(req)
+		}
+		if len(allowed) > 0 {
+			return map[string]any{
+				"status":  405,
+				"headers": map[string]any{"Allow": strings.Join(allowed, ", ")},
+				"body":    "method not allowed",
+			}
 		}
 		return map[string]any{"status": 404, "body": "not found"}
 	}
@@ -224,23 +265,31 @@ func WrapJson(h Handler) Handler {
 	}
 }
 
-// WrapCors adds permissive CORS headers to every response.
+// WrapCors adds permissive CORS headers to every response and answers
+// OPTIONS preflight requests directly with 204.
 func WrapCors(h Handler) Handler {
 	return func(req Request) Response {
+		if method, _ := req["method"].(string); method == "OPTIONS" {
+			return addCorsHeaders(map[string]any{"status": 204, "body": ""})
+		}
 		resp := h(req)
 		if resp == nil {
 			resp = map[string]any{"status": 200}
 		}
-		hdrs, ok := resp["headers"].(map[string]any)
-		if !ok {
-			hdrs = map[string]any{}
-			resp["headers"] = hdrs
-		}
-		hdrs["Access-Control-Allow-Origin"] = "*"
-		hdrs["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-		hdrs["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-		return resp
+		return addCorsHeaders(resp)
 	}
+}
+
+func addCorsHeaders(resp Response) Response {
+	hdrs, ok := resp["headers"].(map[string]any)
+	if !ok {
+		hdrs = map[string]any{}
+		resp["headers"] = hdrs
+	}
+	hdrs["Access-Control-Allow-Origin"] = "*"
+	hdrs["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+	hdrs["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+	return resp
 }
 
 // WrapAuth extracts a Bearer token from the Authorization header and stores it
@@ -318,9 +367,14 @@ func BodyMap(req Request) map[string]any {
 }
 
 // Header returns the named request header from req["headers"].
+// The lookup is case-insensitive: headers are stored under Go's canonical
+// form (e.g. "Content-Type"), and name is canonicalized before lookup.
 func Header(req Request, name string) string {
 	headers, _ := req["headers"].(map[string]any)
-	v, _ := headers[name].(string)
+	if v, ok := headers[name].(string); ok {
+		return v
+	}
+	v, _ := headers[textproto.CanonicalMIMEHeaderKey(name)].(string)
 	return v
 }
 
@@ -367,21 +421,49 @@ func ServeGraceful(addr string, h Handler) {
 }
 
 // matchPath matches a URL pattern against a concrete path. Segments starting
-// with ':' are wildcards that capture the corresponding path segment by name.
-// Returns the captured params and true on success, or nil and false otherwise.
+// with ':' capture the corresponding path segment by name; a trailing segment
+// starting with '*' captures the rest of the path (joined with '/'). Captured
+// values are URL-decoded. Returns the captured params and true on success, or
+// nil and false otherwise.
 func matchPath(pattern, path string) (map[string]any, bool) {
 	ps := strings.Split(strings.TrimPrefix(pattern, "/"), "/")
 	vs := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	if len(ps) != len(vs) {
+	wildcard := len(ps) > 0 && strings.HasPrefix(ps[len(ps)-1], "*")
+	n := len(ps)
+	if wildcard {
+		n--
+		if len(vs) < n {
+			return nil, false
+		}
+	} else if len(ps) != len(vs) {
 		return nil, false
 	}
 	params := map[string]any{}
-	for i, p := range ps {
+	for i := 0; i < n; i++ {
+		p := ps[i]
 		if strings.HasPrefix(p, ":") {
-			params[p[1:]] = vs[i]
+			params[p[1:]] = pathUnescape(vs[i])
 		} else if p != vs[i] {
 			return nil, false
 		}
 	}
+	if wildcard {
+		rest := ""
+		if len(vs) > n {
+			rest = strings.Join(vs[n:], "/")
+		}
+		if name := ps[len(ps)-1][1:]; name != "" {
+			params[name] = pathUnescape(rest)
+		}
+	}
 	return params, true
+}
+
+// pathUnescape URL-decodes a captured path value, returning it unchanged if
+// it is not valid percent-encoding.
+func pathUnescape(s string) string {
+	if u, err := url.PathUnescape(s); err == nil {
+		return u
+	}
+	return s
 }

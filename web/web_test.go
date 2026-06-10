@@ -2,7 +2,9 @@ package web
 
 import (
 	"fmt"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -236,6 +238,108 @@ func TestWrapCors_preservesExistingHeaders(t *testing.T) {
 	}
 }
 
+func TestBuildRequest_keys(t *testing.T) {
+	r := httptest.NewRequest("GET", "http://example.com/items?q=1", nil)
+	req := buildRequest(r)
+	if req["host"] != "example.com" {
+		t.Fatalf("expected host=example.com, got %v", req["host"])
+	}
+	if req["scheme"] != "http" {
+		t.Fatalf("expected scheme=http, got %v", req["scheme"])
+	}
+	addr, _ := req["remote-addr"].(string)
+	if addr == "" {
+		t.Fatal("expected remote-addr to be set")
+	}
+}
+
+func TestStatusOf(t *testing.T) {
+	cases := []struct {
+		resp map[string]any
+		want int
+	}{
+		{map[string]any{"status": 404}, 404},
+		{map[string]any{"status": int64(405)}, 405},
+		{map[string]any{"status": float64(503)}, 503},
+		{map[string]any{}, 200},
+		{nil, 200},
+	}
+	for _, c := range cases {
+		if got := statusOf(c.resp); got != c.want {
+			t.Fatalf("statusOf(%v) = %d, want %d", c.resp, got, c.want)
+		}
+	}
+}
+
+func TestContext_prefixesRoutes(t *testing.T) {
+	app := Routes(
+		Context("/api/v1",
+			Get("/items/:id", func(req map[string]any) map[string]any {
+				return map[string]any{"status": 200, "body": PathParam(req, "id")}
+			}),
+		),
+		Get("/", func(req map[string]any) map[string]any {
+			return map[string]any{"status": 200, "body": "home"}
+		}),
+	)
+	resp := app(map[string]any{"method": "GET", "path": "/api/v1/items/7"})
+	if resp["status"] != 200 || resp["body"] != "7" {
+		t.Fatalf("expected prefixed route with param, got %v", resp)
+	}
+	resp = app(map[string]any{"method": "GET", "path": "/"})
+	if resp["body"] != "home" {
+		t.Fatalf("expected unprefixed route to still match, got %v", resp)
+	}
+	resp = app(map[string]any{"method": "GET", "path": "/items/7"})
+	if resp["status"] != 404 {
+		t.Fatalf("expected 404 without prefix, got %v", resp["status"])
+	}
+}
+
+func TestContext_nested(t *testing.T) {
+	app := Routes(
+		Context("/api",
+			Context("/v1",
+				Get("/ping", func(req map[string]any) map[string]any {
+					return map[string]any{"status": 200}
+				}),
+			),
+		),
+	)
+	resp := app(map[string]any{"method": "GET", "path": "/api/v1/ping"})
+	if resp["status"] != 200 {
+		t.Fatalf("expected 200, got %v", resp["status"])
+	}
+}
+
+func TestContext_rootPattern(t *testing.T) {
+	app := Routes(
+		Context("/api",
+			Get("/", func(req map[string]any) map[string]any {
+				return map[string]any{"status": 200}
+			}),
+		),
+	)
+	resp := app(map[string]any{"method": "GET", "path": "/api"})
+	if resp["status"] != 200 {
+		t.Fatalf("expected / under /api to match /api, got %v", resp["status"])
+	}
+}
+
+func TestWrapRecover_logsAndReturns500(t *testing.T) {
+	h := WrapRecover(func(req map[string]any) map[string]any {
+		panic("secret detail")
+	})
+	resp := h(map[string]any{"method": "GET", "path": "/boom"})
+	if resp["status"] != 500 {
+		t.Fatalf("expected 500, got %v", resp["status"])
+	}
+	body, _ := resp["body"].(string)
+	if strings.Contains(body, "secret detail") {
+		t.Fatalf("expected panic value not leaked to client, got %q", body)
+	}
+}
+
 func TestWrapCors_preflight(t *testing.T) {
 	called := false
 	h := WrapCors(func(req map[string]any) map[string]any {
@@ -279,6 +383,34 @@ func TestWrapAuth_missing(t *testing.T) {
 	resp := h(map[string]any{"headers": map[string]any{}})
 	if resp["status"] != 401 {
 		t.Fatalf("expected 401, got %v", resp["status"])
+	}
+}
+
+func TestWrapAuthFunc(t *testing.T) {
+	mw := WrapAuthFunc(func(token string) bool { return token == "good" })
+	var gotIdentity any
+	h := mw(func(req map[string]any) map[string]any {
+		gotIdentity = req["identity"]
+		return map[string]any{"status": 200}
+	})
+
+	resp := h(map[string]any{
+		"headers": map[string]any{"Authorization": "Bearer good"},
+	})
+	if resp["status"] != 200 || gotIdentity != "good" {
+		t.Fatalf("expected accepted token, got status=%v identity=%v", resp["status"], gotIdentity)
+	}
+
+	resp = h(map[string]any{
+		"headers": map[string]any{"Authorization": "Bearer bad"},
+	})
+	if resp["status"] != 401 {
+		t.Fatalf("expected 401 for rejected token, got %v", resp["status"])
+	}
+
+	resp = h(map[string]any{"headers": map[string]any{}})
+	if resp["status"] != 401 {
+		t.Fatalf("expected 401 for missing header, got %v", resp["status"])
 	}
 }
 
@@ -393,6 +525,44 @@ func TestHeader(t *testing.T) {
 	}
 }
 
+func TestFormParam(t *testing.T) {
+	req := map[string]any{"body": "name=alice&tags=a%20b"}
+	if FormParam(req, "name") != "alice" {
+		t.Fatalf("expected alice, got %q", FormParam(req, "name"))
+	}
+	if FormParam(req, "tags") != "a b" {
+		t.Fatalf("expected decoded value, got %q", FormParam(req, "tags"))
+	}
+	if FormParam(req, "missing") != "" {
+		t.Fatalf("expected empty, got %q", FormParam(req, "missing"))
+	}
+}
+
+func TestCookie(t *testing.T) {
+	req := map[string]any{"headers": map[string]any{"Cookie": "session=abc123; theme=dark"}}
+	if Cookie(req, "session") != "abc123" {
+		t.Fatalf("expected abc123, got %q", Cookie(req, "session"))
+	}
+	if Cookie(req, "theme") != "dark" {
+		t.Fatalf("expected dark, got %q", Cookie(req, "theme"))
+	}
+	if Cookie(req, "missing") != "" {
+		t.Fatalf("expected empty, got %q", Cookie(req, "missing"))
+	}
+	if Cookie(map[string]any{}, "any") != "" {
+		t.Fatal("expected empty for request without Cookie header")
+	}
+}
+
+func TestSetCookie(t *testing.T) {
+	resp := SetCookie(map[string]any{"status": 200}, "session", "abc123")
+	hdrs, _ := resp["headers"].(map[string]any)
+	v, _ := hdrs["Set-Cookie"].(string)
+	if !strings.Contains(v, "session=abc123") || !strings.Contains(v, "Path=/") {
+		t.Fatalf("unexpected Set-Cookie header: %q", v)
+	}
+}
+
 func TestHeader_caseInsensitive(t *testing.T) {
 	req := map[string]any{"headers": map[string]any{"Content-Type": "application/json"}}
 	if Header(req, "content-type") != "application/json" {
@@ -477,5 +647,34 @@ func TestServeFiles_notFound(t *testing.T) {
 	resp := h(map[string]any{"path": "/static/nope.txt"})
 	if resp["status"] != 404 {
 		t.Fatalf("expected 404, got %v", resp["status"])
+	}
+}
+
+func TestServeFiles_forwardsRangeHeader(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/data.txt", []byte("0123456789"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	h := ServeFiles("/static/", dir)
+	resp := h(map[string]any{
+		"path":    "/static/data.txt",
+		"headers": map[string]any{"Range": "bytes=0-4"},
+	})
+	if resp["status"] != 206 {
+		t.Fatalf("expected 206 partial content, got %v", resp["status"])
+	}
+	body, _ := resp["body"].([]byte)
+	if string(body) != "01234" {
+		t.Fatalf("expected first 5 bytes, got %q", string(body))
+	}
+}
+
+func TestServeFiles_badPath(t *testing.T) {
+	h := ServeFiles("/static/", t.TempDir())
+	for _, p := range []string{"", "no-leading-slash"} {
+		resp := h(map[string]any{"path": p})
+		if resp["status"] != 400 {
+			t.Fatalf("expected 400 for path %q, got %v", p, resp["status"])
+		}
 	}
 }

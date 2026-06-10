@@ -11,12 +11,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -53,12 +55,19 @@ func buildRequest(r *http.Request) Request {
 	for k, vs := range r.Header {
 		headers[k] = strings.Join(vs, ", ")
 	}
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
 	return map[string]any{
-		"method":  r.Method,
-		"path":    r.URL.Path,
-		"query":   r.URL.RawQuery,
-		"headers": headers,
-		"body":    body,
+		"method":      r.Method,
+		"path":        r.URL.Path,
+		"query":       r.URL.RawQuery,
+		"headers":     headers,
+		"body":        body,
+		"remote-addr": r.RemoteAddr,
+		"host":        r.Host,
+		"scheme":      scheme,
 	}
 }
 
@@ -76,13 +85,7 @@ func writeResponse(w http.ResponseWriter, resp Response) {
 	}
 
 	// Write status
-	status := 200
-	if s, ok := resp["status"].(int); ok {
-		status = s
-	} else if s, ok := resp["status"].(int64); ok {
-		status = int(s)
-	}
-	w.WriteHeader(status)
+	w.WriteHeader(statusOf(resp))
 
 	// Write body
 	body := ""
@@ -104,24 +107,37 @@ func WrapLogging(h Handler) Handler {
 		method := req["method"]
 		path := req["path"]
 		resp := h(req)
-		status := 200
-		if s, ok := resp["status"].(int); ok {
-			status = s
-		}
-		fmt.Printf("%s %s → %d\n", method, path, status)
+		fmt.Printf("%s %s → %d\n", method, path, statusOf(resp))
 		return resp
 	}
 }
 
-// WrapRecover catches panics and returns a 500 response.
+// statusOf extracts the status code from a response, accepting the numeric
+// types a glisp program can produce (int, int64, float64). Defaults to 200.
+func statusOf(resp Response) int {
+	switch s := resp["status"].(type) {
+	case int:
+		return s
+	case int64:
+		return int(s)
+	case float64:
+		return int(s)
+	}
+	return 200
+}
+
+// WrapRecover catches panics, logs them with a stack trace, and returns a
+// generic 500 response (the panic value is not leaked to the client).
 func WrapRecover(h Handler) Handler {
 	return func(req Request) (resp Response) {
 		defer func() {
 			if r := recover(); r != nil {
-				resp = map[string]any{
-					"status": 500,
-					"body":   fmt.Sprintf("internal error: %v", r),
-				}
+				slog.Error("handler panic",
+					"error", fmt.Sprint(r),
+					"method", req["method"],
+					"path", req["path"],
+					"stack", string(debug.Stack()))
+				resp = map[string]any{"status": 500, "body": "internal error"}
 			}
 		}()
 		return h(req)
@@ -214,12 +230,56 @@ func Delete(pattern string, h Handler) Route { return Route{"DELETE", pattern, h
 // Patch creates a route that matches PATCH requests on pattern.
 func Patch(pattern string, h Handler) Route { return Route{"PATCH", pattern, h} }
 
-// Routes combines multiple routes into a single Handler. Tries each route in
-// order; the first matching method+pattern wins. Path params (e.g. :id) are
-// extracted and stored in req["params"]; a trailing *name segment captures the
-// rest of the path. Returns 405 with an Allow header if the path matches a
-// route but the method does not, or 404 if no route matches.
-func Routes(rs ...Route) Handler {
+// Context groups routes under a common path prefix. Accepts Route values and
+// []Route groups, so contexts nest. glisp usage:
+//
+//	(web/routes
+//	  (web/context "/api/v1"
+//	    (web/get "/tasks" list-tasks)
+//	    (web/get "/tasks/:id" get-task)))
+func Context(prefix string, rs ...any) []Route {
+	prefix = strings.TrimSuffix(prefix, "/")
+	var out []Route
+	for _, r := range flattenRoutes(rs) {
+		p := r.pattern
+		if p == "/" || p == "" {
+			p = ""
+		} else if !strings.HasPrefix(p, "/") {
+			p = "/" + p
+		}
+		pattern := prefix + p
+		if pattern == "" {
+			pattern = "/"
+		}
+		out = append(out, Route{r.method, pattern, r.handler})
+	}
+	return out
+}
+
+// flattenRoutes expands a mixed list of Route values and []Route groups.
+func flattenRoutes(rs []any) []Route {
+	var out []Route
+	for _, r := range rs {
+		switch v := r.(type) {
+		case Route:
+			out = append(out, v)
+		case []Route:
+			out = append(out, v...)
+		default:
+			panic(fmt.Sprintf("web: expected Route or []Route, got %T", r))
+		}
+	}
+	return out
+}
+
+// Routes combines multiple routes into a single Handler. Accepts Route values
+// and []Route groups (from Context). Tries each route in order; the first
+// matching method+pattern wins. Path params (e.g. :id) are extracted and
+// stored in req["params"]; a trailing *name segment captures the rest of the
+// path. Returns 405 with an Allow header if the path matches a route but the
+// method does not, or 404 if no route matches.
+func Routes(routables ...any) Handler {
+	rs := flattenRoutes(routables)
 	return func(req Request) Response {
 		method, _ := req["method"].(string)
 		path, _ := req["path"].(string)
@@ -306,6 +366,27 @@ func WrapAuth(h Handler) Handler {
 	}
 }
 
+// WrapAuthFunc is like WrapAuth but validates the Bearer token with check.
+// Returns 401 if the header is absent, not a Bearer token, or rejected.
+// glisp usage: (web/wrap handler (web/wrap-auth-func (fn [token string] -> bool ...)))
+func WrapAuthFunc(check func(token string) bool) Middleware {
+	return func(h Handler) Handler {
+		return func(req Request) Response {
+			headers, _ := req["headers"].(map[string]any)
+			auth, _ := headers["Authorization"].(string)
+			if !strings.HasPrefix(auth, "Bearer ") {
+				return Unauthorized("unauthorized")
+			}
+			token := strings.TrimPrefix(auth, "Bearer ")
+			if !check(token) {
+				return Unauthorized("unauthorized")
+			}
+			req["identity"] = token
+			return h(req)
+		}
+	}
+}
+
 // WrapTimeout wraps a handler with a deadline of `seconds` seconds.
 // Returns 503 if the handler does not respond in time.
 func WrapTimeout(seconds int) Middleware {
@@ -366,6 +447,13 @@ func BodyMap(req Request) map[string]any {
 	return m
 }
 
+// FormParam returns the named field from a urlencoded request body.
+func FormParam(req Request, name string) string {
+	body, _ := req["body"].(string)
+	vals, _ := url.ParseQuery(body)
+	return vals.Get(name)
+}
+
 // Header returns the named request header from req["headers"].
 // The lookup is case-insensitive: headers are stored under Go's canonical
 // form (e.g. "Content-Type"), and name is canonicalized before lookup.
@@ -378,12 +466,60 @@ func Header(req Request, name string) string {
 	return v
 }
 
+// Cookie returns the value of the named cookie from the Cookie header,
+// or "" if absent.
+func Cookie(req Request, name string) string {
+	cookies, err := http.ParseCookie(Header(req, "Cookie"))
+	if err != nil {
+		return ""
+	}
+	for _, c := range cookies {
+		if c.Name == name {
+			return c.Value
+		}
+	}
+	return ""
+}
+
+// SetCookie adds a Set-Cookie header (path /) to resp and returns resp.
+func SetCookie(resp Response, name, value string) Response {
+	c := http.Cookie{Name: name, Value: value, Path: "/"}
+	hdrs, ok := resp["headers"].(map[string]any)
+	if !ok {
+		hdrs = map[string]any{}
+		resp["headers"] = hdrs
+	}
+	hdrs["Set-Cookie"] = c.String()
+	return resp
+}
+
 // ServeFiles returns a Handler that serves static files from dir under prefix.
+// Request headers are forwarded, so conditional (If-Modified-Since/ETag) and
+// Range requests work.
 func ServeFiles(prefix, dir string) Handler {
 	fs := http.StripPrefix(prefix, http.FileServer(http.Dir(dir)))
 	return func(req Request) Response {
 		path, _ := req["path"].(string)
-		r := httptest.NewRequest("GET", path, nil)
+		u, err := url.ParseRequestURI(path)
+		if err != nil {
+			return map[string]any{"status": 400, "body": "bad request"}
+		}
+		r := &http.Request{
+			Method:     "GET",
+			URL:        u,
+			Proto:      "HTTP/1.1",
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Header:     http.Header{},
+			Host:       "localhost",
+		}
+		if headers, ok := req["headers"].(map[string]any); ok {
+			for k, v := range headers {
+				if s, ok := v.(string); ok {
+					r.Header.Set(k, s)
+				}
+			}
+		}
 		w := httptest.NewRecorder()
 		fs.ServeHTTP(w, r)
 		result := w.Result()

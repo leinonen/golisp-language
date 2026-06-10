@@ -73,7 +73,13 @@ glisp doc     [name]            # show built-in docs (all if no name)
 ; Strings:     str, upper-case, lower-case, trim, split, join, replace
 ; Maps:        get, assoc, dissoc, merge, keys, vals, contains?
 
-; Go interop
+; Structs, interfaces, methods
+(defstruct Circle radius float64)
+(defmethod Circle Area [c] -> float64 (* math/pi (:radius c) (:radius c)))
+(area c)          ; dot-free dispatch on typed values → c.Area()
+(:radius c)       ; keyword field access on typed values → c.Radius
+
+; Go interop (for any/external values the transpiler can't type)
 (go (fmt/println "async"))
 (defer (fmt/println "cleanup"))
 (let [ch (chan int 1)] (send! ch 42) (recv! ch))

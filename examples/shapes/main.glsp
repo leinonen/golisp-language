@@ -12,10 +12,10 @@
 
 ;;; Returns the area of the circle (π × r²).
 (defmethod Circle Area [c] -> float64
-  (* math/pi (.-Radius c) (.-Radius c)))
+  (* math/pi (:radius c) (:radius c)))
 
 (defmethod Circle Describe [c] -> string
-  (fmt/sprintf "circle(r=%.2f)" (.-Radius c)))
+  (fmt/sprintf "circle(r=%.2f)" (:radius c)))
 
 (defstruct Rect
   width float64
@@ -23,10 +23,10 @@
 
 ;;; Returns the area of the rectangle (width × height).
 (defmethod Rect Area [r] -> float64
-  (* (.-Width r) (.-Height r)))
+  (* (:width r) (:height r)))
 
 (defmethod Rect Describe [r] -> string
-  (fmt/sprintf "rect(%.2f x %.2f)" (.-Width r) (.-Height r)))
+  (fmt/sprintf "rect(%.2f x %.2f)" (:width r) (:height r)))
 
 (defstruct Triangle
   a float64
@@ -35,15 +35,15 @@
 
 ;;; Returns the area of the triangle using Heron's formula.
 (defmethod Triangle Area [t] -> float64
-  (let [s (* 0.5 (+ (.-A t) (.-B t) (.-C t)))]
-    (math/sqrt (* s (- s (.-A t)) (- s (.-B t)) (- s (.-C t))))))
+  (let [s (* 0.5 (+ (:a t) (:b t) (:c t)))]
+    (math/sqrt (* s (- s (:a t)) (- s (:b t)) (- s (:c t))))))
 
 (defmethod Triangle Describe [t] -> string
-  (fmt/sprintf "triangle(%.2f, %.2f, %.2f)" (.-A t) (.-B t) (.-C t)))
+  (fmt/sprintf "triangle(%.2f, %.2f, %.2f)" (:a t) (:b t) (:c t)))
 
 ;;; Prints a shape's description and area to stdout.
 (defn print-shape [s Shape] -> void
-  (fmt/printf "  %-28s  area = %.4f\n" (.Describe s) (.Area s)))
+  (fmt/printf "  %-28s  area = %.4f\n" (describe s) (area s)))
 
 (defn main [] -> void
   (fmt/println "Shapes:")

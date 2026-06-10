@@ -315,6 +315,7 @@ func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
 			if sym.Name == "_" {
 				continue // discard: emitting `_ := ...` is illegal Go
 			}
+			e.registerLocalVar(sym.Name)
 			e.writeIndent()
 			e.writef("%s := _glispGet(%s, int64(%d))\n", identToGo(sym.Name), src, i)
 		}
@@ -345,6 +346,8 @@ func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
 			}
 			if ent.typ != "" {
 				e.registerVarType(ent.bind, ent.typ)
+			} else {
+				e.registerLocalVar(ent.bind)
 			}
 		}
 	default:
@@ -417,6 +420,7 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 				if err := e.emitExpr(b.Value); err != nil {
 					return err
 				}
+				e.registerLocalVar(pat.Name)
 				// Infer struct type from the value (struct literal or known fn return)
 				// so keyword access on the binding resolves to field access.
 				if name := e.inferValueStructType(b.Value); name != "" && e.localTypes != nil {
@@ -482,7 +486,13 @@ func (e *Emitter) isBoolExpr(n ast.Node) bool {
 		if sig, ok := e.symbols[sym.Name]; ok {
 			return sig.retType == "bool"
 		}
-		return boolBuiltins[sym.Name]
+		if boolBuiltins[sym.Name] {
+			return true
+		}
+		if info, ok := e.resolveMethodCall(v); ok {
+			return info.sig.retType == "bool"
+		}
+		return false
 	}
 	return false
 }
@@ -580,6 +590,7 @@ func (e *Emitter) emitBindLetPrologue(pattern, expr ast.Node) (string, ast.Node,
 	}
 	if sym, ok := pattern.(*ast.Symbol); ok {
 		name := identToGo(sym.Name)
+		e.registerLocalVar(sym.Name)
 		e.writeIndent()
 		e.writef("%s := ", name)
 		if err := e.emitExpr(expr); err != nil {
@@ -684,6 +695,7 @@ func (e *Emitter) emitLetOrReturn(n *ast.LetOrExpr) error {
 			return err
 		}
 		goName := identToGo(b.Name)
+		e.registerLocalVar(b.Name)
 		e.writeIndent()
 		e.writef("%s := ", goName)
 		if err := e.emitExpr(b.Expr); err != nil {
@@ -724,6 +736,7 @@ func (e *Emitter) emitLetOrStmt(n *ast.LetOrExpr) error {
 			return err
 		}
 		goName := identToGo(b.Name)
+		e.registerLocalVar(b.Name)
 		e.writeIndent()
 		e.writef("%s := ", goName)
 		if err := e.emitExpr(b.Expr); err != nil {
@@ -1509,6 +1522,13 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 				return fmt.Errorf("arity error: %s called with %d arg(s), expected %d (at %s)", sym.Name, nargs, sig.minArity, n.Pos())
 			}
 		}
+	}
+
+	// Dot-free method dispatch: (area s) → s.Area() when s is statically known
+	// to hold a declared struct or interface type with a matching method and the
+	// head names no built-in, user function, or in-scope binding.
+	if info, ok := e.resolveMethodCall(n); ok {
+		return e.emitMethodCall(n, info)
 	}
 
 	// General function call: f(args...)

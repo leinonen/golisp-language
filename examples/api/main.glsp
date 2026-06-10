@@ -6,12 +6,6 @@
    {"id" "3" "title" "Go for a run" "done" false "priority" "medium"}
    {"id" "4" "title" "Read a book" "done" false "priority" "low"}])
 
-(defn bad-request [msg string] -> web/Response
-  (web/json-response 400 {"error" msg}))
-
-(defn not-found [msg string] -> web/Response
-  (web/json-response 404 {"error" msg}))
-
 (defn health [req web/Request] -> web/Response
   (web/json-response 200 {"status" "ok" "count" (len tasks)}))
 
@@ -28,7 +22,7 @@
   (let [id (web/path-param req "id")]
     (if-let [task (some (fn [t] (if (= (get t "id") id) t nil)) tasks)]
       (web/json-response 200 task)
-      (not-found (str "task " id " not found")))))
+      (web/not-found (str "task " id " not found")))))
 
 ;;; Creates a task from the JSON body. Annotated destructuring pulls typed
 ;;; locals straight out of the parsed body — title/priority as string, done as
@@ -39,13 +33,13 @@
            priority :priority :- string
            done     :done     :- bool} body]
       (if (= title "")
-        (bad-request "title is required")
+        (web/bad-request "title is required")
         (web/json-response 201
           {"id"       "new"
            "title"    title
            "priority" priority
            "done"     done})))
-    (bad-request "invalid or missing JSON body")))
+    (web/bad-request "invalid or missing JSON body")))
 
 (defn delete-task [req web/Request] -> web/Response
   (let [id (web/path-param req "id")]

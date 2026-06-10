@@ -1,6 +1,6 @@
 # ADR-007: `any` as universal runtime type
 
-**Status**: Accepted
+**Status**: Accepted (amended by ADR-011)
 
 ## Context
 
@@ -19,10 +19,13 @@ All dynamically-typed runtime values are `any` (Go's `interface{}`). Runtime hel
 
 ## Known pain points and mitigations
 
+ADR-011 reclassified this table as a transpiler defect list; absorbed rows are
+struck through and kept for history.
+
 | Situation | Problem | Mitigation |
 |-----------|---------|------------|
-| `(len x)` where x is `any` | `len` needs concrete type | `(len (str x))` for strings; count via reduce for slices |
-| `(if x ...)` where x is non-bool `any` | Go if requires bool | Use `(nil? x)` or `(not= x nil)` |
+| ~~`(len x)` where x is `any`~~ | ~~`len` needs concrete type~~ | Absorbed (ADR-011): `len` is an alias for `count` → `_glispLen` accepts `any` |
+| ~~`(if x ...)` where x is non-bool `any`~~ | ~~Go if requires bool~~ | Absorbed (ADR-011): conditions wrap in `_glispTruthy` — nil/false falsy |
 | Multi-return Go fn as last expr in `func() any` | can't coerce `(T, error)` to `any` | Wrap with `(do (f ...) nil)` |
 | `(defn f [] -> int (reduce ...))` | reduce returns `any`, not `int` | Wrap: `(int (reduce ...))` or use `-> any` return |
 

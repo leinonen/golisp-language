@@ -341,3 +341,19 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 17 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |
 | 18 | ~~**10a–d: File I/O, slog, regex, error wrapping**~~ ✓ | Essential for any real-world program |
 | 19 | **10e–g: `atom`, `with-open`, context propagation** | Ergonomics for shared state and resource safety |
+
+---
+
+## Phase 11 — Absorbing the `any` seam (ADR-011) and developer feedback loop
+
+Principle: the user never debugs generated Go. Every remaining `any`-constraint
+either gets absorbed by emission or becomes a glisp-level diagnostic.
+
+- [x] Truthiness — `_glispTruthy` wrapping for non-bool conditions in `if`/`when`/`cond`/`and`/`or`/`not`/asserts (nil and false falsy)
+- [x] `len` as alias for `count` — `_glispLen` accepts `any`
+- [x] Statement-only forms (`go`, `select!`, `send!`, `close!`, `par`, `for-chan`, `fan-out`, `defer`) in tail position auto-emit `return nil`
+- [ ] Multi-return Go call in tail of `func(...) any` closure — absorb or diagnose with the `(do ... nil)` fix in the message
+- [ ] `_glispToSlice` over common concrete slice types (`[]string`, `[]int`, …) so Go-bridge slices work with `map`/`filter`/`reduce`
+- [ ] Map leaked Go build errors back to `.glsp` file/line
+- [ ] `glisp run file.glsp` — one-shot compile-and-run for a fast edit-run loop
+- [ ] `glisp run --watch` — re-run on save

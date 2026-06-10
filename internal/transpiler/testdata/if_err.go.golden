@@ -144,7 +144,15 @@ func _glispLen(v any) int {
 		return len(c)
 	case []string:
 		return len(c)
+	case []int:
+		return len(c)
+	case []float64:
+		return len(c)
+	case []map[string]any:
+		return len(c)
 	case map[string]any:
+		return len(c)
+	case map[string]string:
 		return len(c)
 	case map[any]struct{}:
 		return len(c)
@@ -152,6 +160,10 @@ func _glispLen(v any) int {
 		return len(c)
 	}
 	return 0
+}
+
+func _glispTruthy(v any) bool {
+	return v != nil && v != false
 }
 
 func _glispFirst(v any) any {

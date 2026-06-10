@@ -164,7 +164,7 @@ func (e *Emitter) emitLoopTailNode(n ast.Node, retVar string) error {
 func (e *Emitter) emitIfLoopTail(n *ast.IfExpr, retVar string) error {
 	e.writeIndent()
 	e.write("if ")
-	if err := e.emitExpr(n.Cond); err != nil {
+	if err := e.emitCondition(n.Cond); err != nil {
 		return err
 	}
 	e.write(" {")
@@ -194,7 +194,7 @@ func (e *Emitter) emitCondLoopTail(n *ast.CondExpr, retVar string) error {
 		} else {
 			e.write("} else if ")
 		}
-		if err := e.emitExpr(clause.Test); err != nil {
+		if err := e.emitCondition(clause.Test); err != nil {
 			return err
 		}
 		e.write(" {")

@@ -258,7 +258,7 @@ func (e *Emitter) emitAssertStmt(n ast.Node) error {
 		}
 		e.writeIndent()
 		e.write("if !(")
-		if err := e.emitExpr(call.Args[0]); err != nil {
+		if err := e.emitCondition(call.Args[0]); err != nil {
 			return err
 		}
 		e.write(") {")
@@ -277,7 +277,7 @@ func (e *Emitter) emitAssertStmt(n ast.Node) error {
 		}
 		e.writeIndent()
 		e.write("if (")
-		if err := e.emitExpr(call.Args[0]); err != nil {
+		if err := e.emitCondition(call.Args[0]); err != nil {
 			return err
 		}
 		e.write(") {")

@@ -690,7 +690,7 @@ func (e *Emitter) emitLetStmt(n *ast.LetExpr) error {
 func (e *Emitter) emitIfStmt(n *ast.IfExpr) error {
 	e.writeIndent()
 	e.write("if ")
-	if err := e.emitExpr(n.Cond); err != nil {
+	if err := e.emitCondition(n.Cond); err != nil {
 		return err
 	}
 	e.write(" {")
@@ -716,7 +716,7 @@ func (e *Emitter) emitIfStmt(n *ast.IfExpr) error {
 func (e *Emitter) emitWhenStmt(n *ast.WhenExpr) error {
 	e.writeIndent()
 	e.write("if ")
-	if err := e.emitExpr(n.Cond); err != nil {
+	if err := e.emitCondition(n.Cond); err != nil {
 		return err
 	}
 	e.write(" {")
@@ -741,7 +741,7 @@ func (e *Emitter) emitCondStmt(n *ast.CondExpr) error {
 		} else {
 			e.write("} else if ")
 		}
-		if err := e.emitExpr(clause.Test); err != nil {
+		if err := e.emitCondition(clause.Test); err != nil {
 			return err
 		}
 		e.write(" {")
@@ -789,8 +789,9 @@ func (e *Emitter) emitBody(body []ast.Node, inReturn bool) error {
 }
 
 // emitReturnNode emits a node in return position.
-// Certain statement-like nodes (GoStmt, DeferStmt, SendStmt, CloseStmt, SelectStmt)
-// are not returned even in tail position — they're just emitted as statements.
+// Statement-only nodes (GoStmt, DeferStmt, SendStmt, CloseStmt, SelectStmt, …)
+// have no value: they're emitted as statements followed by `return nil`, so a
+// (go ...) or (select! ...) in tail position never leaves a missing return.
 func (e *Emitter) emitReturnNode(n ast.Node) error {
 	e.lineDir(n.Pos())
 	switch v := n.(type) {
@@ -800,16 +801,22 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 			return err
 		}
 		e.nl()
+		e.line("return nil")
 		return nil
 	case *ast.GoStmt:
 		e.writeIndent()
-		return e.emitGoStmt(v)
+		if err := e.emitGoStmt(v); err != nil {
+			return err
+		}
+		e.line("return nil")
+		return nil
 	case *ast.ParStmt:
 		e.writeIndent()
 		if err := e.emitParStmt(v); err != nil {
 			return err
 		}
 		e.nl()
+		e.line("return nil")
 		return nil
 	case *ast.ForChanStmt:
 		e.writeIndent()
@@ -817,6 +824,7 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 			return err
 		}
 		e.nl()
+		e.line("return nil")
 		return nil
 	case *ast.FanOutStmt:
 		e.writeIndent()
@@ -824,16 +832,22 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 			return err
 		}
 		e.nl()
+		e.line("return nil")
 		return nil
 	case *ast.DeferStmt:
 		e.writeIndent()
-		return e.emitDeferStmt(v)
+		if err := e.emitDeferStmt(v); err != nil {
+			return err
+		}
+		e.line("return nil")
+		return nil
 	case *ast.SendStmt:
 		e.writeIndent()
 		if err := e.emitSendStmt(v); err != nil {
 			return err
 		}
 		e.nl()
+		e.line("return nil")
 		return nil
 	case *ast.CloseStmt:
 		e.writeIndent()
@@ -841,6 +855,7 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 			return err
 		}
 		e.nl()
+		e.line("return nil")
 		return nil
 	case *ast.ReturnExpr:
 		e.writeIndent()

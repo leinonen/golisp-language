@@ -55,11 +55,11 @@
   (loop [i int n a int 0 b int 1] (if (<= i 0) a (recur (- i 1) b (+ a b)))))
 
 ; --- Higher-order functions ---
-; (str w) coerces any→string so (len (str w)) compiles on any-typed values.
+; (len w) works on any-typed values — len/count accept any collection or string.
 ;;; Returns words longer than 3 characters, lowercased and sorted.
 (defn long-words [text string] -> []any
   (let [ws (split (lower-case (trim text)) " ")]
-    (sort-by (fn [w] w) (filter (fn [w] (> (len (str w)) 3)) ws))))
+    (sort-by (fn [w] w) (filter (fn [w] (> (len w) 3)) ws))))
 
 ; --- Concurrent class analysis ---
 ; Typed def: names is []string, not []any. Go catches element-type mismatches.

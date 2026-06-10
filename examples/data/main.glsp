@@ -21,7 +21,6 @@
   (fmt/println "  second product:" (get (second products) "name"))
   (fmt/println "  last product:  " (get (last products) "name"))
   ; --- empty? / not-empty ---
-  ; filter returns []any; use (len ...) not (count ...) on it.
   (fmt/println "\n=== empty? / not-empty ===")
   (let [out-of-stock (filter (fn [p] (= (int (get p "stock")) 0)) products)
         refurbished (filter (fn [p] (= (get p "category") "refurbished")) products)]
@@ -89,7 +88,6 @@
     (fmt/println "  Widget B stock:" (get stocks "Widget B"))
     (fmt/println "  Wrench Set stock:" (get stocks "Wrench Set")))
   ; --- concat ---
-  ; Use (len ...) on []any results from filter/concat.
   (fmt/println "\n=== concat ===")
   (let [cheap (filter (fn [p] (< (int (get p "price")) 1000)) products)
         pricey (filter (fn [p] (>= (int (get p "price")) 5000)) products)

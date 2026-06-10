@@ -49,7 +49,7 @@ func tryRecv(ch chan int) {
 	_v1 := func() []any { _v, _ok := <-ch; return []any{_v, _ok} }()
 	val := _glispGet(_v1, int64(0))
 	ok := _glispGet(_v1, int64(1))
-	if ok {
+	if _glispTruthy(ok) {
 		val
 	} else {
 		-1
@@ -204,7 +204,15 @@ func _glispLen(v any) int {
 		return len(c)
 	case []string:
 		return len(c)
+	case []int:
+		return len(c)
+	case []float64:
+		return len(c)
+	case []map[string]any:
+		return len(c)
 	case map[string]any:
+		return len(c)
+	case map[string]string:
 		return len(c)
 	case map[any]struct{}:
 		return len(c)
@@ -212,6 +220,10 @@ func _glispLen(v any) int {
 		return len(c)
 	}
 	return 0
+}
+
+func _glispTruthy(v any) bool {
+	return v != nil && v != false
 }
 
 func _glispFirst(v any) any {

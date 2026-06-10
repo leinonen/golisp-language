@@ -196,6 +196,7 @@ func (e *Emitter) emitMethodDecl(n *ast.MethodDecl) error {
 
 // emitDefTestDecl emits a deftest as a Go test function.
 func (e *Emitter) emitDefTestDecl(n *ast.DefTestDecl) error {
+	e.lineDir(n.Pos_)
 	e.needImport("testing")
 	goName := "Test" + titleCase(identToGo(n.Name))
 	e.linef("func %s(t *testing.T) {", goName)
@@ -222,6 +223,9 @@ func (e *Emitter) emitAssertStmt(n ast.Node) error {
 	if !ok {
 		return e.emitStmtNode(n)
 	}
+	// Map each assertion to its .glsp line so a failing t.Errorf reports the
+	// assertion's own position, not a drifted line.
+	e.lineDir(n.Pos())
 
 	switch sym.Name {
 	case "assert=":
@@ -240,6 +244,7 @@ func (e *Emitter) emitAssertStmt(n ast.Node) error {
 		e.write(") {")
 		e.nl()
 		e.push()
+		e.lineDir(n.Pos())
 		e.writeIndent()
 		e.write(`t.Errorf("assert= failed: expected %v, got %v", `)
 		if err := e.emitExpr(call.Args[1]); err != nil {
@@ -267,6 +272,7 @@ func (e *Emitter) emitAssertStmt(n ast.Node) error {
 		e.write(") {")
 		e.nl()
 		e.push()
+		e.lineDir(n.Pos())
 		e.writeIndent()
 		e.write(`t.Errorf("assert-true failed")`)
 		e.nl()
@@ -286,6 +292,7 @@ func (e *Emitter) emitAssertStmt(n ast.Node) error {
 		e.write(") {")
 		e.nl()
 		e.push()
+		e.lineDir(n.Pos())
 		e.writeIndent()
 		e.write(`t.Errorf("assert-false failed")`)
 		e.nl()
@@ -305,6 +312,7 @@ func (e *Emitter) emitAssertStmt(n ast.Node) error {
 		e.write(") != nil {")
 		e.nl()
 		e.push()
+		e.lineDir(n.Pos())
 		e.writeIndent()
 		e.write(`t.Errorf("assert-nil failed: got %v", `)
 		if err := e.emitExpr(call.Args[0]); err != nil {
@@ -328,6 +336,7 @@ func (e *Emitter) emitAssertStmt(n ast.Node) error {
 		e.write(") == nil {")
 		e.nl()
 		e.push()
+		e.lineDir(n.Pos())
 		e.writeIndent()
 		e.write(`t.Errorf("assert-err failed: expected non-nil error")`)
 		e.nl()

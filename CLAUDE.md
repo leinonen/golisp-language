@@ -101,6 +101,8 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 
 `->` for return types: a bare return-type symbol after params would be ambiguous (indistinguishable from first body expr). `->` makes return type unambiguous. `parseTypeExpr()` in `parser.go` handles complex types by reading individual tokens without needing `^`.
 
+**Go-error line mapping (`//line`)**: file-mode transpiles (`TranspileFile` — every CLI build/run/test path) emit `//line file.glsp:N` directives, so Go compile errors, panic stack frames, and `t.Errorf` test failures report `.glsp` positions. Three details: each deftest assertion emits a directive both before its `if` and before the `t.Errorf` call, so a failure reports the assertion's exact line; the appended runtime-helper block is re-anchored with `//line glisp_runtime.go:1` (gated on `sawLineDir`, propagated from the two-pass `declEmitter`) so helper panic frames never point at bogus `.glsp` lines; filename-less `Transpile` (print/golden paths) emits no directives at all.
+
 **Runtime helpers**: `_glispGet`, `_glispAssoc`, etc. are appended to every generated file — no separate runtime package to link. Conditional blocks are appended only when the corresponding built-ins are used, gated by `builtinImports` keys:
 
 | Key | Runtime block | Real imports |

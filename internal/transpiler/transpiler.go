@@ -143,6 +143,9 @@ type Emitter struct {
 	// currentRetType: Go return type of the function currently being emitted, used
 	// to hint collection/struct literals in tail/return position. "" when none.
 	currentRetType string
+	// sawLineDir: true once any //line directive has been emitted (file mode);
+	// gates the //line reset in front of the appended runtime helpers.
+	sawLineDir bool
 }
 
 func (e *Emitter) needImport(pkg string) {
@@ -207,6 +210,7 @@ func (e *Emitter) lineDir(pos ast.Position) {
 	if pos.File == "" {
 		return
 	}
+	e.sawLineDir = true
 	fmt.Fprintf(&e.buf, "//line %s:%d\n", pos.File, pos.Line)
 }
 
@@ -312,9 +316,19 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 
 	// Append declarations
 	e.write(declEmitter.buf.String())
+	// //line directives live in the declaration buffer; propagate the flag so
+	// the runtime-helper reset below fires in file mode.
+	e.sawLineDir = e.sawLineDir || declEmitter.sawLineDir
 
 	// Runtime helpers (omitted for multi-file builds that use a shared runtime file)
 	if e.emitRuntime {
+		// In //line mode the helpers would otherwise inherit the last user-code
+		// directive, so panics inside them would point at a bogus line of the
+		// .glsp source. Re-anchor them to a virtual glisp_runtime.go — the same
+		// name the shared runtime file has in multi-file builds.
+		if e.sawLineDir {
+			e.write("//line glisp_runtime.go:1\n")
+		}
 		e.write(glispRuntime)
 		if e.builtinImports["sort"] {
 			e.write(glispSortRuntime)

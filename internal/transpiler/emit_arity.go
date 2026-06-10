@@ -2,6 +2,7 @@ package transpiler
 
 import (
 	"fmt"
+	"strings"
 
 	"golisp/internal/ast"
 )
@@ -116,4 +117,61 @@ func describeArity(min, max int) string {
 	default:
 		return fmt.Sprintf("%d to %d arguments", min, max)
 	}
+}
+
+// multiReturnBuiltins lists built-in forms that emit a Go multi-value
+// (value, error) expression. They are consumed with if-err; using one as a
+// single value (function tail, let/def binding, loop result) cannot compile,
+// so checkMultiReturnValue reports a glisp-level error instead of leaking
+// the Go one.
+var multiReturnBuiltins = map[string]string{
+	"parse-int":    "(int, error)",
+	"parse-float":  "(float64, error)",
+	"json/encode":  "(string, error)",
+	"json/decode":  "(any, error)",
+	"read-file":    "(string, error)",
+	"list-dir":     "([]any, error)",
+	"http/get":     "(response, error)",
+	"http/post":    "(response, error)",
+	"http/put":     "(response, error)",
+	"http/delete":  "(response, error)",
+	"http/request": "(response, error)",
+}
+
+// multiReturnCall reports whether n is a call statically known to produce
+// multiple Go return values: one of multiReturnBuiltins, or a user function
+// declared with a multi-return type (-> [T1 T2]). User definitions shadow
+// built-in names.
+func (e *Emitter) multiReturnCall(n ast.Node) (name, shape string, ok bool) {
+	call, isCall := n.(*ast.CallExpr)
+	if !isCall {
+		return "", "", false
+	}
+	sym, isSym := call.Head.(*ast.Symbol)
+	if !isSym {
+		return "", "", false
+	}
+	if sig, found := e.symbols[sym.Name]; found {
+		// typeExprToGo renders a multi-return [T1 T2] as "(T1, T2)"
+		if strings.HasPrefix(sig.retType, "(") {
+			return sym.Name, sig.retType, true
+		}
+		return "", "", false
+	}
+	if shape, found := multiReturnBuiltins[sym.Name]; found {
+		return sym.Name, shape, true
+	}
+	return "", "", false
+}
+
+// checkMultiReturnValue reports a position-tagged error when n — about to be
+// used as a single value — is a call known to produce multiple Go return
+// values. Tail-position callers must skip this check when the surrounding
+// function is itself multi-return, where `return f()` is legal Go.
+func (e *Emitter) checkMultiReturnValue(n ast.Node) error {
+	name, shape, ok := e.multiReturnCall(n)
+	if !ok {
+		return nil
+	}
+	return fmt.Errorf("%s returns multiple values %s, which cannot be used as a single value — bind them with (if-err [v err] (%s ...) ...) or discard with (do (%s ...) nil) (at %s)", name, shape, name, name, n.Pos())
 }

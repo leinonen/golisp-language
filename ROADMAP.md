@@ -352,7 +352,7 @@ either gets absorbed by emission or becomes a glisp-level diagnostic.
 - [x] Truthiness — `_glispTruthy` wrapping for non-bool conditions in `if`/`when`/`cond`/`and`/`or`/`not`/asserts (nil and false falsy)
 - [x] `len` as alias for `count` — `_glispLen` accepts `any`
 - [x] Statement-only forms (`go`, `select!`, `send!`, `close!`, `par`, `for-chan`, `fan-out`, `defer`) in tail position auto-emit `return nil`
-- [ ] Multi-return Go call in tail of `func(...) any` closure — absorb or diagnose with the `(do ... nil)` fix in the message
+- [x] Multi-return call as a single value — transpile-time diagnostic (suggests `if-err` / `(do ... nil)`) for multi-return built-ins and user `-> [T E]` fns, in fn/loop tails and `let`/`if-let`/`let-or`/`def` bindings; unknown Go interop fns rely on //line-mapped Go errors
 - [x] `_glispToSlice` over common concrete slice types (`[]string`, `[]int`, `[]int64`, `[]float64`, `[]bool`, `[]map[string]any`) — `first`/`rest`/`conj`/`contains?`/`get`/`flatten` all route through it; `(rest os/args)` works
 - [ ] Map leaked Go build errors back to `.glsp` file/line
 - [x] `glisp run file.glsp` — one-shot compile-and-run for a fast edit-run loop (also takes a dir; passes args, propagates exit code, leaves no artifacts)

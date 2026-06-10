@@ -140,6 +140,11 @@ func (e *Emitter) emitLoopTailNode(n ast.Node, retVar string) error {
 		return e.emitLoopBody(v.Body, retVar)
 	default:
 		if e.loopInReturn {
+			if !strings.Contains(e.currentRetType, ",") {
+				if err := e.checkMultiReturnValue(n); err != nil {
+					return err
+				}
+			}
 			// Return position: emit `return value` directly
 			e.writeIndent()
 			e.write("return ")
@@ -149,6 +154,9 @@ func (e *Emitter) emitLoopTailNode(n ast.Node, retVar string) error {
 			e.nl()
 		} else {
 			// Expression position: assign to result var and break
+			if err := e.checkMultiReturnValue(n); err != nil {
+				return err
+			}
 			e.writeIndent()
 			e.writef("%s = ", retVar)
 			if err := e.emitExpr(n); err != nil {

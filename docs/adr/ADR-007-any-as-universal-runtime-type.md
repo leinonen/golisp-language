@@ -26,7 +26,7 @@ struck through and kept for history.
 |-----------|---------|------------|
 | ~~`(len x)` where x is `any`~~ | ~~`len` needs concrete type~~ | Absorbed (ADR-011): `len` is an alias for `count` → `_glispLen` accepts `any` |
 | ~~`(if x ...)` where x is non-bool `any`~~ | ~~Go if requires bool~~ | Absorbed (ADR-011): conditions wrap in `_glispTruthy` — nil/false falsy |
-| Multi-return Go fn as last expr in `func() any` | can't coerce `(T, error)` to `any` | Wrap with `(do (f ...) nil)` |
+| ~~Known multi-return call as a single value~~ | ~~can't coerce `(T, error)` to `any`~~ | Diagnosed (ADR-011): transpile-time error suggesting `if-err`, for multi-return built-ins and user fns declared `-> [T E]`. Unknown Go interop fns still need `(do (f ...) nil)` (Go error is //line-mapped) |
 | `(defn f [] -> int (reduce ...))` | reduce returns `any`, not `int` | Wrap: `(int (reduce ...))` or use `-> any` return |
 
 ## Consequences

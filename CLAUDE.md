@@ -20,7 +20,7 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/transpiler/emit_expr.go` | `fn`, `let`, `if`, `cond`, `do`, built-ins |
 | `internal/transpiler/emit_concurrency.go` | `go`, `go-val`, `par`, `defer`, `chan`, `send!`, `recv!`, `recv-ok!`, `close!`, `select!` (+ `:timeout`), `for-chan`, `with-lock`, `if-err`, method/field/struct interop |
 | `internal/transpiler/emit_loop.go` | `loop`/`recur` → `for` |
-| `internal/transpiler/emit_arity.go` | `builtinArity` table + `checkBuiltinArity` — central arity front-gate for built-in call forms |
+| `internal/transpiler/emit_arity.go` | `builtinArity` table + `checkBuiltinArity` — central arity front-gate for built-in call forms; `multiReturnBuiltins` + `checkMultiReturnValue` — single-value-position gate for multi-return calls |
 | `internal/transpiler/emit_types.go` | `identToGo`, `typeExprToGo`, `qualifiedTypeToGo`, `zeroValueFor` |
 | `internal/transpiler/emit_runtime.go` | `glispRuntime` (always), `glispSortRuntime`, `glispStrRuntime`, `glispJsonRuntime`, `glispEnvRuntime`, `glispFileRuntime`, `glispReRuntime`, `glispSetRuntime` (conditional) |
 | `internal/formatter/formatter.go` | AST → formatted glisp source; `Format(src)` public API |
@@ -160,7 +160,7 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 
 | Situation | What breaks | Fix |
 |---|---|---|
-| any multi-return Go fn (e.g. `os/create`) as the tail of a `func(...) any` closure | `(T, error)` can't coerce to `any` | `(do (os/create ...) nil)` — note: `fmt/println` and `fmt/print` are handled automatically |
+| an *unknown* multi-return Go interop fn (e.g. `os/create`) as the tail of a `func(...) any` closure | `(T, error)` can't coerce to `any` | `(do (os/create ...) nil)`; the Go error is //line-mapped to the `.glsp` source. Known multi-return calls — the `multiReturnBuiltins` set (`parse-int`, `json/encode`, `read-file`, `http/*`, …) and user fns declared `-> [T E]` — are caught at transpile time instead: using one as a single value (fn/loop tail, `let`/`if-let`/`let-or`/`def` binding) is a position-tagged glisp error suggesting `if-err`. Statement position and pass-through from a multi-return fn stay legal. When adding a multi-return built-in, add it to `multiReturnBuiltins`. |
 | `(defn f [] -> int (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `-> any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
 | `(defn f [] ...)` with no `-> RetType`, void-ish body | Go generates `func f()` (void); using it in return position fails | add `-> void` for true void functions; add `-> any` only if the fn is used in expression/return position |
 

@@ -994,3 +994,90 @@ func TestHomogeneousVectorInference(t *testing.T) {
 		})
 	}
 }
+
+// TestMultiReturnDiagnostics verifies that using a known multi-return call
+// (built-in or user fn declared -> [T E]) as a single value is a glisp-level
+// transpile error rather than a leaked Go compile error (ADR-011).
+func TestMultiReturnDiagnostics(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string // expected substring; "" means must transpile cleanly
+	}{
+		{
+			name:    "builtin in any tail",
+			src:     `(defn f [] -> any (parse-int "1"))`,
+			wantErr: "parse-int returns multiple values",
+		},
+		{
+			name:    "builtin in concrete tail",
+			src:     `(defn f [] -> int (parse-int "1"))`,
+			wantErr: "parse-int returns multiple values",
+		},
+		{
+			name:    "user multi fn in any tail",
+			src:     `(defn p [] -> [int error] (values 1 nil)) (defn f [] -> any (p))`,
+			wantErr: "p returns multiple values (int, error)",
+		},
+		{
+			name:    "let binding",
+			src:     `(defn f [] -> any (let [x (read-file "a")] x))`,
+			wantErr: "read-file returns multiple values",
+		},
+		{
+			name:    "if-let binding",
+			src:     `(defn f [] -> any (if-let [x (json/decode "1")] x "no"))`,
+			wantErr: "json/decode returns multiple values",
+		},
+		{
+			name:    "let-or binding",
+			src:     `(defn f [] -> any (let-or [x (http/get "u") "fallback"] x))`,
+			wantErr: "http/get returns multiple values",
+		},
+		{
+			name:    "def value",
+			src:     `(def x (parse-int "1"))`,
+			wantErr: "parse-int returns multiple values",
+		},
+		{
+			name:    "loop tail",
+			src:     `(defn f [] -> any (loop [i 0] (if (> i 3) (parse-int "1") (recur (+ i 1)))))`,
+			wantErr: "parse-int returns multiple values",
+		},
+		{
+			name:    "pass-through from multi-return fn is legal",
+			src:     `(defn f [s string] -> [int error] (parse-int s))`,
+			wantErr: "",
+		},
+		{
+			name:    "statement-position discard is legal",
+			src:     `(defn f [] -> any (do (parse-int "1") nil))`,
+			wantErr: "",
+		},
+		{
+			name:    "if-err is the blessed consumer",
+			src:     `(defn f [] -> any (if-err [v err] (parse-int "1") 0 v))`,
+			wantErr: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Transpile(tt.src)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error containing %q\ngot: %v", tt.wantErr, err)
+			}
+			if !strings.Contains(err.Error(), "if-err") {
+				t.Errorf("error should suggest if-err, got: %v", err)
+			}
+		})
+	}
+}

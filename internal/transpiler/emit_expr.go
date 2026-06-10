@@ -394,6 +394,10 @@ func (e *Emitter) emitLetBody(n *ast.LetExpr) error {
 
 func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 	for _, b := range bindings {
+		// A binding holds one value; a known multi-return call can't compile here.
+		if err := e.checkMultiReturnValue(b.Value); err != nil {
+			return err
+		}
 		switch pat := b.Pattern.(type) {
 		case *ast.Symbol:
 			goName := identToGo(pat.Name)
@@ -571,6 +575,9 @@ func (e *Emitter) emitWhenExpr(n *ast.WhenExpr) error {
 // pattern is returned so the caller can emit the destructured bindings inside
 // the truthy branch only (keeping them out of scope in the else/nil branch).
 func (e *Emitter) emitBindLetPrologue(pattern, expr ast.Node) (string, ast.Node, error) {
+	if err := e.checkMultiReturnValue(expr); err != nil {
+		return "", nil, err
+	}
 	if sym, ok := pattern.(*ast.Symbol); ok {
 		name := identToGo(sym.Name)
 		e.writeIndent()
@@ -673,6 +680,9 @@ func (e *Emitter) emitIfLetStmt(n *ast.IfLetExpr) error {
 // emitLetOrReturn emits let-or in return position: flat sequential nil guards.
 func (e *Emitter) emitLetOrReturn(n *ast.LetOrExpr) error {
 	for _, b := range n.Bindings {
+		if err := e.checkMultiReturnValue(b.Expr); err != nil {
+			return err
+		}
 		goName := identToGo(b.Name)
 		e.writeIndent()
 		e.writef("%s := ", goName)
@@ -710,6 +720,9 @@ func (e *Emitter) emitLetOrExpr(n *ast.LetOrExpr) error {
 // emitLetOrStmt emits let-or in statement position (no return wrapper).
 func (e *Emitter) emitLetOrStmt(n *ast.LetOrExpr) error {
 	for _, b := range n.Bindings {
+		if err := e.checkMultiReturnValue(b.Expr); err != nil {
+			return err
+		}
 		goName := identToGo(b.Name)
 		e.writeIndent()
 		e.writef("%s := ", goName)

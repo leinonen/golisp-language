@@ -13,6 +13,9 @@ func (e *Emitter) emitDefDecl(n *ast.DefDecl) error {
 	if e.strict && n.TypeAnnot == nil {
 		return fmt.Errorf("strict: def %q has no type annotation", n.Name)
 	}
+	if err := e.checkMultiReturnValue(n.Value); err != nil {
+		return err
+	}
 	goName := identToGo(n.Name)
 	if n.TypeAnnot != nil {
 		typeStr := typeExprToGo(n.TypeAnnot.Text)

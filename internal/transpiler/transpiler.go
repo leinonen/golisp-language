@@ -919,6 +919,13 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 				return nil
 			}
 		}
+		// `return f()` from a multi-return fn is legal Go; everywhere else a
+		// known multi-return call can't be a single return value — diagnose.
+		if !strings.Contains(e.currentRetType, ",") {
+			if err := e.checkMultiReturnValue(v); err != nil {
+				return err
+			}
+		}
 		e.writeIndent()
 		e.write("return ")
 		if err := e.emitExpr(v); err != nil {

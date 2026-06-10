@@ -17,9 +17,7 @@
       (web/bad-request "invalid user id")
       (if-err [user err] (db-get-user conn id)
         (web/server-error (.Error err))
-        (if (= user nil)
-          (web/not-found "user not found")
-          (web/json-response 200 user))))))
+        (if user (web/json-response 200 user) (web/not-found "user not found"))))))
 
 (defn make-create-user [conn any] -> web/Handler
   (fn [req web/Request] -> web/Response
@@ -55,9 +53,7 @@
       (web/bad-request "invalid note id")
       (if-err [note err] (db-get-note conn id)
         (web/server-error (.Error err))
-        (if (= note nil)
-          (web/not-found "note not found")
-          (web/json-response 200 note))))))
+        (if note (web/json-response 200 note) (web/not-found "note not found"))))))
 
 (defn make-update-note [conn any] -> web/Handler
   (fn [req web/Request] -> web/Response
@@ -68,9 +64,9 @@
                content (get body "content") (web/bad-request "content required")]
         (if-err [note err] (db-update-note conn id (str title) (str content))
           (web/bad-request (.Error err))
-          (if (= note nil)
-            (web/not-found "note not found")
-            (web/json-response 200 note)))))))
+          (if note
+            (web/json-response 200 note)
+            (web/not-found "note not found")))))))
 
 (defn make-delete-note [conn any] -> web/Handler
   (fn [req web/Request] -> web/Response

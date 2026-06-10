@@ -80,8 +80,9 @@
         report-path "/tmp/glisp-report.txt"]
     (log/info "log parser starting" "log" log-path)
     ; Write sample log to disk
+    ; write-file returns error-or-nil; a non-nil error is truthy.
     (let [write-err (write-file log-path sample-log)]
-      (when (not= write-err nil)
+      (when write-err
         (log/error "cannot write log file" "path" log-path "err" write-err)
         (os/exit 1)))
     (log/info "sample log written" "path" log-path)
@@ -118,7 +119,7 @@
         ; Write report
         (let [report (build-report entries)
               write-err (write-file report-path report)]
-          (if (not= write-err nil)
+          (if write-err
             (log/error "cannot write report" "path" report-path "err" write-err)
             (do
               (log/info "report written" "path" report-path)

@@ -142,7 +142,7 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 | `(go-val body...)` | IIFE → `chan any` with buffered 1-slot channel + goroutine | Returns immediately; caller `(recv! ch)` to collect the result. Body runs in a goroutine that sends via `_ch <- func() any { return ... }()`. |
 | `(par body1 body2 ...)` | `{ var _wg sync.WaitGroup; _wg.Add(n); go func()...}` | N bodies run concurrently; `_wg.Wait()` blocks until all finish. Auto-imports `"sync"`. |
 | `(for-chan [x ch] body...)` | `for x := range ch { body }` | Iterates until channel is closed. Separate from `doseq` — `for x := range slice` gives index, not value. |
-| `(recv-ok! ch)` | `func() []any { _v, _ok := <-ch; return []any{_v, _ok} }()` | Use with `[[val ok] (recv-ok! ch)]` destructuring. Check with `(= ok true)` — `ok` is `any`, not `bool`. |
+| `(recv-ok! ch)` | `func() []any { _v, _ok := <-ch; return []any{_v, _ok} }()` | Use with `[[val ok] (recv-ok! ch)]` destructuring. `(if ok ...)` works directly — conditions are truthy-wrapped (ADR-011). |
 | `(with-lock mu body...)` | `func() any { mu.Lock(); defer mu.Unlock(); body }()` | IIFE ensures unlock even on panic. `mu` is evaluated twice — use a symbol, not a complex expr. Auto-imports `"sync"`. |
 | `:timeout ms` in `select!` | `case <-time.After(ms * time.Millisecond):` | Add as a case in any `select!`; fires after `ms` milliseconds. Auto-imports `"time"`. |
 
@@ -150,15 +150,16 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 
 **`defmethod` — receiver methods**: `(defmethod *ReceiverType name [self params...] -> RetType body)` emits `func (self *ReceiverType) Name(params) RetType { body }`. The receiver type before the method name uses `*T` for pointer receivers, `T` for value receivers. The first element of the params vector is the receiver variable name; remaining params are regular params. Together with `definterface` and `defstruct`, this is the full Go interface/struct/method triad.
 
-**`any`-type constraints** — the transpiler emits `any` for most values retrieved at runtime (map lookups, collection elements, loop vars). This causes several Go compile errors:
+**Truthiness (ADR-011)**: `nil` and `false` are falsy; every other value is truthy. Conditions in `if`/`when`/`cond` (all positions, incl. loop tails), `and`/`or`/`not` operands, and `assert-true`/`assert-false` are emitted via `emitCondition` (`emit_expr.go`): expressions statically known to be Go `bool` — comparisons, logic ops, the `boolBuiltins` set, user fns declared `-> bool` (looked up in `e.symbols`) — emit as-is; everything else wraps in the always-present runtime helper `_glispTruthy(v)`. So `(if (get m "k") ...)`, `(when user ...)`, `(if ok ...)` after `recv-ok!` all work directly on `any` values. `and`/`or` still *return* Go `bool` (not the last value). `if-let`/`when-let`/`let-or` deliberately keep nil-guard (`!= nil`) semantics — a bound `false` is a present value. When adding a bool-returning built-in, add it to `boolBuiltins` so conditions skip the wrapper.
+
+**Statement-only tails auto-return (ADR-011)**: `go`, `select!`, `par`, `for-chan`, `fan-out`, `defer`, `send!`, `close!` in the tail position of a value-returning function emit the statement followed by `return nil` (`emitReturnNode` in `transpiler.go`). No trailing `nil` needed. `-> void` fns are unaffected (their bodies never hit return position).
+
+**`len` / `count`**: aliases; both emit `_glispLen`, which accepts `any` (strings, `[]any`, common concrete slices/maps, sets). Unknown types count as 0.
+
+**`any`-type constraints** — the transpiler emits `any` for most values retrieved at runtime (map lookups, collection elements, loop vars). Remaining cases that cause Go compile errors (per ADR-011, each should eventually be absorbed or turned into a glisp-level diagnostic):
 
 | Situation | What breaks | Fix |
 |---|---|---|
-| `(len w)` where `w` is `any` | `len` needs a concrete type | `(len (str w))` for strings; for slices use `(int (reduce (fn [n _] (+ (int n) 1)) 0 xs))` |
-| `(if x ...)` where `x` is a non-bool `any` | Go `if` requires boolean | `(= x nil)` or `(not= x nil)` for nil checks |
-| `(fn [c] ... (go ...) )` — `go` as last expr in a `func(...) any` | missing return | add `nil` as the last expr: `(let [...] (go ...) nil)` |
-| `(let [...] (select! ...) )` — `select!` as last expr in `let` body | missing return — `select` is statement-only | add `nil` after: `(let [...] (select! ...) nil)` |
-| `(if ok ...)` where `ok` from `[[val ok] (recv-ok! ch)]` | `ok` is `any` not `bool`; Go `if` requires bool | `(if (= ok true) ...)` |
 | any multi-return Go fn (e.g. `os/create`) as the tail of a `func(...) any` closure | `(T, error)` can't coerce to `any` | `(do (os/create ...) nil)` — note: `fmt/println` and `fmt/print` are handled automatically |
 | `(defn f [] -> int (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `-> any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
 | passing `[]T` (concrete slice) to `reduce`/`map`/`filter` | `_glispToSlice` only handles `[]any`; concrete slices iterate as nil | in Go bridge code, convert: `result := make([]any, len(s)); for i,v := range s { result[i]=v }` |

@@ -495,6 +495,16 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "or", src: `(defn f [a b] (or a b))`, wantSub: "||"},
 		{name: "not", src: `(defn f [a] (not a))`, wantSub: "!("},
 
+		// Truthiness: any-typed conditions wrap in _glispTruthy; statically
+		// bool conditions emit as-is
+		{name: "if truthy wrap", src: `(defn f [x] (if x 1 2))`, wantSub: "if _glispTruthy(x)"},
+		{name: "if bool no wrap", src: `(defn f [x] (if (= x 1) 1 2))`, wantSub: "if (x == 1)"},
+		{name: "when truthy wrap", src: `(defn f [x] (when x 1))`, wantSub: "if _glispTruthy(x)"},
+		{name: "cond truthy wrap", src: `(defn f [x] (cond x 1 :else 2))`, wantSub: "if _glispTruthy(x)"},
+		{name: "and truthy operands", src: `(defn f [a b] (if (and a b) 1 2))`, wantSub: "_glispTruthy(a) && _glispTruthy(b)"},
+		{name: "not truthy wrap", src: `(defn f [a] (not a))`, wantSub: "!(_glispTruthy(a))"},
+		{name: "if user bool fn no wrap", src: "(defn p? [x] -> bool true)\n(defn f [x] (if (p? x) 1 2))", wantSub: "if isP(x)"},
+
 		// Map operations
 		{name: "assoc", src: `(defn f [m] (assoc m "k" 1))`, wantSub: "_glispAssoc("},
 		{name: "dissoc", src: `(defn f [m] (dissoc m "k"))`, wantSub: "_glispDissoc("},
@@ -505,6 +515,7 @@ func TestTranspileSnippets(t *testing.T) {
 		// Collection operations
 		{name: "conj", src: `(defn f [coll x] (conj coll x))`, wantSub: "_glispConj("},
 		{name: "count", src: `(defn f [coll] (count coll))`, wantSub: "_glispLen("},
+		{name: "len alias", src: `(defn f [coll] (len coll))`, wantSub: "_glispLen("},
 		{name: "first", src: `(defn f [coll] (first coll))`, wantSub: "_glispFirst("},
 		{name: "rest", src: `(defn f [coll] (rest coll))`, wantSub: "_glispRest("},
 		{name: "nth", src: `(defn f [coll i] (nth coll i))`, wantSub: "_glispNth("},
@@ -523,6 +534,11 @@ func TestTranspileSnippets(t *testing.T) {
 		// Iteration
 		{name: "doseq", src: `(defn f [coll] (doseq [x coll] (fmt/println x)))`, wantSub: "for _, x := range"},
 		{name: "dotimes", src: `(defn f [] (dotimes [i 3] (fmt/println i)))`, wantSub: "for i := 0"},
+
+		// Statement-only forms in tail position auto-return nil (only in
+		// value-returning fns; defn without -> stays void)
+		{name: "go in tail returns nil", src: `(defn f [ch] -> any (go (send! ch 1)))`, wantSub: "}()\n\treturn nil"},
+		{name: "send! in fn tail returns nil", src: `(def f (fn [ch] (send! ch 1)))`, wantSub: "ch <- 1\n\treturn nil"},
 
 		// errors/new — pkg-prefixed, goes through fnToGo
 		{name: "errors/new", src: `(defn f [msg string] (errors/new msg))`, wantSub: "errors.New("},

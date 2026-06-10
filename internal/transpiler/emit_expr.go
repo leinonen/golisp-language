@@ -451,6 +451,54 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 	return nil
 }
 
+// boolBuiltins are built-in forms whose emission is statically a Go bool
+// expression, so a condition built from them needs no _glispTruthy wrapper.
+// Note: "some" and "not-empty" return values (not bool) and are excluded.
+var boolBuiltins = map[string]bool{
+	"=": true, "not=": true, "<": true, ">": true, "<=": true, ">=": true,
+	"and": true, "or": true, "not": true,
+	"nil?": true, "empty?": true, "contains?": true, "every?": true,
+	"not-any?": true, "even?": true, "odd?": true, "pos?": true,
+	"neg?": true, "zero?": true, "blank?": true,
+	"starts-with?": true, "ends-with?": true,
+	"file-exists?": true, "re/match": true, "errors/is?": true,
+}
+
+// isBoolExpr reports whether n is statically known to emit a Go bool.
+// User-defined functions count when their declared return type is bool.
+func (e *Emitter) isBoolExpr(n ast.Node) bool {
+	switch v := n.(type) {
+	case *ast.BoolLit:
+		return true
+	case *ast.CallExpr:
+		sym, ok := v.Head.(*ast.Symbol)
+		if !ok {
+			return false
+		}
+		if sig, ok := e.symbols[sym.Name]; ok {
+			return sig.retType == "bool"
+		}
+		return boolBuiltins[sym.Name]
+	}
+	return false
+}
+
+// emitCondition emits n as a Go boolean condition: statically-bool expressions
+// emit as-is, everything else is wrapped in _glispTruthy (nil/false falsy,
+// everything else truthy). This is what lets (if x ...) work on any-typed
+// values without an explicit (not= x nil).
+func (e *Emitter) emitCondition(n ast.Node) error {
+	if e.isBoolExpr(n) {
+		return e.emitExpr(n)
+	}
+	e.write("_glispTruthy(")
+	if err := e.emitExpr(n); err != nil {
+		return err
+	}
+	e.write(")")
+	return nil
+}
+
 // emitIfExpr emits an if expression.
 // In expression position, we use an immediately-invoked closure.
 func (e *Emitter) emitIfExpr(n *ast.IfExpr) error {
@@ -470,7 +518,7 @@ func (e *Emitter) emitIfExpr(n *ast.IfExpr) error {
 func (e *Emitter) emitIfExprReturn(n *ast.IfExpr) error {
 	e.writeIndent()
 	e.write("if ")
-	if err := e.emitExpr(n.Cond); err != nil {
+	if err := e.emitCondition(n.Cond); err != nil {
 		return err
 	}
 	e.write(" {")
@@ -499,7 +547,7 @@ func (e *Emitter) emitWhenExpr(n *ast.WhenExpr) error {
 	e.push()
 	e.writeIndent()
 	e.write("if ")
-	if err := e.emitExpr(n.Cond); err != nil {
+	if err := e.emitCondition(n.Cond); err != nil {
 		return err
 	}
 	e.write(" {")
@@ -767,7 +815,7 @@ func (e *Emitter) emitCondExprReturn(n *ast.CondExpr) error {
 		} else {
 			e.write("} else if ")
 		}
-		if err := e.emitExpr(clause.Test); err != nil {
+		if err := e.emitCondition(clause.Test); err != nil {
 			return err
 		}
 		e.write(" {")
@@ -930,7 +978,7 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 				return fmt.Errorf("not requires 1 argument")
 			}
 			e.write("!(")
-			if err := e.emitExpr(n.Args[0]); err != nil {
+			if err := e.emitCondition(n.Args[0]); err != nil {
 				return err
 			}
 			e.write(")")
@@ -947,7 +995,7 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return e.emitDissoc(n.Args)
 		case "conj":
 			return e.emitConj(n.Args)
-		case "count":
+		case "count", "len":
 			return e.emitCount(n.Args)
 		case "first":
 			return e.emitFirst(n.Args)
@@ -1530,7 +1578,7 @@ func (e *Emitter) emitLogicOp(op string, args []ast.Node) error {
 		if i > 0 {
 			e.writef(" %s ", op)
 		}
-		if err := e.emitExpr(arg); err != nil {
+		if err := e.emitCondition(arg); err != nil {
 			return err
 		}
 	}

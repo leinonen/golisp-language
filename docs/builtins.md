@@ -2,6 +2,10 @@
 
 Core functions available in every glisp program without any import.
 
+**Truthiness**: in every condition position (`if`, `when`, `cond`, `and`, `or`,
+`not`, test asserts), `nil` and `false` are falsy and every other value is
+truthy — so `(if (get m "k") ...)` works directly on `any`-typed values.
+
 ## Arithmetic
 
 | Form | Returns | Description |
@@ -48,7 +52,8 @@ Core functions available in every glisp program without any import.
 | `(repeat n val)` | `[]any` | Slice of n copies of val |
 | `(interpose sep coll)` | `[]any` | Insert sep between each element |
 | `(conj coll x)` | coll | Append x to a slice, or add x to a set |
-| `(count coll)` | int | Number of elements (works for slices, maps, sets, strings) |
+| `(count coll)` | int | Number of elements (works for slices, maps, sets, strings; accepts `any`) |
+| `(len coll)` | int | Alias for `count` |
 | `(first coll)` | any | First element |
 | `(last coll)` | any | Last element; nil if empty |
 | `(rest coll)` | `[]any` | All elements after the first |

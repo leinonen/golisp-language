@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -24,7 +25,21 @@ func NewServer() *Server {
 // Handle processes one JSON-RPC message.
 // For requests (with ID) it returns a Response; for notifications it returns nil.
 // Notifications to push to the client (e.g. publishDiagnostics) are returned separately.
-func (s *Server) Handle(req *Request) (*Response, []*Notification) {
+func (s *Server) Handle(req *Request) (resp *Response, notes []*Notification) {
+	// A panic in any handler (parser, formatter, hover, transpiler, …) must not
+	// take down the long-lived language server. Recover, log, and turn it into
+	// an internal-error response for requests; swallow it for notifications.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("lsp: recovered from panic handling %s: %v", req.Method, r)
+			if req.IsNotification() {
+				resp, notes = nil, nil
+			} else {
+				resp, notes = s.internalError(req, fmt.Sprintf("internal error handling %s", req.Method)), nil
+			}
+		}
+	}()
+
 	switch req.Method {
 	case "initialize":
 		return s.handleInitialize(req), nil
@@ -379,5 +394,13 @@ func (s *Server) invalidParams(req *Request, msg string) *Response {
 		JSONRPC: "2.0",
 		ID:      req.ID,
 		Error:   &RPCError{Code: -32602, Message: msg},
+	}
+}
+
+func (s *Server) internalError(req *Request, msg string) *Response {
+	return &Response{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Error:   &RPCError{Code: -32603, Message: msg},
 	}
 }

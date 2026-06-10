@@ -24,7 +24,19 @@ func (e *TranspileError) Error() string { return "transpile error: " + e.Err.Err
 func (e *TranspileError) Unwrap() error { return e.Err }
 
 // transpileInternal is the unified internal entry point for all transpile variants.
-func transpileInternal(src, filename string, runtime, strict bool) (string, map[string]bool, error) {
+func transpileInternal(src, filename string, runtime, strict bool) (out string, imports map[string]bool, err error) {
+	// Defensive boundary: a malformed program should never crash the host
+	// process (the CLI prints a stack trace; the LSP server dies outright).
+	// Any panic escaping the lexer/parser/emitter is converted into a normal
+	// TranspileError so callers can surface it as a diagnostic.
+	defer func() {
+		if r := recover(); r != nil {
+			out = ""
+			imports = nil
+			err = &TranspileError{Err: fmt.Errorf("internal transpiler error: %v", r)}
+		}
+	}()
+
 	tokens, err := lexer.Tokenize(src)
 	if err != nil {
 		return "", nil, &ParseError{Err: err}
@@ -167,8 +179,8 @@ func (e *Emitter) isModuleAlias(alias string) bool {
 
 func newEmitter() *Emitter {
 	return &Emitter{
-		pkg:           "main",
-		emitRuntime:   true,
+		pkg:            "main",
+		emitRuntime:    true,
 		builtinImports: map[string]bool{},
 		directImports:  map[string]bool{},
 	}
@@ -179,14 +191,14 @@ func (e *Emitter) fresh(prefix string) string {
 	return fmt.Sprintf("_%s%d", prefix, e.counter)
 }
 
-func (e *Emitter) write(s string)                   { e.buf.WriteString(s) }
-func (e *Emitter) writef(f string, a ...any)         { fmt.Fprintf(&e.buf, f, a...) }
-func (e *Emitter) nl()                               { e.buf.WriteByte('\n') }
-func (e *Emitter) writeIndent()                      { e.buf.WriteString(strings.Repeat("\t", e.indent)) }
-func (e *Emitter) line(s string)                     { e.writeIndent(); e.write(s); e.nl() }
-func (e *Emitter) linef(f string, a ...any)          { e.writeIndent(); e.writef(f, a...); e.nl() }
-func (e *Emitter) push()                             { e.indent++ }
-func (e *Emitter) pop()                              { e.indent-- }
+func (e *Emitter) write(s string)            { e.buf.WriteString(s) }
+func (e *Emitter) writef(f string, a ...any) { fmt.Fprintf(&e.buf, f, a...) }
+func (e *Emitter) nl()                       { e.buf.WriteByte('\n') }
+func (e *Emitter) writeIndent()              { e.buf.WriteString(strings.Repeat("\t", e.indent)) }
+func (e *Emitter) line(s string)             { e.writeIndent(); e.write(s); e.nl() }
+func (e *Emitter) linef(f string, a ...any)  { e.writeIndent(); e.writef(f, a...); e.nl() }
+func (e *Emitter) push()                     { e.indent++ }
+func (e *Emitter) pop()                      { e.indent-- }
 
 // lineDir emits a //line directive at column 0 so the Go compiler attributes
 // the next line to pos in the original .glsp source (for error messages).

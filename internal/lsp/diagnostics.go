@@ -71,12 +71,20 @@ func errorToDiagnostic(msg string) Diagnostic {
 	}
 }
 
-// atPosToDiagnostic parses a transpiler error in "message at line:col" or
-// "message at file:line:col" format (1-based). Falls back to position 0:0 when
-// no position info is present.
+// atPosToDiagnostic parses a transpiler error whose position is appended as
+// either "message at file:line:col" or "message (at file:line:col)" (1-based;
+// the file segment is optional). Falls back to position 0:0 when no position
+// info is present.
 func atPosToDiagnostic(msg string) Diagnostic {
-	if idx := strings.LastIndex(msg, " at "); idx >= 0 {
-		posStr := msg[idx+4:]
+	// Locate the position marker, preferring the parenthesised "(at " form.
+	marker, mlen := -1, 0
+	if i := strings.LastIndex(msg, "(at "); i >= 0 {
+		marker, mlen = i, len("(at ")
+	} else if i := strings.LastIndex(msg, " at "); i >= 0 {
+		marker, mlen = i, len(" at ")
+	}
+	if marker >= 0 {
+		posStr := strings.TrimRight(msg[marker+mlen:], ")")
 		parts := strings.Split(posStr, ":")
 		if len(parts) >= 2 {
 			l, err1 := strconv.Atoi(parts[len(parts)-2])
@@ -87,7 +95,7 @@ func atPosToDiagnostic(msg string) Diagnostic {
 					Range:    Range{Start: pos, End: pos},
 					Severity: SeverityError,
 					Source:   "glisp",
-					Message:  msg[:idx],
+					Message:  strings.TrimRight(msg[:marker], " "),
 				}
 			}
 		}

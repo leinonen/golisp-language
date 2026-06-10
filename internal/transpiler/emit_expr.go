@@ -905,6 +905,13 @@ func (e *Emitter) emitDoExprReturn(n *ast.DoExpr) error {
 func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 	// Handle built-in operators
 	if sym, ok := n.Head.(*ast.Symbol); ok {
+		// Front-gate every built-in against the canonical arity table so a
+		// wrong-arity call yields a positioned glisp error rather than an index
+		// panic in a downstream emit helper. Names absent from the table are
+		// validated by their own handler below.
+		if err := e.checkBuiltinArity(sym.Name, n); err != nil {
+			return err
+		}
 		switch sym.Name {
 		case "+", "-", "*", "/", "mod":
 			return e.emitArith(sym.Name, n.Args)

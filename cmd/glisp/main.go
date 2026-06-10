@@ -4,6 +4,7 @@
 //	glisp compile <file.glsp>          — transpile to <file.go>
 //	glisp compile <file.glsp> -o out   — transpile to out.go
 //	glisp build   <file.glsp>          — transpile + go build
+//	glisp run     <file.glsp> [args]   — compile + run, no artifacts left behind
 //	glisp print   <file.glsp>          — print Go output to stdout
 //	glisp test    <file.glsp>          — compile + go test
 package main
@@ -35,6 +36,8 @@ func main() {
 		compileCmd(os.Args[2:])
 	case "build":
 		buildCmd(os.Args[2:])
+	case "run":
+		runCmd(os.Args[2:])
 	case "print":
 		printCmd(os.Args[2:])
 	case "test":
@@ -98,6 +101,27 @@ func buildCmd(args []string) {
 	if buildErr != nil {
 		fmt.Fprintln(os.Stderr, buildErr)
 		os.Exit(1)
+	}
+}
+
+func runCmd(args []string) {
+	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	strict := fs.Bool("strict", false, "require type annotations on all defn params, struct fields, and def globals")
+	if err := fs.Parse(args); err != nil {
+		os.Exit(1)
+	}
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "run: requires <file.glsp> or <dir/>")
+		os.Exit(1)
+	}
+	// Everything after the target is passed to the program untouched.
+	code, err := compiler.Run(fs.Arg(0), compiler.Options{Strict: *strict}, fs.Args()[1:])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if code != 0 {
+		os.Exit(code)
 	}
 }
 
@@ -291,6 +315,7 @@ Usage:
   glisp compile [-o output.go] [--strict] <file.glsp>   transpile to Go source
   glisp build   [-o binary]    [--strict] <file.glsp>   transpile + go build
   glisp build   [-o binary]    [--strict] <dir/>        compile all .glsp in dir
+  glisp run     [--strict] <file.glsp|dir/> [args...]   compile and run (no artifacts)
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
   glisp fmt     [--check]      <file.glsp>   format source in-place (- = stdin→stdout)

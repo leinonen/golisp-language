@@ -1,6 +1,11 @@
 package compiler
 
 import (
+	"bytes"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -43,4 +48,62 @@ func TestBuildError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunWithIO(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go toolchain not available")
+	}
+	dir := t.TempDir()
+
+	t.Run("hello with args", func(t *testing.T) {
+		src := `(ns main)
+(defn main [] -> void
+  (fmt/println "hello" (nth os/args 1)))
+`
+		path := filepath.Join(dir, "hello.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, []string{"world"}, nil, &out, &errBuf)
+		if err != nil {
+			t.Fatalf("RunWithIO: %v\nstderr: %s", err, errBuf.String())
+		}
+		if code != 0 {
+			t.Fatalf("exit code = %d, want 0\nstderr: %s", code, errBuf.String())
+		}
+		if got := out.String(); !strings.Contains(got, "hello world") {
+			t.Errorf("stdout = %q, want it to contain %q", got, "hello world")
+		}
+		// run leaves no .go artifact behind for a fresh single file
+		if _, err := os.Stat(filepath.Join(dir, "hello.go")); !os.IsNotExist(err) {
+			t.Errorf("hello.go left behind after run")
+		}
+	})
+
+	t.Run("exit code propagates", func(t *testing.T) {
+		src := `(ns main)
+(defn main [] -> void
+  (os/exit 3))
+`
+		path := filepath.Join(dir, "exit3.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+		if err != nil {
+			t.Fatalf("RunWithIO: %v\nstderr: %s", err, errBuf.String())
+		}
+		if code != 3 {
+			t.Errorf("exit code = %d, want 3", code)
+		}
+	})
+
+	t.Run("missing target", func(t *testing.T) {
+		if _, err := RunWithIO(filepath.Join(dir, "nope.glsp"), Options{}, nil, nil, io.Discard, io.Discard); err == nil {
+			t.Error("expected an error for a missing target")
+		}
+	})
 }

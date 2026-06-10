@@ -355,5 +355,5 @@ either gets absorbed by emission or becomes a glisp-level diagnostic.
 - [ ] Multi-return Go call in tail of `func(...) any` closure — absorb or diagnose with the `(do ... nil)` fix in the message
 - [ ] `_glispToSlice` over common concrete slice types (`[]string`, `[]int`, …) so Go-bridge slices work with `map`/`filter`/`reduce`
 - [ ] Map leaked Go build errors back to `.glsp` file/line
-- [ ] `glisp run file.glsp` — one-shot compile-and-run for a fast edit-run loop
+- [x] `glisp run file.glsp` — one-shot compile-and-run for a fast edit-run loop (also takes a dir; passes args, propagates exit code, leaves no artifacts)
 - [ ] `glisp run --watch` — re-run on save

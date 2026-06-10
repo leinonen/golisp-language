@@ -595,6 +595,36 @@ func TestResponseHelpers(t *testing.T) {
 	}
 }
 
+func TestJsonResponse_marshalError(t *testing.T) {
+	resp := JsonResponse(200, map[string]any{"ch": make(chan int)})
+	if resp["status"] != 500 {
+		t.Fatalf("expected 500 on unencodable body, got %v", resp["status"])
+	}
+	body, _ := resp["body"].(string)
+	if !strings.Contains(body, "error") {
+		t.Fatalf("expected JSON error body, got %q", body)
+	}
+}
+
+func TestRoutes_headAndOptions(t *testing.T) {
+	app := Routes(
+		Head("/items", func(req map[string]any) map[string]any {
+			return map[string]any{"status": 200}
+		}),
+		Options("/items", func(req map[string]any) map[string]any {
+			return map[string]any{"status": 204}
+		}),
+	)
+	resp := app(map[string]any{"method": "HEAD", "path": "/items"})
+	if resp["status"] != 200 {
+		t.Fatalf("expected 200 for HEAD, got %v", resp["status"])
+	}
+	resp = app(map[string]any{"method": "OPTIONS", "path": "/items"})
+	if resp["status"] != 204 {
+		t.Fatalf("expected 204 for OPTIONS, got %v", resp["status"])
+	}
+}
+
 func TestNoContent(t *testing.T) {
 	resp := NoContent()
 	if resp["status"] != 204 {

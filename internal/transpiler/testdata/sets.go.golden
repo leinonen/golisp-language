@@ -35,18 +35,24 @@ func setInter(a any, b any) any {
 // --- glisp runtime helpers (generated) ---
 
 func _glispGet(m any, key any) any {
-	switch mm := m.(type) {
-	case map[string]any:
-		switch k := key.(type) {
-		case string:
+	if mm, ok := m.(map[string]any); ok {
+		if k, ok := key.(string); ok {
 			return mm[k]
 		}
-	case []any:
+		return nil
+	}
+	// Slices (including concrete []string, []int, … via _glispToSlice);
+	// out-of-range indexes return nil, matching map-lookup semantics.
+	if s := _glispToSlice(m); s != nil {
+		idx := -1
 		switch k := key.(type) {
 		case int:
-			return mm[k]
+			idx = k
 		case int64:
-			return mm[int(k)]
+			idx = int(k)
+		}
+		if idx >= 0 && idx < len(s) {
+			return s[idx]
 		}
 	}
 	return nil
@@ -123,13 +129,43 @@ func _glispMerge(maps ...any) map[string]any {
 }
 
 func _glispToSlice(v any) []any {
-	if s, ok := v.([]any); ok {
+	switch s := v.(type) {
+	case []any:
 		return s
-	}
-	if s, ok := v.([]string); ok {
+	case []string:
 		result := make([]any, len(s))
-		for i, str := range s {
-			result[i] = str
+		for i, e := range s {
+			result[i] = e
+		}
+		return result
+	case []int:
+		result := make([]any, len(s))
+		for i, e := range s {
+			result[i] = e
+		}
+		return result
+	case []int64:
+		result := make([]any, len(s))
+		for i, e := range s {
+			result[i] = e
+		}
+		return result
+	case []float64:
+		result := make([]any, len(s))
+		for i, e := range s {
+			result[i] = e
+		}
+		return result
+	case []bool:
+		result := make([]any, len(s))
+		for i, e := range s {
+			result[i] = e
+		}
+		return result
+	case []map[string]any:
+		result := make([]any, len(s))
+		for i, e := range s {
+			result[i] = e
 		}
 		return result
 	}
@@ -150,7 +186,7 @@ func _glispConj(coll any, elems ...any) any {
 	if coll == nil {
 		return append([]any(nil), elems...)
 	}
-	return append(coll.([]any), elems...)
+	return append(_glispToSlice(coll), elems...)
 }
 
 func _glispLen(v any) int {
@@ -185,7 +221,7 @@ func _glispTruthy(v any) bool {
 }
 
 func _glispFirst(v any) any {
-	s := v.([]any)
+	s := _glispToSlice(v)
 	if len(s) == 0 {
 		return nil
 	}
@@ -193,7 +229,7 @@ func _glispFirst(v any) any {
 }
 
 func _glispRest(v any) []any {
-	s := v.([]any)
+	s := _glispToSlice(v)
 	if len(s) == 0 {
 		return []any{}
 	}
@@ -297,12 +333,6 @@ func _glispContains(coll any, val any) bool {
 	case map[any]struct{}:
 		_, exists := c[val]
 		return exists
-	case []any:
-		for _, v := range c {
-			if v == val {
-				return true
-			}
-		}
 	case string:
 		if sub, ok := val.(string); ok {
 			if len(sub) == 0 {
@@ -316,6 +346,13 @@ func _glispContains(coll any, val any) bool {
 					return true
 				}
 			}
+		}
+		return false
+	}
+	// Slices (including concrete []string, []int, … via _glispToSlice)
+	for _, v := range _glispToSlice(coll) {
+		if v == val {
+			return true
 		}
 	}
 	return false
@@ -345,7 +382,7 @@ func _glispEvery(f any, coll any) bool {
 func _glispFlatten(coll any) []any {
 	var result []any
 	for _, v := range _glispToSlice(coll) {
-		if inner, ok := v.([]any); ok {
+		if inner := _glispToSlice(v); inner != nil {
 			result = append(result, _glispFlatten(inner)...)
 		} else {
 			result = append(result, v)

@@ -95,8 +95,13 @@
   (let [sep string ", "
         words (long-words "the quick brown fox jumps over the lazy dog")]
     (fmt/println "long words:" (join words sep)))
-  ; Typed def: months []string — element access needs no type cast
+  ; Typed def: months []string — element access needs no type cast,
+  ; and concrete slices flow through first/contains?/rest directly
   (let [q1 string (join (take 3 months) "/")] (fmt/println "Q1:" q1))
+  (fmt/println "first month:"
+    (first months)
+    "| has Dec?"
+    (contains? months "Dec"))
   ; format, parse-int, parse-float, repeat, interpose
   (fmt/println (format "grade for 87: %s (score: %d)" (grade 87) 87))
   (if-err [n err] (parse-int "42")

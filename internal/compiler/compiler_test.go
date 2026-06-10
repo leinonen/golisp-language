@@ -107,3 +107,47 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 }
+
+// TestRunConcreteSlices verifies the collection helpers work on concrete Go
+// slices ([]string from os/args, []int from a typed def) — not just []any.
+func TestRunConcreteSlices(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go toolchain not available")
+	}
+	dir := t.TempDir()
+	src := `(ns main)
+
+(def nums []int [3 1 2])
+
+(defn main [] -> void
+  (let [args (rest os/args)]
+    (fmt/println "first:" (first args))
+    (fmt/println "count:" (len args))
+    (fmt/println "upper:" (join (map (fn [a] (upper-case (str a))) args) ","))
+    (fmt/println "has-b:" (contains? args "b"))
+    (fmt/println "get1:" (get os/args 1))
+    (fmt/println "oob:" (get args 99))
+    (fmt/println "sum:" (reduce (fn [acc n] (+ (int acc) (int n))) 0 nums))
+    (fmt/println "min:" (first (sort nums)))))
+`
+	path := filepath.Join(dir, "slices.glsp")
+	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errBuf bytes.Buffer
+	code, err := RunWithIO(path, Options{}, []string{"a", "b"}, nil, &out, &errBuf)
+	if err != nil {
+		t.Fatalf("RunWithIO: %v\nstderr: %s", err, errBuf.String())
+	}
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0\nstderr: %s", code, errBuf.String())
+	}
+	for _, want := range []string{
+		"first: a", "count: 2", "upper: A,B", "has-b: true",
+		"get1: a", "oob: <nil>", "sum: 6", "min: 1",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("stdout missing %q\n--- stdout ---\n%s", want, out.String())
+		}
+	}
+}

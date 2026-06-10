@@ -284,6 +284,7 @@ For directory builds (`glisp build dir/`) the helpers are emitted once into a sh
 ```
 make examples
 ./examples/tour/tour            # language tour: fib, strings, goroutines, JSON
+glisp run examples/cli/main.glsp 3 1 4   # CLI stats tool — os/args, no build step
 ./examples/api/api              # REST API with routing, middleware, auth
 ./examples/inventory/inventory  # gradual struct typing: map literals + (:field x) → typed structs
 ```

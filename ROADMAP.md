@@ -353,7 +353,7 @@ either gets absorbed by emission or becomes a glisp-level diagnostic.
 - [x] `len` as alias for `count` — `_glispLen` accepts `any`
 - [x] Statement-only forms (`go`, `select!`, `send!`, `close!`, `par`, `for-chan`, `fan-out`, `defer`) in tail position auto-emit `return nil`
 - [ ] Multi-return Go call in tail of `func(...) any` closure — absorb or diagnose with the `(do ... nil)` fix in the message
-- [ ] `_glispToSlice` over common concrete slice types (`[]string`, `[]int`, …) so Go-bridge slices work with `map`/`filter`/`reduce`
+- [x] `_glispToSlice` over common concrete slice types (`[]string`, `[]int`, `[]int64`, `[]float64`, `[]bool`, `[]map[string]any`) — `first`/`rest`/`conj`/`contains?`/`get`/`flatten` all route through it; `(rest os/args)` works
 - [ ] Map leaked Go build errors back to `.glsp` file/line
 - [x] `glisp run file.glsp` — one-shot compile-and-run for a fast edit-run loop (also takes a dir; passes args, propagates exit code, leaves no artifacts)
 - [ ] `glisp run --watch` — re-run on save

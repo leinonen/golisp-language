@@ -146,7 +146,7 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 | `(with-lock mu body...)` | `func() any { mu.Lock(); defer mu.Unlock(); body }()` | IIFE ensures unlock even on panic. `mu` is evaluated twice — use a symbol, not a complex expr. Auto-imports `"sync"`. |
 | `:timeout ms` in `select!` | `case <-time.After(ms * time.Millisecond):` | Add as a case in any `select!`; fires after `ms` milliseconds. Auto-imports `"time"`. |
 
-**`doseq` collection handling**: uses `_glispToSlice(coll)` (which accepts `any`) rather than `coll.([]any)` type assertion, so it works when the collection is already statically typed as `[]any` (e.g. result of `map`, `filter`, or a literal binding via `let`).
+**Collection helpers accept concrete slices**: `_glispToSlice` is the single conversion point for all sequence helpers (`map`, `filter`, `reduce`, `first`, `rest`, `doseq`, `sort`, `contains?`, `get`, `conj`, `flatten`, …) and handles `[]any` plus common concrete slices: `[]string` (e.g. `os/args`), `[]int`, `[]int64`, `[]float64`, `[]bool`, `[]map[string]any`. `_glispGet` on a slice is bounds-checked — out-of-range returns nil, matching map-lookup semantics. Unknown slice types convert to nil (helpers see an empty sequence).
 
 **`defmethod` — receiver methods**: `(defmethod *ReceiverType name [self params...] -> RetType body)` emits `func (self *ReceiverType) Name(params) RetType { body }`. The receiver type before the method name uses `*T` for pointer receivers, `T` for value receivers. The first element of the params vector is the receiver variable name; remaining params are regular params. Together with `definterface` and `defstruct`, this is the full Go interface/struct/method triad.
 
@@ -162,7 +162,6 @@ Pseudo-keys (`"_file"`, `"_set"`, `"_atom"`, `"_ctx"`) are never added as real G
 |---|---|---|
 | any multi-return Go fn (e.g. `os/create`) as the tail of a `func(...) any` closure | `(T, error)` can't coerce to `any` | `(do (os/create ...) nil)` — note: `fmt/println` and `fmt/print` are handled automatically |
 | `(defn f [] -> int (reduce ...))` | `_glispReduce` returns `any`, not `int` | either use `-> any` return type and cast at call sites, or wrap: `(int (reduce ...))` inline |
-| passing `[]T` (concrete slice) to `reduce`/`map`/`filter` | `_glispToSlice` only handles `[]any`; concrete slices iterate as nil | in Go bridge code, convert: `result := make([]any, len(s)); for i,v := range s { result[i]=v }` |
 | `(defn f [] ...)` with no `-> RetType`, void-ish body | Go generates `func f()` (void); using it in return position fails | add `-> void` for true void functions; add `-> any` only if the fn is used in expression/return position |
 
 ## Formatter
@@ -273,7 +272,7 @@ Key rules for Go-wrapping modules:
 - The package qualifier comes from the last path segment: `(:import [github.com/jackc/pgx/v5])` → qualifier is `pgx`
 - Go interop primitives available: `(.Method obj args)` for method calls, `(.-Field obj)` for field access, `(Type. {:field val})` for struct literals, `(as T val)` for type assertions
 - **Bridge pattern for variadic Go APIs**: write a hand-written `bridge.go` (same package) with unexported Go helpers that handle variadic spreading and type assertions; call them from glisp as unqualified names. Unqualified calls use `identToGo` (camelCase, lowercase first letter), so `(bridge-query ...)` → `bridgeQuery`. The bridge functions must be unexported (lowercase) — they're only accessible within the package.
-- **`[]any` for collections**: glisp's `_glispToSlice` only handles `[]any`. If a Go bridge function returns a concrete slice type (e.g. `[]map[string]any`), convert it to `[]any` before returning so `reduce`/`map`/`filter` work correctly.
+- **Collections accept common concrete slices**: `_glispToSlice` converts `[]string`, `[]int`, `[]int64`, `[]float64`, `[]bool`, and `[]map[string]any` (in addition to `[]any`), so bridge functions returning those work directly with `map`/`filter`/`reduce`/`first`/`rest`/`get`/`contains?`. A bridge returning some *other* concrete slice type should still convert to `[]any` before returning.
 
 ## Go module
 

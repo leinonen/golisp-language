@@ -41,7 +41,7 @@ postgres-first, via `pgx`. Results as `[]map[string]any`. A lightweight HoneySQL
 ;; query returns []map[string]any
 (if-err [rows err] (db/query pool "SELECT id, name FROM users WHERE active = $1" [true])
   (handle-error err)
-  (map #(select-keys % [:id :name]) rows))
+  (map (fn [r] (select-keys r [:id :name])) rows))
 
 ;; transaction
 (db/transaction pool

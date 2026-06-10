@@ -161,9 +161,7 @@ func (l *lexer) nextToken() (Token, error) {
 		return Token{Type: TokenHashLBrace, Text: "#{", Line: line, Column: col}, nil
 
 	case ch == '#' && l.peekAt(1) == '(':
-		l.advance()
-		l.advance()
-		return Token{Type: TokenHashLParen, Text: "#(", Line: line, Column: col}, nil
+		return Token{}, l.errorfAt(line, col, "#(...) anonymous function shorthand is not supported; use (fn [x] ...) instead")
 
 	case ch == '\'':
 		l.advance()

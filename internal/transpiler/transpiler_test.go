@@ -620,26 +620,6 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "ctx-with-value", src: `(defn f [ctx] (ctx/with-value ctx "key" "val"))`, wantSub: "_glispCtxWithValue("},
 
 		{
-			name:    "anon fn single arg",
-			src:     `(def f #(+ % 1))`,
-			wantSub: "func(_anonP1 any) any",
-		},
-		{
-			name:    "anon fn two args",
-			src:     `(def f #(+ %1 %2))`,
-			wantSub: "func(_anonP1 any, _anonP2 any) any",
-		},
-		{
-			name:    "anon fn with map",
-			src:     `(defn doubled [xs] (map #(* % 2) xs))`,
-			wantSub: "_glispMap(func(_anonP1 any) any",
-		},
-		{
-			name:    "anon fn rest arg",
-			src:     `(def f #(count %&))`,
-			wantSub: "func(_anonPRest ...any) any",
-		},
-		{
 			name:    "typed keyword access on struct param",
 			src:     `(defstruct P name string) (defn f [p P] -> string (:name p))`,
 			wantSub: "return p.Name",

@@ -155,3 +155,13 @@ func TestUnterminatedStringContext(t *testing.T) {
 		t.Errorf("error %q should include a caret pointer", msg)
 	}
 }
+
+func TestAnonFnShorthandRejected(t *testing.T) {
+	_, err := Tokenize(`(map #(+ % 1) xs)`)
+	if err == nil {
+		t.Fatal("expected error for #(...) anonymous function shorthand")
+	}
+	if msg := err.Error(); !strings.Contains(msg, "(fn [x] ...)") {
+		t.Errorf("error %q should suggest the (fn [x] ...) form", msg)
+	}
+}

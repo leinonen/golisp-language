@@ -42,10 +42,10 @@
 ;;; One-line summary; the receiver p is a Product, so (:field p) becomes p.Field.
 (defmethod Product Label [p] -> string
   (fmt/sprintf "%-10s %-12s $%7.2f  x%d"
-    (:name p)
-    (:category p)
-    (:price p)
-    (:stock p)))
+               (:name p)
+               (:category p)
+               (:price p)
+               (:stock p)))
 
 ;;; True when stock is below the reorder threshold.
 (defn low-stock? [p Product threshold int] -> bool

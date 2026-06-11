@@ -91,30 +91,30 @@
       (do (log/error "load failed" "err" err) (os/exit 1) nil)
       (do
         (log/info "entries parsed"
-          "total"
-          (count entries)
-          "errors"
-          (count (filter (fn [e] (= (get e "level") "ERROR")) entries))
-          "warns"
-          (count (filter (fn [e] (= (get e "level") "WARN")) entries)))
+                  "total"
+                  (count entries)
+                  "errors"
+                  (count (filter (fn [e] (= (get e "level") "ERROR")) entries))
+                  "warns"
+                  (count (filter (fn [e] (= (get e "level") "WARN")) entries)))
         ; Log each error entry as a structured warning
         (doseq [e (filter (fn [e] (= (get e "level") "ERROR")) entries)]
           (log/warn "error event"
-            "user"
-            (get e "user")
-            "action"
-            (get e "action")
-            "status"
-            (get e "status")))
+                    "user"
+                    (get e "user")
+                    "action"
+                    (get e "action")
+                    "status"
+                    (get e "status")))
         ; Demonstrate email validation and redaction
         (let [emails ["alice@example.com" "not-an-email" "bob@corp.io"]]
           (doseq [addr emails]
             (if (valid-email? (str addr))
               (log/debug "valid email"
-                "addr"
-                addr
-                "redacted"
-                (redact-email (str addr)))
+                         "addr"
+                         addr
+                         "redacted"
+                         (redact-email (str addr)))
               (log/warn "invalid email" "addr" addr))))
         ; Write report
         (let [report (build-report entries)

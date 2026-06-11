@@ -307,6 +307,31 @@ func TestFormat(t *testing.T) {
 			input: "(defn f [m any] (let-or [a (get m \"a\") :none b (get m \"b\") :none] (use a b)))",
 			want:  "(defn f [m any]\n  (let-or [a (get m \"a\") :none b (get m \"b\") :none] (use a b)))\n",
 		},
+		{
+			name:  "call args align under first arg (Style A)",
+			input: "(combine-results first-result second-result third-result fourth-result fifth-result)",
+			want:  "(combine-results first-result\n                 second-result\n                 third-result\n                 fourth-result\n                 fifth-result)\n",
+		},
+		{
+			name:  "long head falls back to 2-space hang past align threshold",
+			input: "(this-is-a-very-long-function-name-indeed arg-one arg-two arg-three arg-four-here-x)",
+			want:  "(this-is-a-very-long-function-name-indeed arg-one\n  arg-two\n  arg-three\n  arg-four-here-x)\n",
+		},
+		{
+			name:  "assoc pairs key/value per line",
+			input: "(assoc config :host \"localhost\" :port 8080 :timeout 30 :retries 3 :verbose enabled)",
+			want:  "(assoc config\n       :host \"localhost\"\n       :port 8080\n       :timeout 30\n       :retries 3\n       :verbose enabled)\n",
+		},
+		{
+			name:  "case pairs with trailing default on own line",
+			input: "(case status-code 200 :ok 404 :not-found 500 :server-error :unknown-status-default)",
+			want:  "(case status-code\n      200 :ok\n      404 :not-found\n      500 :server-error\n      :unknown-status-default)\n",
+		},
+		{
+			name:  "cond-> pairs test/expr per line",
+			input: "(cond-> base-value pred-one (assoc :a 1) pred-two (assoc :b 2) pred-three (final-x))",
+			want:  "(cond-> base-value\n        pred-one (assoc :a 1)\n        pred-two (assoc :b 2)\n        pred-three (final-x))\n",
+		},
 	}
 
 	for _, tt := range tests {
@@ -434,6 +459,8 @@ func TestIdempotent(t *testing.T) {
 		"(cond\n  (= x 1) :one\n  (= x 2) :two\n  :else :other)\n",
 		"(defstruct Point\n  x int\n  y int)\n",
 		"; section header\n(def x 1)\n\n;; another note\n(def y 2)\n",
+		"(combine-results first-result\n                 second-result\n                 third-result\n                 fourth-result\n                 fifth-result)\n",
+		"(assoc config\n       :host \"localhost\"\n       :port 8080\n       :verbose enabled)\n",
 	}
 	for _, src := range inputs {
 		once, err := formatter.Format(src)

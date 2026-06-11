@@ -237,7 +237,7 @@ glisp get <module>[@version]         download + transpile + register a dependenc
 glisp build <dir/>                   auto-fetches missing deps from glisp.mod before building
 ```
 
-**How deps are wired**: `glisp get` downloads the GitHub archive to `~/.glisp/pkg/mod/<path>@<version>/`, transpiles `.glsp` → `.go` there, writes a `go.mod` for the module, then runs `go mod edit -require` and `-replace` in the project's `go.mod` so standard `go build` can find it.
+**How deps are wired**: `glisp get` downloads the GitHub archive to `~/.glisp/pkg/mod/<path>@<version>/`, transpiles `.glsp` → `.go` there, writes a `go.mod` for the module, then runs `go mod edit -require` and `-replace` in the project's `go.mod` so standard `go build` can find it. The cache `replace` path is an absolute, per-machine path under `~/.glisp`, so a committed `replace` is invalid after a fresh clone (a different home dir). `glisp build`'s `ResolveDeps` self-heals this: for each `require` in `glisp.mod` it fetches the module from GitHub if it isn't cached, and — whether just fetched or already cached — rewrites the project's `replace` to this machine's cache whenever `module.ProjectReplaceValid` reports the existing one is missing or points at a non-existent directory (an absolute replace to an existing dir, or any relative replace, is left untouched, so a manual local fork is preserved).
 
 **Writing a module**:
 1. Create a repo with `.glsp` files and `glisp.mod` (`(module github.com/you/lib)`)

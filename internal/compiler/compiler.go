@@ -240,12 +240,22 @@ func ResolveDeps(projectDir string) error {
 		return err
 	}
 	for _, req := range mf.Requires {
-		if module.IsCached(req.Path, req.Version) {
+		if !module.IsCached(req.Path, req.Version) {
+			fmt.Fprintf(os.Stderr, "glisp: fetching %s %s\n", req.Path, req.Version)
+			if err := GetModule(projectDir, req.Path, req.Version); err != nil {
+				return fmt.Errorf("get %s: %w", req.Path, err)
+			}
 			continue
 		}
-		fmt.Fprintf(os.Stderr, "glisp: fetching %s %s\n", req.Path, req.Version)
-		if err := GetModule(projectDir, req.Path, req.Version); err != nil {
-			return fmt.Errorf("get %s: %w", req.Path, err)
+		// Cached, but the project's go.mod replace may be missing or point at
+		// another machine's cache path (e.g. a committed replace after a fresh
+		// clone). Rewrite it to this machine's cache so the build resolves.
+		if module.ProjectReplaceValid(projectDir, req.Path) {
+			continue
+		}
+		moduleDir := module.ModuleCacheDir(req.Path, req.Version)
+		if err := module.RegisterInGoMod(projectDir, req.Path, req.Version, moduleDir); err != nil {
+			return fmt.Errorf("register %s: %w", req.Path, err)
 		}
 	}
 	return nil

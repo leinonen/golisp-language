@@ -744,6 +744,14 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 				}
 				e.nl()
 				return nil
+			case "assert":
+				// Statement position: bare guard, no IIFE.
+				e.writeIndent()
+				if err := e.emitAssertGuard(v); err != nil {
+					return err
+				}
+				e.nl()
+				return nil
 			}
 		}
 		e.writeIndent()
@@ -991,6 +999,16 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 			case "log/info", "log/debug", "log/warn", "log/error":
 				e.writeIndent()
 				if err := e.emitSlogCall(sym.Name, v.Args); err != nil {
+					return err
+				}
+				e.nl()
+				e.writeIndent()
+				e.write("return nil\n")
+				return nil
+			case "assert":
+				// Return/tail position: guard, then return nil.
+				e.writeIndent()
+				if err := e.emitAssertGuard(v); err != nil {
 					return err
 				}
 				e.nl()

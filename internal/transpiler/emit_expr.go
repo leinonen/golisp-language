@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"golisp/internal/ast"
+	"golisp/internal/formatter"
 )
 
 // emitVectorLit emits []T{...} or []any{...}
@@ -870,6 +871,31 @@ func (e *Emitter) emitCondExprReturn(n *ast.CondExpr) error {
 	return nil
 }
 
+// emitAssertGuard writes `if !(<cond>) { panic(<msg>) }` with no surrounding
+// indentation or newline. With one arg the panic message is auto-generated from
+// the condition's source text; a second arg supplies an explicit message.
+func (e *Emitter) emitAssertGuard(n *ast.CallExpr) error {
+	// Central arity gate (emitCallExpr already ran it for the expression path;
+	// re-run here so the statement/return paths report the same canonical error).
+	if err := e.checkBuiltinArity("assert", n); err != nil {
+		return err
+	}
+	e.write("if !(")
+	if err := e.emitCondition(n.Args[0]); err != nil {
+		return err
+	}
+	e.write(") { panic(")
+	if len(n.Args) == 2 {
+		if err := e.emitExpr(n.Args[1]); err != nil {
+			return err
+		}
+	} else {
+		e.writef("%q", "assertion failed: "+formatter.FormatNode(n.Args[0]))
+	}
+	e.write(") }")
+	return nil
+}
+
 // emitSwitchExpr emits a switch expression (IIFE wrapper for expression position).
 func (e *Emitter) emitSwitchExpr(n *ast.SwitchExpr) error {
 	e.write("func() any {")
@@ -1238,6 +1264,16 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 				return fmt.Errorf("recover: expected 0 arguments, got %d at %s", len(n.Args), n.Pos())
 			}
 			e.write("recover()")
+			return nil
+		case "assert":
+			// Expression position: wrap the guard in an IIFE that yields nil so
+			// (assert ...) is also usable as a value. Statement and return
+			// positions emit the bare guard (see emitStmtNode / emitReturnNode).
+			e.write("func() any { ")
+			if err := e.emitAssertGuard(n); err != nil {
+				return err
+			}
+			e.write("; return nil }()")
 			return nil
 		case "os/env":
 			e.needImport("os")

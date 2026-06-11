@@ -564,6 +564,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseLetOr(pos)
 		case "switch":
 			return p.parseSwitch(pos)
+		case "case":
+			return p.parseCase(pos)
 		case "as":
 			return p.parseTypeAssert(pos)
 		case "deftest":
@@ -1119,7 +1121,43 @@ func (p *parser) parseSwitch(pos ast.Position) (*ast.SwitchExpr, error) {
 	if _, err := p.expect(lexer.TokenRParen); err != nil {
 		return nil, err
 	}
-	return ast.NewSwitchExpr(pos, expr, cases, def), nil
+	return ast.NewSwitchExpr(pos, "switch", expr, cases, def), nil
+}
+
+// parseCase parses the Clojure-style (case expr val1 body1 ... default?) — a
+// trailing unpaired form is the default (no :default keyword). It produces a
+// SwitchExpr with Head "case", so case shares switch's emission and layout.
+func (p *parser) parseCase(pos ast.Position) (*ast.SwitchExpr, error) {
+	p.advance() // "case"
+	expr, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	var cases []ast.SwitchCase
+	var def ast.Node
+	for p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF {
+		val, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		// A value with no following body is the trailing default clause.
+		if p.peekType() == lexer.TokenRParen {
+			def = val
+			break
+		}
+		body, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		cases = append(cases, ast.SwitchCase{Value: val, Body: body})
+	}
+	if len(cases) == 0 && def == nil {
+		return nil, fmt.Errorf("%d:%d: case requires at least one clause or a default", pos.Line, pos.Column)
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewSwitchExpr(pos, "case", expr, cases, def), nil
 }
 
 func (p *parser) parseDo(pos ast.Position) (*ast.DoExpr, error) {

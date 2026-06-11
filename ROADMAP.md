@@ -261,8 +261,8 @@ Features that make the language enjoyable to use, not just functional.
 - [ ] `pp` — `(pp val)` — pretty-print any value with indentation; better than `println` for maps/slices
 - [ ] `tap->` / `tap->>` — like `->` / `->>` but `pp` each intermediate value; debug pipelines without restructuring code
 - [ ] Named `fn` — `(fn self [n] (if (= n 0) 1 (* n (self (- n 1)))))` — self-reference in anonymous functions without `defn`
-- [ ] `assert` — `(assert condition "message")` — runtime guard; panics with message if condition is false
-- [ ] `case` — `(case x :a "alpha" :b "beta" "other")` — value-equality switch; simpler than `cond` for dispatch on known values
+- [x] `assert` — `(assert cond)` / `(assert cond msg)` — runtime invariant guard; panics if falsy, auto-generating the message from the condition source when none given
+- [x] `case` — `(case x :a "alpha" :b "beta" "other")` — Clojure-style value dispatch (trailing default), a surface alias compiled to a Go switch
 
 ---
 
@@ -333,7 +333,7 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 13 | **4c: Source maps** | Debug Go panics in `.glsp` terms |
 | 14 | ~~**8: Database (postgres)**~~ | Out of language scope — opt-in via packages (ADR-014) |
 | 15 | ~~**8.5: Concurrency ergonomics**~~ ✓ | `go-val`, `par`, `for-chan`, `recv-ok!`, `with-lock`, `:timeout` in `select!` |
-| 16 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
+| 16 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, ~~`assert`~~ ✓, ~~`case`~~ ✓) | Joy and debugging power |
 | 17 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |
 | 18 | ~~**10a–d: File I/O, slog, regex, error wrapping**~~ ✓ | Essential for any real-world program |
 | 19 | **10e–g: `atom`, `with-open`, context propagation** | Ergonomics for shared state and resource safety |

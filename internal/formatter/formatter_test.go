@@ -323,9 +323,19 @@ func TestFormat(t *testing.T) {
 			want:  "(assoc config\n       :host \"localhost\"\n       :port 8080\n       :timeout 30\n       :retries 3\n       :verbose enabled)\n",
 		},
 		{
-			name:  "case pairs with trailing default on own line",
+			name:  "case formats like switch with trailing default",
 			input: "(case status-code 200 :ok 404 :not-found 500 :server-error :unknown-status-default)",
-			want:  "(case status-code\n      200 :ok\n      404 :not-found\n      500 :server-error\n      :unknown-status-default)\n",
+			want:  "(case status-code\n  200 :ok\n  404 :not-found\n  500 :server-error\n  :unknown-status-default)\n",
+		},
+		{
+			name:  "short case still hangs 2-space (like switch)",
+			input: "(case n 0 \"zero\" \"many\")",
+			want:  "(case n\n  0 \"zero\"\n  \"many\")\n",
+		},
+		{
+			name:  "assert with message inline",
+			input: "(assert (> n 0) \"must be positive\")",
+			want:  "(assert (> n 0) \"must be positive\")\n",
 		},
 		{
 			name:  "cond-> pairs test/expr per line",

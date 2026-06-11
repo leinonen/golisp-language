@@ -173,6 +173,8 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"when":   {Sig: "(when cond body...)", Doc: "Evaluate body forms when cond is truthy. Returns nil otherwise."},
 	"cond":   {Sig: "(cond test1 val1 ... :else default)", Doc: "Return the value paired with the first truthy test. Use :else as the final fallthrough."},
 	"switch": {Sig: "(switch expr val1 body1 ... :default body)", Doc: "Dispatch on the value of expr; evaluate the body paired with the matching val. Use :default for the fallthrough case."},
+	"case":   {Sig: "(case expr val1 body1 ... default)", Doc: "Clojure-style value dispatch — like switch, but the fallthrough is a trailing unpaired body instead of :default. Compiles to a Go switch."},
+	"assert": {Sig: "(assert cond msg?)", Doc: "Panic if cond is falsy. With no message, the panic text is generated from the condition's source (assertion failed: <cond>). A runtime invariant guard, not for control flow."},
 	"do":     {Sig: "(do body...)", Doc: "Evaluate multiple expressions in order; return the last value."},
 	"loop":   {Sig: "(loop [name init ...] body...)", Doc: "Establish a loop with bindings. Use recur to jump back to the top."},
 	"recur":  {Sig: "(recur args...)", Doc: "Jump to the nearest enclosing loop or defn with new argument values."},

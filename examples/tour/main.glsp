@@ -1,9 +1,9 @@
 ; glisp language tour
 ; Demonstrates: defn, type annotations, typed let/loop bindings, deftype,
-;               cond, switch, loop/recur, map/filter/reduce, truthiness,
+;               cond, switch, case, loop/recur, map/filter/reduce, truthiness,
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
 ;               destructuring (map and sequential), keyword lookup (:key m),
-;               panic/recover, format, parse-int, parse-float, repeat, interpose
+;               panic/recover, assert, format, parse-int, parse-float, repeat, interpose
 (ns main)
 
 ; --- Named types (deftype) ---
@@ -35,6 +35,16 @@
     500 "Internal Server Error"
     :default "Unknown"))
 
+; case is the Clojure-style alias for switch: the fallthrough is a trailing
+; unpaired form instead of :default. Both compile to a Go switch.
+;;; Names a small integer, or "many" for anything else.
+(defn count-word [n int] -> string
+  (case n
+    0 "none"
+    1 "one"
+    2 "two"
+    "many"))
+
 ; --- Truthiness ---
 ; nil and false are falsy; every other value is truthy (ADR-011).
 ; any-typed values — map lookups, find results — work directly as conditions,
@@ -57,6 +67,13 @@
   (defer (catch-panic))
   (when (= b 0) (panic "divide by zero"))
   (/ a b))
+
+; assert is a runtime invariant guard: it panics when the condition is falsy.
+; With no message the panic text is generated from the condition's source.
+;;; Doubles n, asserting it is non-negative first.
+(defn double-nonneg [n int] -> int
+  (assert (>= n 0))
+  (* n 2))
 
 ; --- Tail-recursive loop ---
 ; Typed loop bindings: var i int, var a int, var b int — no any-boxing.
@@ -85,6 +102,15 @@
                (describe-user {"name" "bob" "admin" true})
                "|"
                (describe-user {}))
+  ; switch / case dispatch and an assert invariant guard
+  (fmt/println "status 404:"
+               (http-status 404)
+               "| count 2:"
+               (count-word 2)
+               "| count 7:"
+               (count-word 7)
+               "| double 4:"
+               (double-nonneg 4))
   ; Panic and recover
   (fmt/println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)

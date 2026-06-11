@@ -187,6 +187,29 @@ func (e *Emitter) isModuleAlias(alias string) bool {
 	return false
 }
 
+// resolveDirectImport records the Go import a bare qualified symbol needs
+// (filepath/join → "path/filepath"), resolving the qualifier through the stdlib
+// package map. A multi-segment stdlib qualifier auto-imports its full path; an
+// ambiguous or unknown qualifier yields a position-tagged glisp error so the
+// user never sees a raw "package X is not in std" Go error. Reached only for
+// qualifiers that are not declared module/import aliases — and since a bare
+// import resolves only for stdlib, erroring here cannot break a working build.
+func (e *Emitter) resolveDirectImport(sym *ast.Symbol, qualifier string) error {
+	paths, ok := stdlibByQualifier[qualifier]
+	if !ok {
+		return fmt.Errorf("unknown package %q — not a stdlib package; declare it in ns, e.g. (:import [path/to/%s]) (at %s)", qualifier, qualifier, sym.Pos())
+	}
+	if len(paths) > 1 {
+		opts := make([]string, len(paths))
+		for i, p := range paths {
+			opts[i] = "(:import [" + p + "])"
+		}
+		return fmt.Errorf("ambiguous package qualifier %q — declare which one in ns: %s (at %s)", qualifier, strings.Join(opts, " or "), sym.Pos())
+	}
+	e.directImports[paths[0]] = true
+	return nil
+}
+
 // pathQualifier returns the default Go package qualifier for an import path:
 // the last path segment, or the one before it when the last segment is a
 // major-version suffix per the Go module convention
@@ -535,7 +558,9 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		if idx := strings.Index(v.Name, "/"); idx > 0 {
 			pkg := v.Name[:idx]
 			if !e.isModuleAlias(pkg) {
-				e.directImports[pkg] = true
+				if err := e.resolveDirectImport(v, pkg); err != nil {
+					return err
+				}
 			}
 		}
 		e.write(goName)

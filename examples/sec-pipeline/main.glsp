@@ -75,10 +75,10 @@
   (assoc ev
     "line"
     (format "  %-8s | %-4s | %-15s | %s"
-      (get ev "level")
-      (get ev "src")
-      (get ev "ip")
-      (get ev "msg"))))
+            (get ev "level")
+            (get ev "src")
+            (get ev "ip")
+            (get ev "msg"))))
 
 ; -- thread-safe output --------------------------------------------------------
 (def print-mu sync/Mutex (sync/Mutex. {}))

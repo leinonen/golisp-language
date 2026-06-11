@@ -51,13 +51,13 @@
         restocked (update pb "stock" (fn [n] (* (int n) 3)))
         tiered (update-in pb ["supplier" "tier"] (fn [n] (- (int n) 1)))]
     (fmt/println "  stock before:"
-      (get pb "stock")
-      " after x3:"
-      (get restocked "stock"))
+                 (get pb "stock")
+                 " after x3:"
+                 (get restocked "stock"))
     (fmt/println "  tier before: "
-      (get-in pb ["supplier" "tier"])
-      " after -1:"
-      (get-in tiered ["supplier" "tier"])))
+                 (get-in pb ["supplier" "tier"])
+                 " after -1:"
+                 (get-in tiered ["supplier" "tier"])))
   ; --- group-by ---
   ; Values from (get m k) are any — count and map work on them directly.
   (fmt/println "\n=== group-by ===")
@@ -112,9 +112,9 @@
   (fmt/println "\n=== partition ===")
   (let [batches (partition 3 products)]
     (fmt/println "  products:"
-      (len products)
-      " batch-size: 3  batches:"
-      (len batches))
+                 (len products)
+                 " batch-size: 3  batches:"
+                 (len batches))
     (map
       (fn [batch]
         (do (fmt/println "  batch:" (map (fn [p] (get p "name")) batch)) nil))
@@ -127,10 +127,10 @@
       (fn [run]
         (do
           (fmt/println " "
-            (get-in (first run) ["category"])
-            "x"
-            (count run)
-            ":"
-            (map (fn [p] (get p "name")) run))
+                       (get-in (first run) ["category"])
+                       "x"
+                       (count run)
+                       ":"
+                       (map (fn [p] (get p "name")) run))
           nil))
       runs)))

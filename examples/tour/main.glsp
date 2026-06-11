@@ -80,11 +80,11 @@
 (defn main [] -> void
   ; Truthiness: bob is admin, ada's false admin flag is falsy, {} has no name
   (fmt/println "users:"
-    (describe-user {"name" "ada" "admin" false})
-    "|"
-    (describe-user {"name" "bob" "admin" true})
-    "|"
-    (describe-user {}))
+               (describe-user {"name" "ada" "admin" false})
+               "|"
+               (describe-user {"name" "bob" "admin" true})
+               "|"
+               (describe-user {}))
   ; Panic and recover
   (fmt/println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)
@@ -99,9 +99,9 @@
   ; and concrete slices flow through first/contains?/rest directly
   (let [q1 string (join (take 3 months) "/")] (fmt/println "Q1:" q1))
   (fmt/println "first month:"
-    (first months)
-    "| has Dec?"
-    (contains? months "Dec"))
+               (first months)
+               "| has Dec?"
+               (contains? months "Dec"))
   ; format, parse-int, parse-float, repeat, interpose
   (fmt/println (format "grade for 87: %s (score: %d)" (grade 87) 87))
   (if-err [n err] (parse-int "42")
@@ -112,7 +112,7 @@
     (fmt/println (format "parse-float: %.3f" x)))
   (fmt/println "repeat:   " (join (repeat 5 "*") ""))
   (fmt/println "interpose:"
-    (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
+               (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
   ; Analyze student classes concurrently.
   ; Map destructuring in fn params: {name :name scores :scores}
   (let [classes [{:name "Math" :scores [85 92 78 61 79 88 95]} {:name "English" :scores [76 85 90 55 68 73 82]} {:name "Science" :scores [91 94 87 98 79 85 92]}]]
@@ -139,21 +139,21 @@
         (map
           (fn [{name :name avg :avg grade :grade passing :passing}]
             (fmt/println " "
-              name
-              "| avg:"
-              avg
-              "| grade:"
-              grade
-              "| passing:"
-              passing))
+                         name
+                         "| avg:"
+                         avg
+                         "| grade:"
+                         grade
+                         "| passing:"
+                         passing))
           ranked)
         ; keyword lookup: (:name m) extracts the :name key from a map
         (fmt/println "\nbottom:"
-          (:name top)
-          " mid:"
-          (:name second)
-          " top:"
-          (:name third))
+                     (:name top)
+                     " mid:"
+                     (:name second)
+                     " top:"
+                     (:name third))
         ; JSON export via if-err
         (if-err [out err] (json/encode {"report" ranked})
           (fmt/println "encode error:" err)

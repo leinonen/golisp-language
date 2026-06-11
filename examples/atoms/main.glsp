@@ -31,10 +31,10 @@
     ; Spawn n-goroutines goroutines.  Each does n-per increments, then
     ; signals completion on the done channel.
     (fmt/println "Launching"
-      n-goroutines
-      "goroutines, each doing"
-      n-per
-      "increments")
+                 n-goroutines
+                 "goroutines, each doing"
+                 n-per
+                 "increments")
     (doseq [_ (range n-goroutines)]
       (go (doseq [_ (range n-per)] (increment! counter)) (send! done true)))
     ; ── wait ────────────────────────────────────────────────────────

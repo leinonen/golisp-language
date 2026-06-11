@@ -924,20 +924,49 @@ func formatMap(v *ast.MapLit, indent int) string {
 	return sb.String()
 }
 
+// alignThreshold is the largest column at which a multi-line call still aligns
+// its continuation arguments under the first argument (Style A, cljfmt-style).
+// Past it — a long head symbol or deep nesting — alignment is abandoned in
+// favour of a flat 2-space hang so continuation args aren't crowded against the
+// right margin. maxLine/2 keeps at least half the line available for arguments.
+const alignThreshold = maxLine / 2
+
+// pairForms are call heads whose trailing arguments are logical key/value (or
+// test/result) pairs. When such a call breaks across lines its args are emitted
+// two-per-line aligned under the anchor argument, rather than fanning out one
+// token per line. The leading anchor (the map for assoc, the dispatch value for
+// case/cond->) sits on the head line; a lone trailing arg (e.g. a case default)
+// gets its own line.
+var pairForms = map[string]bool{
+	"assoc":   true,
+	"case":    true,
+	"cond->":  true,
+	"cond->>": true,
+}
+
 func (c *cfmt) formatCall(v *ast.CallExpr, indent int) string {
 	il := inline(v)
 	if c.inlineOK(v, indent, il) {
 		return ind(indent) + il
 	}
-	// head on first line, args indented
 	headStr := inline(v.Head)
 	if len(v.Args) == 0 {
 		return ind(indent) + "(" + headStr + ")"
 	}
+	// Pair-forms (assoc, case, cond->, …) render their args two-per-line.
+	if pairForms[headStr] {
+		if s, ok := c.formatPairForm(v, headStr, indent); ok {
+			return s
+		}
+	}
+	// Style A: align continuation args under the first argument when it is a
+	// simple atom on the head line and the alignment column is within threshold.
+	if s, ok := c.formatAligned(v, headStr, indent); ok {
+		return s
+	}
+	// Fallback: flat 2-space hang. Also the path for a call-headed first arg
+	// (e.g. each route in web/routes) which reads better hung than aligned.
 	var sb strings.Builder
-	// Keep the first arg on the head line only when it's a simple atom that
-	// fits there. A nested call (e.g. each route in web/Routes) breaks onto
-	// its own line so it isn't crammed inline.
 	firstInline := inline(v.Args[0])
 	if _, isCall := v.Args[0].(*ast.CallExpr); !isCall && fits("("+headStr+" "+firstInline, indent) {
 		sb.WriteString(ind(indent) + "(" + headStr + " " + firstInline)
@@ -948,6 +977,100 @@ func (c *cfmt) formatCall(v *ast.CallExpr, indent int) string {
 	}
 	sb.WriteString(")")
 	return sb.String()
+}
+
+// alignAnchor decides whether a multi-line call may put its first argument on
+// the head line and align continuations under it. It returns the head line
+// ("(head firstArg") and the alignment column, or ok=false to fall back to a
+// 2-space hang. Alignment is declined when the first arg is itself a call or
+// won't fit on the head line, when the column exceeds alignThreshold, or when
+// the form carries comments an aligned rendering couldn't preserve.
+func (c *cfmt) alignAnchor(v *ast.CallExpr, headStr string, indent int) (headLine string, col int, ok bool) {
+	if _, isCall := v.Args[0].(*ast.CallExpr); isCall {
+		return "", 0, false
+	}
+	headLine = "(" + headStr + " " + inline(v.Args[0])
+	if !fits(headLine, indent) {
+		return "", 0, false
+	}
+	col = indent*2 + len("("+headStr+" ")
+	if col > alignThreshold {
+		return "", 0, false
+	}
+	if c.hasComments(v.Pos().Line+1, nodeMaxLine(v)) {
+		return "", 0, false
+	}
+	return headLine, col, true
+}
+
+// formatAligned renders v with continuation args aligned under the first
+// argument (Style A). It applies only when every continuation arg fits on a
+// single line at the alignment column; an arg that would itself wrap, or that
+// overflows maxLine, makes it return ok=false so formatCall falls back.
+func (c *cfmt) formatAligned(v *ast.CallExpr, headStr string, indent int) (string, bool) {
+	if len(v.Args) < 2 {
+		return "", false
+	}
+	headLine, col, ok := c.alignAnchor(v, headStr, indent)
+	if !ok {
+		return "", false
+	}
+	pad := strings.Repeat(" ", col)
+	lines := make([]string, 0, len(v.Args)-1)
+	for _, a := range v.Args[1:] {
+		s := inline(a)
+		if col+len(s)+1 > maxLine { // +1 leaves room for the closing paren
+			return "", false
+		}
+		lines = append(lines, pad+s)
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + headLine)
+	for _, ln := range lines {
+		sb.WriteString("\n" + ln)
+	}
+	sb.WriteString(")")
+	return sb.String(), true
+}
+
+// formatPairForm renders a pair-form call (assoc, case, cond->, …) with its
+// trailing args grouped two-per-line and aligned under the anchor argument. A
+// lone trailing arg (e.g. case's default) is emitted on its own line. Returns
+// ok=false — so formatCall falls back — when there is no anchor+pair to render,
+// the anchor can't head the line, or any pair overflows maxLine.
+func (c *cfmt) formatPairForm(v *ast.CallExpr, headStr string, indent int) (string, bool) {
+	if len(v.Args) < 3 {
+		return "", false
+	}
+	headLine, col, ok := c.alignAnchor(v, headStr, indent)
+	if !ok {
+		return "", false
+	}
+	rest := v.Args[1:]
+	pad := strings.Repeat(" ", col)
+	var lines []string
+	i := 0
+	for ; i+1 < len(rest); i += 2 {
+		line := pad + inline(rest[i]) + " " + inline(rest[i+1])
+		if len(line)+1 > maxLine {
+			return "", false
+		}
+		lines = append(lines, line)
+	}
+	if i < len(rest) { // lone trailing arg (e.g. case default)
+		line := pad + inline(rest[i])
+		if len(line)+1 > maxLine {
+			return "", false
+		}
+		lines = append(lines, line)
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + headLine)
+	for _, ln := range lines {
+		sb.WriteString("\n" + ln)
+	}
+	sb.WriteString(")")
+	return sb.String(), true
 }
 
 func (c *cfmt) formatFn(v *ast.FnExpr, indent int) string {

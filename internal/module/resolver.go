@@ -3,6 +3,7 @@ package module
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -79,6 +80,50 @@ func EnsureGoMod(moduleDir, modulePath string, goReqs []GoRequire) error {
 		}
 	}
 	return nil
+}
+
+// ProjectReplaceValid reports whether the project's go.mod already maps
+// modulePath to an existing local directory via an absolute replace directive.
+// A committed replace can carry another machine's absolute cache path (the cache
+// lives under each developer's home dir), which is invalid after a fresh clone;
+// such a replace — and a missing one — must be rewritten to this machine's cache.
+// A relative replace is assumed intentional (e.g. a local fork) and left alone.
+func ProjectReplaceValid(projectDir, modulePath string) bool {
+	target := projectReplaceTarget(projectDir, modulePath)
+	if target == "" {
+		return false
+	}
+	if !filepath.IsAbs(target) {
+		return true
+	}
+	info, err := os.Stat(target)
+	return err == nil && info.IsDir()
+}
+
+// projectReplaceTarget returns the path the project's go.mod maps modulePath to
+// via a replace directive, or "" if there is none (or go.mod can't be read).
+func projectReplaceTarget(projectDir, modulePath string) string {
+	cmd := exec.Command("go", "mod", "edit", "-json")
+	cmd.Dir = projectDir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	var gm struct {
+		Replace []struct {
+			Old struct{ Path string }
+			New struct{ Path string }
+		}
+	}
+	if err := json.Unmarshal(out, &gm); err != nil {
+		return ""
+	}
+	for _, r := range gm.Replace {
+		if r.Old.Path == modulePath {
+			return r.New.Path
+		}
+	}
+	return ""
 }
 
 // RegisterInGoMod adds require + replace directives for a module in the project's go.mod.

@@ -550,6 +550,9 @@ func TestTranspileSnippets(t *testing.T) {
 		// I/O
 		{name: "fmt/println", src: `(defn f [x] (fmt/println x))`, wantSub: "fmt.Println("},
 		{name: "fmt/print", src: `(defn f [x] (fmt/print x))`, wantSub: "fmt.Print("},
+		{name: "bare println", src: `(defn f [x] (println x))`, wantSub: "fmt.Println("},
+		{name: "bare print", src: `(defn f [x] (print x))`, wantSub: "fmt.Print("},
+		{name: "bare println return pos", src: `(defn f [x] -> any (println x))`, wantSub: "fmt.Println(x)\n\treturn nil"},
 
 		// Iteration
 		{name: "doseq", src: `(defn f [coll] (doseq [x coll] (fmt/println x)))`, wantSub: "for _, x := range"},

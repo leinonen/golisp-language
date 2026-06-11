@@ -6,7 +6,7 @@
     (values nil err)
     (if-err [_ err] (glispdb/exec-raw conn "CREATE TABLE IF NOT EXISTS users (\n         id         SERIAL PRIMARY KEY,\n         name       TEXT NOT NULL,\n         email      TEXT UNIQUE NOT NULL,\n         created_at TIMESTAMPTZ DEFAULT NOW()\n       );\n       CREATE TABLE IF NOT EXISTS notes (\n         id         SERIAL PRIMARY KEY,\n         user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,\n         title      TEXT NOT NULL,\n         content    TEXT NOT NULL,\n         created_at TIMESTAMPTZ DEFAULT NOW(),\n         updated_at TIMESTAMPTZ DEFAULT NOW()\n       )" nil)
       (do (glispdb/close conn) (values nil err))
-      (do (fmt/println "schema ready") (values conn nil)))))
+      (do (println "schema ready") (values conn nil)))))
 
 ;;; User queries
 (defn db-list-users [conn any] -> [any error]

@@ -245,6 +245,8 @@ Goroutines, channels, and synchronisation. `sync` and `time` imports are added a
 
 | Form | Returns | Description |
 |---|---|---|
+| `(println & args)` | — | Print args to stdout with newline (bare alias for `fmt/println`) |
+| `(print & args)` | — | Print args to stdout without newline (bare alias for `fmt/print`) |
 | `(fmt/println & args)` | — | Print args to stdout with newline |
 | `(fmt/print & args)` | — | Print args to stdout without newline |
 

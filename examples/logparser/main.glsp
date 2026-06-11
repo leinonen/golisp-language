@@ -123,5 +123,5 @@
             (log/error "cannot write report" "path" report-path "err" write-err)
             (do
               (log/info "report written" "path" report-path)
-              (fmt/println "\n--- report ---")
-              (fmt/println report))))))))
+              (println "\n--- report ---")
+              (println report))))))))

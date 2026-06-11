@@ -730,7 +730,7 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 	case *ast.CallExpr:
 		if sym, ok := v.Head.(*ast.Symbol); ok {
 			switch sym.Name {
-			case "fmt/println", "fmt/print":
+			case "fmt/println", "fmt/print", "println", "print":
 				e.writeIndent()
 				if err := e.emitFmtPrintCall(sym.Name, v.Args); err != nil {
 					return err
@@ -987,7 +987,7 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 	case *ast.CallExpr:
 		if sym, ok := v.Head.(*ast.Symbol); ok {
 			switch sym.Name {
-			case "fmt/println", "fmt/print":
+			case "fmt/println", "fmt/print", "println", "print":
 				e.writeIndent()
 				if err := e.emitFmtPrintCall(sym.Name, v.Args); err != nil {
 					return err

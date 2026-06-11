@@ -196,6 +196,8 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"when-let": {Sig: "(when-let [pat expr] body...)", Doc: "Bind pat from expr; if the value is non-nil, evaluate body, otherwise nil. Supports destructuring patterns."},
 
 	// fmt package
+	"println":      {Sig: "(println & args)                  →  nil", Doc: "Print args to stdout with a newline. Returns nil. Bare alias for fmt/println."},
+	"print":        {Sig: "(print & args)                    →  nil", Doc: "Print args to stdout without a trailing newline. Returns nil. Bare alias for fmt/print."},
 	"fmt/println":  {Sig: "(fmt/println & args)              →  nil", Doc: "Print args to stdout with a newline. Returns nil."},
 	"fmt/print":    {Sig: "(fmt/print & args)                →  nil", Doc: "Print args to stdout without a trailing newline. Returns nil."},
 	"fmt/printf":   {Sig: "(fmt/printf format & args)         →  [int error]", Doc: "Print a formatted string to stdout using Printf-style verbs like %s, %d, %v."},

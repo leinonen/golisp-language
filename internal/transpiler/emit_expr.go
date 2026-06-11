@@ -1037,7 +1037,7 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return nil
 		case "str":
 			return e.emitStr(n.Args)
-		case "fmt/println", "fmt/print":
+		case "fmt/println", "fmt/print", "println", "print":
 			return e.emitFmtPrint(sym.Name, n.Args)
 		case "get":
 			return e.emitGet(n.Args)
@@ -1708,7 +1708,7 @@ func (e *Emitter) emitSlogCall(fn string, args []ast.Node) error {
 func (e *Emitter) emitFmtPrintCall(fn string, args []ast.Node) error {
 	e.needImport("fmt")
 	goFn := "fmt.Println"
-	if fn == "fmt/print" {
+	if fn == "fmt/print" || fn == "print" {
 		goFn = "fmt.Print"
 	}
 	e.writef("%s(", goFn)

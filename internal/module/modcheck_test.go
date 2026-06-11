@@ -3,6 +3,7 @@ package module
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -38,6 +39,64 @@ func TestGoRequireParsing(t *testing.T) {
 		t.Errorf("roundtrip go-require count: got %d", len(mf2.GoRequires))
 	}
 }
+
+// TestEnsureProjectGoMod covers deriving go.mod from glisp.mod: it creates a
+// go.mod with the declared module path when none exists, syncs go-require
+// entries into it, and is a no-op when glisp.mod is absent.
+func TestEnsureProjectGoMod(t *testing.T) {
+	t.Run("absent glisp.mod is a no-op", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := EnsureProjectGoMod(dir); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); !os.IsNotExist(err) {
+			t.Errorf("go.mod should not be created without glisp.mod")
+		}
+	})
+
+	t.Run("creates go.mod from module path", func(t *testing.T) {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "glisp.mod"), []byte("module example.com/myapp\n"), 0644)
+		if err := EnsureProjectGoMod(dir); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+		if err != nil {
+			t.Fatalf("go.mod not created: %v", err)
+		}
+		if got := string(data); !contains(got, "module example.com/myapp") {
+			t.Errorf("go.mod module path: %q", got)
+		}
+	})
+
+	t.Run("falls back to dir basename when module line absent", func(t *testing.T) {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "glisp.mod"), []byte("\n"), 0644)
+		if err := EnsureProjectGoMod(dir); err != nil {
+			t.Fatal(err)
+		}
+		data, _ := os.ReadFile(filepath.Join(dir, "go.mod"))
+		if got := string(data); !contains(got, "module "+filepath.Base(dir)) {
+			t.Errorf("expected basename fallback, got %q", got)
+		}
+	})
+
+	t.Run("syncs go-require into existing go.mod", func(t *testing.T) {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "glisp.mod"),
+			[]byte("module example.com/app\n\ngo-require (\n\tgithub.com/google/uuid v1.6.0\n)\n"), 0644)
+		os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/app\n\ngo 1.21\n"), 0644)
+		if err := EnsureProjectGoMod(dir); err != nil {
+			t.Fatal(err)
+		}
+		data, _ := os.ReadFile(filepath.Join(dir, "go.mod"))
+		if got := string(data); !contains(got, "github.com/google/uuid v1.6.0") {
+			t.Errorf("go-require not synced into go.mod: %q", got)
+		}
+	})
+}
+
+func contains(s, sub string) bool { return strings.Contains(s, sub) }
 
 // TestProjectReplaceValid covers the self-heal predicate that decides whether a
 // project's go.mod replace for a cached module needs rewriting: an absolute

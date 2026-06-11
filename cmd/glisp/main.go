@@ -258,6 +258,11 @@ func getCmd(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	// Ensure go.mod exists before GetModule wires the dependency into it.
+	if err := module.EnsureProjectGoMod(cwd); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	if err := compiler.GetModule(cwd, modulePath, version); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -305,7 +310,13 @@ func modInitCmd(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Fprintln(os.Stdout, "created glisp.mod")
+	// Also write go.mod so the project builds with the Go toolchain immediately
+	// — glisp.mod alone never satisfied `go build` (see go-interop-exploration §2.4).
+	if err := module.EnsureProjectGoMod(cwd); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Fprintln(os.Stdout, "created glisp.mod and go.mod")
 }
 
 func usage() {

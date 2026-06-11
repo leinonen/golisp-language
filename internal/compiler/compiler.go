@@ -277,6 +277,12 @@ func CompileDirWithOptions(srcDir string, outBin string, opts Options) error {
 func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 	// Resolve glisp module dependencies before transpiling
 	if _, err := os.Stat(module.ModFilePath(srcDir)); err == nil {
+		// Derive go.mod from glisp.mod (creating it on a fresh clone, syncing
+		// app-level go-require entries) so the project is buildable from
+		// glisp.mod + *.glsp alone.
+		if err := module.EnsureProjectGoMod(srcDir); err != nil {
+			return fmt.Errorf("ensure go.mod: %w", err)
+		}
 		if err := ResolveDeps(srcDir); err != nil {
 			return fmt.Errorf("resolve deps: %w", err)
 		}
@@ -417,7 +423,7 @@ func buildError(output string) error {
 	switch {
 	case strings.Contains(output, "go.mod file not found"):
 		return errors.New("build failed: no go.mod found — glisp builds with the Go toolchain, which needs a module.\n" +
-			"  fix: run `glisp mod init <module-path>` in this directory (or a parent), then build again")
+			"  fix: run `glisp mod init <module-path>` in this directory (or a parent) — it writes both glisp.mod and go.mod — then build again")
 	case strings.Contains(output, "replacement directory") && strings.Contains(output, "does not exist"):
 		return errors.New("build failed: a required glisp module dependency is not downloaded.\n" +
 			"  fix: run `glisp get <module>[@version]` (or check the require list in glisp.mod), then build again")

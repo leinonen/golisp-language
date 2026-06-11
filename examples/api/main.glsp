@@ -68,12 +68,11 @@
 (defn main [] -> void
   (let [port (os/env "PORT" "4000")
         addr (str ":" port)]
-    (fmt/println (str "Tasks API on " addr))
-    (fmt/println "  GET    /health")
-    (fmt/println "  GET    /tasks[?done=true|false]")
-    (fmt/println "  GET    /tasks/:id")
-    (fmt/println "  POST   /tasks          body: {\"title\":\"...\"}")
-    (fmt/println "  DELETE /tasks/:id")
-    (fmt/println
-      "  GET    /export         requires: Authorization: Bearer <token>")
+    (println (str "Tasks API on " addr))
+    (println "  GET    /health")
+    (println "  GET    /tasks[?done=true|false]")
+    (println "  GET    /tasks/:id")
+    (println "  POST   /tasks          body: {\"title\":\"...\"}")
+    (println "  DELETE /tasks/:id")
+    (println "  GET    /export         requires: Authorization: Bearer <token>")
     (web/serve-graceful addr app)))

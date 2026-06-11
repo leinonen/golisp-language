@@ -4,19 +4,16 @@
   (let [db-url (os/env "DATABASE_URL" "postgres://notes:notes@localhost:5432/notes")
         port (os/env "PORT" "4000")]
     (if-err [conn err] (db-connect db-url)
-      (fmt/println "db connect failed:" (.Error err))
+      (println "db connect failed:" (.Error err))
       (let [app (web/wrap (web/routes (web/get "/health" (make-health)) (web/get "/users" (make-list-users conn)) (web/post "/users" (make-create-user conn)) (web/get "/users/:id" (make-get-user conn)) (web/get "/users/:id/notes" (make-list-user-notes conn)) (web/post "/notes" (web/wrap (make-create-note conn) web/wrap-auth)) (web/get "/notes/:id" (make-get-note conn)) (web/put "/notes/:id" (web/wrap (make-update-note conn) web/wrap-auth)) (web/delete "/notes/:id" (web/wrap (make-delete-note conn) web/wrap-auth))) web/wrap-logging web/wrap-recover web/wrap-cors web/wrap-json)]
-        (fmt/println (str "Notes API on :" port))
-        (fmt/println "  GET    /health")
-        (fmt/println "  GET    /users")
-        (fmt/println "  POST   /users")
-        (fmt/println "  GET    /users/:id")
-        (fmt/println "  GET    /users/:id/notes")
-        (fmt/println
-          "  POST   /notes              (Authorization: Bearer <token>)")
-        (fmt/println "  GET    /notes/:id")
-        (fmt/println
-          "  PUT    /notes/:id          (Authorization: Bearer <token>)")
-        (fmt/println
-          "  DELETE /notes/:id          (Authorization: Bearer <token>)")
+        (println (str "Notes API on :" port))
+        (println "  GET    /health")
+        (println "  GET    /users")
+        (println "  POST   /users")
+        (println "  GET    /users/:id")
+        (println "  GET    /users/:id/notes")
+        (println "  POST   /notes              (Authorization: Bearer <token>)")
+        (println "  GET    /notes/:id")
+        (println "  PUT    /notes/:id          (Authorization: Bearer <token>)")
+        (println "  DELETE /notes/:id          (Authorization: Bearer <token>)")
         (do (web/serve-graceful (str ":" port) app) nil)))))

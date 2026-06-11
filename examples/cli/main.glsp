@@ -11,20 +11,20 @@
 ;;; Parses one CLI argument to an int; exits with a message on bad input.
 (defn parse-arg [s string] -> int
   (if-err [n err] (parse-int s)
-    (do (fmt/println "not a number:" s) (os/exit 1) 0)
+    (do (println "not a number:" s) (os/exit 1) 0)
     n))
 
 (defn main [] -> void
   (let [args (rest os/args)]
     (when (contains? args "--help")
-      (fmt/println "usage: cli [numbers...]")
+      (println "usage: cli [numbers...]")
       (os/exit 0))
     (let [nums (if (empty? args) default-nums (map (fn [a] (parse-arg (str a))) args))
           sorted (sort nums)
           total (reduce (fn [acc n] (+ (int acc) (int n))) 0 nums)]
-      (when (empty? args) (fmt/println "(no args given — using defaults)"))
-      (fmt/println "count:" (len nums))
-      (fmt/println "sum:  " total)
-      (fmt/println "min:  " (first sorted))
-      (fmt/println "max:  " (last sorted))
-      (fmt/println "mean: " (/ (float64 total) (float64 (len nums)))))))
+      (when (empty? args) (println "(no args given — using defaults)"))
+      (println "count:" (len nums))
+      (println "sum:  " total)
+      (println "min:  " (first sorted))
+      (println "max:  " (last sorted))
+      (println "mean: " (/ (float64 total) (float64 (len nums)))))))

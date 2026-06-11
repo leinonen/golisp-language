@@ -54,24 +54,24 @@
 ;;; Prints a reorder notice when p is running low.
 (defn check-reorder [p Product threshold int] -> void
   (when (low-stock? p threshold)
-    (fmt/println "  REORDER:" (:name p) "- only" (:stock p) "left")))
+    (println "  REORDER:" (:name p) "- only" (:stock p) "left")))
 
 ;;; product returns Product, so the bindings below are typed structs — no casts.
 (defn main [] -> void
   (let [widget (product "Widget" "hardware" 9.99 50)
         gadget (product "Gadget" "electronics" 49.99 3)
         bolts (product "Bolt Pack" "hardware" 3.99 200)]
-    (fmt/println "=== Catalog ===")
-    (fmt/println " " (.Label widget))
-    (fmt/println " " (.Label gadget))
-    (fmt/println " " (.Label bolts))
-    (fmt/println "\n=== Restock gadget +20 ===")
+    (println "=== Catalog ===")
+    (println " " (.Label widget))
+    (println " " (.Label gadget))
+    (println " " (.Label bolts))
+    (println "\n=== Restock gadget +20 ===")
     (let [restocked (restock gadget 20)]
-      (fmt/println " " (.Label restocked))
-      (fmt/println "  low stock (<10)?" (low-stock? restocked 10)))
-    (fmt/println "\n=== 15% off widget ===")
-    (let [sale (discount widget 0.15)] (fmt/println " " (.Label sale)))
-    (fmt/println "\n=== Low-stock report (threshold 10) ===")
+      (println " " (.Label restocked))
+      (println "  low stock (<10)?" (low-stock? restocked 10)))
+    (println "\n=== 15% off widget ===")
+    (let [sale (discount widget 0.15)] (println " " (.Label sale)))
+    (println "\n=== Low-stock report (threshold 10) ===")
     (check-reorder widget 10)
     (check-reorder gadget 10)
     (check-reorder bolts 10)))

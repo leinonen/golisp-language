@@ -6,44 +6,44 @@
 ;;; Decode the "body" field of an HTTP response map, or nil on error.
 (defn decode-resp [resp any] -> any
   (if-err [body err] (json/decode (get resp "body"))
-    (fmt/println "decode failed:" (.Error err))
+    (println "decode failed:" (.Error err))
     body))
 
 ;;; Fetch a URL and return the JSON-decoded body map, or nil on error.
 (defn fetch [url string] -> any
   (if-err [resp err] (http/get url)
-    (fmt/println "GET failed:" (.Error err))
+    (println "GET failed:" (.Error err))
     (decode-resp resp)))
 
 ;;; POST a JSON payload to url. Returns the JSON-decoded response body, or nil.
 (defn post-json [url string payload map[string]any] -> any
   (if-err [encoded err] (json/encode payload)
-    (fmt/println "encode failed:" (.Error err))
+    (println "encode failed:" (.Error err))
     (if-err [resp err2] (http/post url encoded {"Content-Type" "application/json"})
-      (fmt/println "POST failed:" (.Error err2))
+      (println "POST failed:" (.Error err2))
       (decode-resp resp))))
 
 (defn main [] -> void
-  (fmt/println "=== GET /get ===")
+  (println "=== GET /get ===")
   (when-let [body (fetch "https://httpbin.org/get")]
-    (fmt/println "url:" (get body "url")))
-  (fmt/println "\n=== GET /get?foo=bar ===")
+    (println "url:" (get body "url")))
+  (println "\n=== GET /get?foo=bar ===")
   (when-let [qbody (fetch "https://httpbin.org/get?foo=bar")]
-    (fmt/println "foo=" (get (get qbody "args") "foo")))
-  (fmt/println "\n=== GET /bearer ===")
+    (println "foo=" (get (get qbody "args") "foo")))
+  (println "\n=== GET /bearer ===")
   (if-err [bresp berr] (http/get "https://httpbin.org/bearer" {"Authorization" "Bearer secret-token"})
-    (fmt/println "failed:" (.Error berr))
-    (fmt/println "status:" (get bresp "status")))
-  (fmt/println "\n=== POST /post ===")
+    (println "failed:" (.Error berr))
+    (println "status:" (get bresp "status")))
+  (println "\n=== POST /post ===")
   (when-let [post-body (post-json "https://httpbin.org/post" {"name" "alice" "score" 42})]
     (let [echoed (get post-body "json")]
-      (fmt/println "echoed name: " (get echoed "name"))
-      (fmt/println "echoed score:" (get echoed "score"))))
-  (fmt/println "\n=== PUT /put ===")
+      (println "echoed name: " (get echoed "name"))
+      (println "echoed score:" (get echoed "score"))))
+  (println "\n=== PUT /put ===")
   (if-err [presp perr] (http/put "https://httpbin.org/put" "{\"updated\":true}" {"Content-Type" "application/json"})
-    (fmt/println "PUT failed:" (.Error perr))
-    (fmt/println "status:" (get presp "status")))
-  (fmt/println "\n=== DELETE /delete ===")
+    (println "PUT failed:" (.Error perr))
+    (println "status:" (get presp "status")))
+  (println "\n=== DELETE /delete ===")
   (if-err [dresp derr] (http/request {"method" "DELETE" "url" "https://httpbin.org/delete"})
-    (fmt/println "DELETE failed:" (.Error derr))
-    (fmt/println "status:" (get dresp "status"))))
+    (println "DELETE failed:" (.Error derr))
+    (println "status:" (get dresp "status"))))

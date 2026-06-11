@@ -60,7 +60,7 @@
 ; recover must be called from a deferred function to catch panics.
 ; Defer a named handler so recover() runs in the right stack frame.
 (defn catch-panic [] -> void
-  (let [r (recover)] (when r (fmt/println "caught panic:" r))))
+  (let [r (recover)] (when r (println "caught panic:" r))))
 
 ;;; Returns a/b, or 0 if b is zero (panic caught by deferred handler).
 (defn safe-divide [a int b int] -> int
@@ -96,49 +96,45 @@
 
 (defn main [] -> void
   ; Truthiness: bob is admin, ada's false admin flag is falsy, {} has no name
-  (fmt/println "users:"
-               (describe-user {"name" "ada" "admin" false})
-               "|"
-               (describe-user {"name" "bob" "admin" true})
-               "|"
-               (describe-user {}))
+  (println "users:"
+           (describe-user {"name" "ada" "admin" false})
+           "|"
+           (describe-user {"name" "bob" "admin" true})
+           "|"
+           (describe-user {}))
   ; switch / case dispatch and an assert invariant guard
-  (fmt/println "status 404:"
-               (http-status 404)
-               "| count 2:"
-               (count-word 2)
-               "| count 7:"
-               (count-word 7)
-               "| double 4:"
-               (double-nonneg 4))
+  (println "status 404:"
+           (http-status 404)
+           "| count 2:"
+           (count-word 2)
+           "| count 7:"
+           (count-word 7)
+           "| double 4:"
+           (double-nonneg 4))
   ; Panic and recover
-  (fmt/println "10/2 =" (safe-divide 10 2))
+  (println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)
   ; Fibonacci via typed loop/recur (i, a, b are int — no any-boxing)
   (let [fibs (map (fn [n] (fib (int n))) (range 10))]
-    (fmt/println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))
+    (println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))
   ; Typed let binding: sep is string, not any
   (let [sep string ", "
         words (long-words "the quick brown fox jumps over the lazy dog")]
-    (fmt/println "long words:" (join words sep)))
+    (println "long words:" (join words sep)))
   ; Typed def: months []string — element access needs no type cast,
   ; and concrete slices flow through first/contains?/rest directly
-  (let [q1 string (join (take 3 months) "/")] (fmt/println "Q1:" q1))
-  (fmt/println "first month:"
-               (first months)
-               "| has Dec?"
-               (contains? months "Dec"))
+  (let [q1 string (join (take 3 months) "/")] (println "Q1:" q1))
+  (println "first month:" (first months) "| has Dec?" (contains? months "Dec"))
   ; format, parse-int, parse-float, repeat, interpose
-  (fmt/println (format "grade for 87: %s (score: %d)" (grade 87) 87))
+  (println (format "grade for 87: %s (score: %d)" (grade 87) 87))
   (if-err [n err] (parse-int "42")
-    (fmt/println "parse-int error:" err)
-    (fmt/println (format "parse-int: %d * 2 = %d" n (* n 2))))
+    (println "parse-int error:" err)
+    (println (format "parse-int: %d * 2 = %d" n (* n 2))))
   (if-err [x err] (parse-float "2.718")
-    (fmt/println "parse-float error:" err)
-    (fmt/println (format "parse-float: %.3f" x)))
-  (fmt/println "repeat:   " (join (repeat 5 "*") ""))
-  (fmt/println "interpose:"
-               (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
+    (println "parse-float error:" err)
+    (println (format "parse-float: %.3f" x)))
+  (println "repeat:   " (join (repeat 5 "*") ""))
+  (println "interpose:" (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
   ; Analyze student classes concurrently.
   ; Map destructuring in fn params: {name :name scores :scores}
   (let [classes [{:name "Math" :scores [85 92 78 61 79 88 95]} {:name "English" :scores [76 85 90 55 68 73 82]} {:name "Science" :scores [91 94 87 98 79 85 92]}]]
@@ -161,26 +157,26 @@
       (let [results (map (fn [_] (recv! ch)) classes)
             ranked (sort-by (fn [{avg :avg}] avg) results)
             [top second third] ranked]
-        (fmt/println "\n=== Class Report ===")
+        (println "\n=== Class Report ===")
         (map
           (fn [{name :name avg :avg grade :grade passing :passing}]
-            (fmt/println " "
-                         name
-                         "| avg:"
-                         avg
-                         "| grade:"
-                         grade
-                         "| passing:"
-                         passing))
+            (println " "
+                     name
+                     "| avg:"
+                     avg
+                     "| grade:"
+                     grade
+                     "| passing:"
+                     passing))
           ranked)
         ; keyword lookup: (:name m) extracts the :name key from a map
-        (fmt/println "\nbottom:"
-                     (:name top)
-                     " mid:"
-                     (:name second)
-                     " top:"
-                     (:name third))
+        (println "\nbottom:"
+                 (:name top)
+                 " mid:"
+                 (:name second)
+                 " top:"
+                 (:name third))
         ; JSON export via if-err
         (if-err [out err] (json/encode {"report" ranked})
-          (fmt/println "encode error:" err)
-          (fmt/println "\nJSON:" out))))))
+          (println "encode error:" err)
+          (println "\nJSON:" out))))))

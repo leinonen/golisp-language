@@ -84,7 +84,7 @@
 (def print-mu sync/Mutex (sync/Mutex. {}))
 
 (defn say [s string] -> void
-  (with-lock print-mu (fmt/println s)))
+  (with-lock print-mu (println s)))
 
 ; -- main ----------------------------------------------------------------------
 (defn main [] -> void

@@ -46,7 +46,7 @@
   (fmt/printf "  %-28s  area = %.4f\n" (describe s) (area s)))
 
 (defn main [] -> void
-  (fmt/println "Shapes:")
+  (println "Shapes:")
   (print-shape (Circle. {:radius 5}))
   (print-shape (Rect. {:width 4 :height 6}))
   (print-shape (Triangle. {:a 3 :b 4 :c 5})))

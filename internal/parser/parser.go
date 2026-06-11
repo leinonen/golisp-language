@@ -639,82 +639,108 @@ func (p *parser) parseNS(pos ast.Position) (*ast.NSDecl, error) {
 	return ast.NewNSDecl(pos, name, imports, requires), nil
 }
 
+// parseImportList parses the vectors of an (:import ...) clause. Accepted
+// forms, freely mixed:
+//
+//	(:import [a b])                  bare paths
+//	(:import [a] [b])                one vector per path (Clojure style)
+//	(:import [path :as alias])       alias inside the vector
+//	(:import [a [path :as alias]])   nested alias vector
+//
+// An :as applies to the immediately preceding bare path in the same vector.
 func (p *parser) parseImportList() ([]ast.ImportSpec, error) {
-	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+	paths, err := p.parseSpecList("import")
+	if err != nil {
 		return nil, err
 	}
-	var specs []ast.ImportSpec
-	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
-		if p.peekType() == lexer.TokenLBracket {
-			p.advance()
-			pathTok, err := p.expect(lexer.TokenSymbol)
-			if err != nil {
-				return nil, err
-			}
-			spec := ast.ImportSpec{Path: pathTok.Text}
-			if p.peekType() == lexer.TokenKeyword && p.peek().Text == "as" {
-				p.advance()
-				aliasTok, err := p.expect(lexer.TokenSymbol)
-				if err != nil {
-					return nil, err
-				}
-				spec.Alias = aliasTok.Text
-			}
-			if _, err := p.expect(lexer.TokenRBracket); err != nil {
-				return nil, err
-			}
-			specs = append(specs, spec)
-		} else {
-			pathTok, err := p.expect(lexer.TokenSymbol)
-			if err != nil {
-				return nil, err
-			}
-			specs = append(specs, ast.ImportSpec{Path: pathTok.Text})
-		}
-	}
-	if _, err := p.expect(lexer.TokenRBracket); err != nil {
-		return nil, err
+	specs := make([]ast.ImportSpec, len(paths))
+	for i, pa := range paths {
+		specs[i] = ast.ImportSpec{Path: pa.path, Alias: pa.alias}
 	}
 	return specs, nil
 }
 
+// parseRequireList parses the vectors of a (:require ...) clause; same
+// accepted forms as parseImportList.
 func (p *parser) parseRequireList() ([]ast.RequireSpec, error) {
-	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+	paths, err := p.parseSpecList("require")
+	if err != nil {
 		return nil, err
 	}
-	var specs []ast.RequireSpec
-	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
-		if p.peekType() == lexer.TokenLBracket {
-			p.advance()
-			pathTok, err := p.expect(lexer.TokenSymbol)
-			if err != nil {
-				return nil, err
-			}
-			spec := ast.RequireSpec{Path: pathTok.Text}
-			if p.peekType() == lexer.TokenKeyword && p.peek().Text == "as" {
+	specs := make([]ast.RequireSpec, len(paths))
+	for i, pa := range paths {
+		specs[i] = ast.RequireSpec{Path: pa.path, Alias: pa.alias}
+	}
+	return specs, nil
+}
+
+type pathAlias struct {
+	path  string
+	alias string
+}
+
+func (p *parser) parseSpecList(clause string) ([]pathAlias, error) {
+	var specs []pathAlias
+	if p.peekType() != lexer.TokenLBracket {
+		_, err := p.expect(lexer.TokenLBracket)
+		return nil, err
+	}
+	for p.peekType() == lexer.TokenLBracket {
+		p.advance()
+		vecStart := len(specs)
+		for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
+			switch {
+			case p.peekType() == lexer.TokenLBracket:
 				p.advance()
-				aliasTok, err := p.expect(lexer.TokenSymbol)
+				pathTok, err := p.expect(lexer.TokenSymbol)
 				if err != nil {
 					return nil, err
 				}
-				spec.Alias = aliasTok.Text
+				spec := pathAlias{path: pathTok.Text}
+				spec.alias, err = p.parseAsAlias()
+				if err != nil {
+					return nil, err
+				}
+				if _, err := p.expect(lexer.TokenRBracket); err != nil {
+					return nil, err
+				}
+				specs = append(specs, spec)
+			case p.peekType() == lexer.TokenKeyword && p.peek().Text == "as":
+				if len(specs) == vecStart || specs[len(specs)-1].alias != "" {
+					return nil, p.errorf(":as without a preceding %s path", clause)
+				}
+				alias, err := p.parseAsAlias()
+				if err != nil {
+					return nil, err
+				}
+				specs[len(specs)-1].alias = alias
+			default:
+				pathTok, err := p.expect(lexer.TokenSymbol)
+				if err != nil {
+					return nil, err
+				}
+				specs = append(specs, pathAlias{path: pathTok.Text})
 			}
-			if _, err := p.expect(lexer.TokenRBracket); err != nil {
-				return nil, err
-			}
-			specs = append(specs, spec)
-		} else {
-			pathTok, err := p.expect(lexer.TokenSymbol)
-			if err != nil {
-				return nil, err
-			}
-			specs = append(specs, ast.RequireSpec{Path: pathTok.Text})
+		}
+		if _, err := p.expect(lexer.TokenRBracket); err != nil {
+			return nil, err
 		}
 	}
-	if _, err := p.expect(lexer.TokenRBracket); err != nil {
-		return nil, err
-	}
 	return specs, nil
+}
+
+// parseAsAlias consumes a `:as alias` pair (the caller has verified :as is
+// next) and returns the alias name.
+func (p *parser) parseAsAlias() (string, error) {
+	if p.peekType() != lexer.TokenKeyword || p.peek().Text != "as" {
+		return "", nil
+	}
+	p.advance()
+	aliasTok, err := p.expect(lexer.TokenSymbol)
+	if err != nil {
+		return "", err
+	}
+	return aliasTok.Text, nil
 }
 
 func (p *parser) parseDef(pos ast.Position) (*ast.DefDecl, error) {

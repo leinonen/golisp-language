@@ -1,6 +1,10 @@
 # ADR-009: Database integration — postgres first
 
-**Status**: Accepted (planned, not yet implemented)
+**Status**: Superseded by [ADR-014](ADR-014-database-out-of-language-scope.md).
+Database access is no longer a language feature — it is delivered opt-in via
+packages (e.g. a `glispdb` wrapper over `pgx`). The decision below is retained
+for historical context; the built-in `db/*` forms and query builder it proposed
+were never implemented and will not be.
 
 ## Context
 

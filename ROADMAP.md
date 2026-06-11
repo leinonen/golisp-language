@@ -218,28 +218,24 @@ The AST node `SetLit` exists; needs transpiler wiring and runtime helpers.
 
 ---
 
-## Phase 8 — Database
+## Phase 8 — Database (out of language scope — delivered via packages)
 
-Postgres-first. Rows returned as `[]map[string]any`, natural fit for glisp's map-centric data model. See ADR-009.
+**Database access is not a language feature.** Per [ADR-014](docs/adr/ADR-014-database-out-of-language-scope.md)
+(superseding ADR-009), the transpiler ships no `db/*` forms, no query builder,
+and no `glisp migrate` subcommand. A database is an opt-in package dependency,
+consumed with the Go-interop primitives the language already has.
 
-### 8a. Connection & basic ops
-- [ ] `db/connect` — `(db/connect url)` → connection pool via `pgx`; returns `[conn error]`
-- [ ] `db/query` — `(db/query conn sql args)` → `[rows error]` where rows is `[]map[string]any`
-- [ ] `db/query-one` — `(db/query-one conn sql args)` → `[row error]` — single row or error
-- [ ] `db/exec` — `(db/exec conn sql args)` → `[result error]`
-- [ ] `db/transaction` — `(db/transaction conn (fn [tx] ...))` — auto-rollback on error/panic
+The enabling work is **done** (see `docs/go-interop-exploration.md`): `glisp get`
+fetches Go packages, `go-require` wires them into a derived `go.mod`, and
+`_glispToSlice` accepts `[]map[string]any` so driver rows flow straight into
+`map`/`filter`/`group-by`/`select-keys`.
 
-### 8b. Query builder (HoneySQL-inspired)
-Map-based query construction; compiles to parameterized SQL.
-
-- [ ] `(db/select [:id :name] :from :users :where [:= :id id])` — SELECT
-- [ ] `(db/insert :users {:name "Alice" :email "a@b.com"})` — INSERT
-- [ ] `(db/update :users {:name "Bob"} [:= :id id])` — UPDATE
-- [ ] `(db/delete :users [:= :id id])` — DELETE
-
-### 8c. Migrations
-- [ ] `glisp migrate up` / `glisp migrate down` — wraps `goose` or `golang-migrate`
-- [ ] Migration files as plain SQL in `migrations/`
+- [x] Use a Go driver directly — `(:import [github.com/jackc/pgx/v5])` + `(.Method …)` / `(as *pgx/Conn v)`
+- [x] Or a glisp wrapper module — `(:require [...])` over a driver (reference: `github.com/leinonen/glispdb`)
+- [x] Rows as `[]map[string]any` — a library convention, not a language one
+- [ ] ~~`db/connect` / `db/query` / `db/exec` / `db/transaction`~~ — won't do (ADR-014)
+- [ ] ~~HoneySQL-style query builder (`db/select`, `db/insert`, …)~~ — won't do (ADR-014)
+- [ ] ~~`glisp migrate` subcommand~~ — won't do; use plain SQL + `goose`/`golang-migrate` from a package or script
 
 ---
 
@@ -335,7 +331,7 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 11 | **6d: `as->` / `doto` / `with-open`** | Ergonomics and Go builder-API interop |
 | 12 | **7b: `group-by` / `zipmap` / `partition` / `frequencies` / `rename-keys`** | Fill remaining collection gaps |
 | 13 | **4c: Source maps** | Debug Go panics in `.glsp` terms |
-| 14 | **8: Database (postgres)** | Next major capability unlock for real applications |
+| 14 | ~~**8: Database (postgres)**~~ | Out of language scope — opt-in via packages (ADR-014) |
 | 15 | ~~**8.5: Concurrency ergonomics**~~ ✓ | `go-val`, `par`, `for-chan`, `recv-ok!`, `with-lock`, `:timeout` in `select!` |
 | 16 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, `assert`, `case`) | Joy and debugging power |
 | 17 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |

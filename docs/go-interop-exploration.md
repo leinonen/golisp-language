@@ -1,6 +1,7 @@
 # Exploration: frictionless interop with the Go package ecosystem
 
-**Status**: Exploration (input for a future ADR-014)
+**Status**: Exploration (input for a future ADR-014). **P1–P5 implemented** —
+see the status notes in §2 and §6.
 **Date**: 2026-06-10
 
 glisp's pitch is "write Clojure-shaped code, ship a single static Go binary"
@@ -53,10 +54,15 @@ End-to-end, this works today (after manual `go.mod` setup, see §3.1):
 
 ## 2. Verified defects
 
-> **Status update**: §2.1–2.3 and §2.5 are fixed on this branch (qualifier
-> resolution incl. `/vN` and `:as`, Clojure-shaped import clauses, the
-> `context` import, and the CLAUDE.md example). §2.4 (`go.mod` self-healing)
-> is part of the P2 proposal and still open.
+> **Status update**: §2.1–2.3 and §2.5 are fixed (qualifier resolution incl.
+> `/vN` and `:as`, Clojure-shaped import clauses, the `context` import, and the
+> CLAUDE.md example). §2.4 is fixed: `glisp mod init` now writes both
+> `glisp.mod` and `go.mod`, and `glisp build`/`run`/`get` derive `go.mod` from
+> `glisp.mod` (P2, `module.EnsureProjectGoMod`). §3.1 (`glisp get` for Go
+> packages, app-level `go-require` propagation) and §3.3 (multi-segment stdlib
+> auto-import + unknown-qualifier diagnostic, P4) are also implemented. A CI
+> guardrail (`TestGoldenCompiles`, P5) now `go vet`s every golden for
+> import-emission defects.
 
 Each of these was reproduced with a freshly built `glisp` binary. They are
 ordinary bugs — fixable independently of any design change — but every one of
@@ -336,14 +342,15 @@ Per the ADR-012 charter, these were considered and *not* proposed:
 
 ## 6. Suggested sequencing
 
-| Step | Scope | Risk |
-|---|---|---|
-| P3 bug cluster (§2.1–2.3, alias parsing, golden-compile check) | small, isolated | low |
-| P2 self-healing `go.mod` (+ `mod init` writes both files) | `compiler.go`, `modfile.go` | low |
-| P1 `glisp get` for Go packages | `resolver.go`, `main.go` | medium |
-| P4 unknown-qualifier diagnostic + stdlib map | transpiler | medium |
-| P5 error-message and doc fixes | trivial | none |
+| Step | Scope | Risk | Status |
+|---|---|---|---|
+| P3 bug cluster (§2.1–2.3, alias parsing) | small, isolated | low | ✅ done |
+| P5 golden-compile check (CI guardrail) | `transpiler` test | low | ✅ done |
+| P2 self-healing `go.mod` (+ `mod init` writes both files) | `compiler.go`, `resolver.go` | low | ✅ done |
+| P1 `glisp get` for Go packages | `compiler.go`, `resolver.go`, `main.go` | medium | ✅ done |
+| P4 unknown-qualifier diagnostic + stdlib map | transpiler | medium | ✅ done |
 
 P3+P2+P5 alone would make every pattern currently documented in CLAUDE.md
 actually work end-to-end; P1 makes the ecosystem feel native; P4 closes the
-last common raw-Go failure mode.
+last common raw-Go failure mode. P4.5's `buildError` message hints (suggest
+`(.-Field obj)` / `if-err` from raw Go errors) remain as a small follow-up.

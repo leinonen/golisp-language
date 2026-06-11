@@ -10,6 +10,9 @@ Clojure-style S-expression language that transpiles to Go.
   (fmt/println (greet "World")))
 ```
 
+`.glsp` files compile to Go source, then to a statically-linked binary via standard
+`go build` — no runtime, no external dependencies.
+
 ## Install
 
 ```
@@ -30,80 +33,41 @@ glisp test    file.glsp         # run deftest cases
 glisp doc     [name]            # show built-in docs (all if no name)
 ```
 
-## Syntax highlights
+## Syntax at a glance
 
 ```clojure
 ; Positional types — name then type in params, -> for return type
 (defn add [a int b int] -> int (+ a b))
 (defn parse [s string] -> [string error] (values s nil))  ; multi-return
-(defn handler [req web/Request] -> web/Response ...)       ; package-qualified
 
-; Named types (deftype)
-(deftype UserId int)
-(deftype Email string)
-(defn send-email [to Email] -> error ...)
-
-; Typed let and loop bindings — annotation goes right after the name
-(let [name string "Alice"
-      xs   []int  [1 2 3]]
+; Typed let/loop bindings — annotation goes right after the name
+(let [name string "Alice"  xs []int [1 2 3]]
   (str name " has " (len xs) " items"))
 
-(loop [i   int 0
-       acc []string []]        ; typed bindings, no any-boxing
-  (if (>= i 5)
-    acc
-    (recur (+ i 1) (conj acc (str i)))))
-
-; Typed collection literals — annotation propagates to literal
-(def months []string ["Jan" "Feb" "Mar"])
-(def scores map[string]int {"alice" 95 "bob" 80})
-
 ; Control flow
-(if cond then else)
 (cond (= x 1) "one"  (= x 2) "two"  :else "other")
-(let [x 1  y (+ x 1)] (* x y))
 (loop [i 0] (if (>= i 10) i (recur (+ i 1))))
 
-; Anonymous functions
-(fn [x] (+ x 1))
-(map (fn [x] (* x 2)) xs)  ; common with map/filter/reduce
+; Anonymous functions, collections, sets, strings, maps
+(map (fn [x] (* x 2)) xs)
+(filter even? (range 10))
+#{1 2 3}
 
-; Collections: map, filter, reduce, range, take, drop, sort-by, flatten
-; Sets:        #{1 2 3}, conj, contains?, union, intersection, difference
-; Strings:     str, upper-case, lower-case, trim, split, join, replace
-; Maps:        get, assoc, dissoc, merge, keys, vals, contains?
-
-; Structs, interfaces, methods
+; Structs, interfaces, methods — with dot-free dispatch on typed values
 (defstruct Circle radius float64)
 (defmethod Circle Area [c] -> float64 (* math/pi (:radius c) (:radius c)))
-(area c)          ; dot-free dispatch on typed values → c.Area()
-(:radius c)       ; keyword field access on typed values → c.Radius
-
-; Go interop (for any/external values the transpiler can't type)
-(go (fmt/println "async"))
-(defer (fmt/println "cleanup"))
-(let [ch (chan int 1)] (send! ch 42) (recv! ch))
-(.Write w data)   ; method call
-(.-Field obj)     ; field access
+(area c)          ; → c.Area()
+(:radius c)       ; → c.Radius
 
 ; Concurrency
-(def result (go-val string (compute-name x)))  ; future → chan string (typed)
-(recv! result)                                  ; block for result — type-safe
-
-(par                      ; parallel + WaitGroup
-  (init-cache)
-  (connect-db))
-
-(for-chan [msg ch]        ; range until closed
-  (process msg))
-
-(with-lock mu             ; mutex critical section
-  (fmt/println "safe"))
-
-(select!                  ; select with timeout
-  ([msg ch] (handle msg))
-  (:timeout 1000 (fmt/println "timed out")))
+(def result (go-val string (compute-name x)))  ; future → typed channel
+(par (init-cache) (connect-db))                ; parallel + WaitGroup
+(for-chan [msg ch] (process msg))              ; range until closed
+(with-lock mu (fmt/println "safe"))            ; mutex critical section
 ```
+
+See [`docs/builtins.md`](docs/builtins.md) and [`docs/stdlib.md`](docs/stdlib.md) for the
+full reference.
 
 ## Web servers
 
@@ -116,174 +80,23 @@ Handlers are `Request → Response` (both aliases for `map[string]any`).
   (web/json-response 200 {"message" "hello"}))
 
 (defn main []
-  (fmt/println "Listening on :3000")
   (web/serve-graceful ":3000"
     (web/wrap
-      (web/routes
-        (web/get "/" handler))
+      (web/routes (web/get "/" handler))
       web/wrap-logging
       web/wrap-cors
       web/wrap-json)))
 ```
 
-## Docker packaging
-
-`glisp build` produces a statically-linked binary with no external dependencies, so it runs in a `scratch` image.
-
-```dockerfile
-# Build stage
-FROM golang:1.23-alpine AS builder
-
-RUN apk add --no-cache git && \
-    go install github.com/leinonen/golisp-language/cmd/glisp@latest
-
-WORKDIR /app
-COPY . .
-
-# Produces a statically-linked binary
-RUN CGO_ENABLED=0 glisp build src/
-
-# Runtime stage — zero OS overhead
-FROM scratch
-COPY --from=builder /app/src /app
-ENTRYPOINT ["/app/src"]
-```
-
-Build and run:
-
-```
-docker build -t myapp .
-docker run -p 3000:3000 myapp
-```
-
-The final image contains only your binary. Typical size: 8–15 MB.
-
-### Multi-file projects
-
-For a directory build (`glisp build dir/`) the output binary name matches the directory name:
-
-```dockerfile
-RUN CGO_ENABLED=0 glisp build api/
-COPY --from=builder /app/api /app
-```
-
-### Health checks
-
-`scratch` has no shell, so use the `HEALTHCHECK` exec form with your app's own endpoint:
-
-```dockerfile
-HEALTHCHECK --interval=10s --timeout=3s \
-  CMD ["/app/src", "--healthz"]   # implement a /healthz flag in main
-```
-
-Or use a sidecar/external probe and skip the `HEALTHCHECK` entirely.
-
-## Editor support
-
-### Neovim — syntax highlighting
-
-Add the bundled plugin to your runtimepath in `init.lua`:
-
-```lua
-vim.opt.rtp:prepend("/path/to/golisp-language/editors/neovim")
-```
-
-Or with lazy.nvim:
-
-```lua
-{ dir = "/path/to/golisp-language/editors/neovim" }
-```
-
-This gives you filetype detection, `commentstring`, `iskeyword` tuning, and syntax
-highlighting that inherits from Clojure (parens, strings, keywords, comments, core
-special forms) plus glisp-specific rules (positional type names, `defstruct`, `if-err`,
-`send!`, etc.).
-
-### Neovim — LSP (diagnostics + hover)
-
-## LSP (Neovim 0.12+)
-
-`glisp-lsp` is a Language Server that provides diagnostics (parse errors highlighted inline), hover (show `defn`/`def` signatures and web package type definitions like `web/Request`), jump-to-definition, find-references (project-wide, across open and sibling `.glsp` files), a document outline (`documentSymbol`), rename, formatting, and completions.
-
-### Install
-
-```
-go install ./cmd/glisp-lsp
-# or: make install
-```
-
-### Neovim setup
-
-```lua
--- ~/.config/nvim/after/ftplugin/glsp.lua  (or in your init.lua)
-
--- filetype detection
-vim.filetype.add({ extension = { glsp = "glsp" } })
-
--- register and enable the server
-vim.lsp.config["glisp"] = {
-  cmd          = { "glisp-lsp" },
-  filetypes    = { "glsp" },
-  root_markers = { "go.mod", ".git" },
-}
-vim.lsp.enable("glisp")
-```
-
-Diagnostics appear automatically as you edit. Hover with `K` (default Neovim mapping) over any `defn` or `def` name to see its signature. Jump to definition with `gd`, list all references with `grr`, and open the document outline with `gO` (Neovim 0.11+ defaults). Completions trigger automatically as you type.
-
-## Transpiler architecture
-
-```
-source.glsp → lexer → parser → transpiler → Go source → gofmt → go build → binary
-```
-
-The transpiler lives in `internal/transpiler/` and is split across several files by concern:
-
-| File | Role |
-|---|---|
-| `transpiler.go` | `Emitter` struct, two-pass `emitFile`, import resolution |
-| `emit_decl.go` | Top-level declarations: `def`, `defn`, `defstruct`, `definterface`, `defmethod`, `deftype` |
-| `emit_expr.go` | Expressions: `fn`, `let`, `if`, `cond`, `do`, `loop`/`recur`, built-ins |
-| `emit_concurrency.go` | Concurrency forms: `go`, `chan`, `send!`, `recv!`, `select!`, `par`, `with-lock`, … |
-| `emit_types.go` | Type annotation conversion: `identToGo`, `typeExprToGo`, `qualifiedTypeToGo` |
-| `emit_runtime.go` | Inline Go runtime helpers appended to generated files |
-
-### Two-pass emission
-
-`emitFile` uses two passes to solve a chicken-and-egg problem: Go requires the `import` block at the top of the file, but which packages are needed is only known after emitting all declarations.
-
-1. **Pass 1** — emit all declarations into a scratch `Emitter`. This discovers which packages are needed by setting flags in `builtinImports` and `directImports`.
-2. **Pass 2** — write `package …` and `import (…)` into the real buffer using the discovered sets, then append the pass-1 output.
-
-### Import tracking
-
-The emitter maintains two import sets:
-
-- **`builtinImports`** — set by `needImport("pkg")` inside built-in form handlers (e.g. `needImport("sort")` when `sort-by` is used). Used to gate which runtime helper blocks are appended.
-- **`directImports`** — set when the user writes a qualified symbol directly (`fmt/println` → adds `"fmt"`). Always emitted unconditionally.
-
-Stdlib packages never require a user `(:import […])` declaration — the emitter adds them automatically. `(:import […])` in an `ns` form is only needed for external Go module packages (`golisp/web`, `github.com/jackc/pgx/v5`, etc.).
-
-### Statement vs expression position
-
-Most forms (`let`, `if`, `cond`, `do`, `when`) can appear in both positions:
-
-- **Statement position** — emitted as plain Go blocks via `emitStmtNode`.
-- **Expression position** — wrapped in an immediately-invoked function literal `func() any { … }()` so the form produces a value.
-
-The emitter tracks position through the call stack: top-level body statements go through `emitStmtNode`; anything used as an argument or binding RHS goes through `emitExpr`.
-
-### Runtime helpers
-
-Every generated file ends with inline Go helper functions (`_glispGet`, `_glispAssoc`, `_glispConj`, `_glispReduce`, etc.) that implement glisp's dynamic collection semantics. Conditional blocks (`glispSortRuntime`, `glispStrRuntime`, etc.) are appended only when the corresponding built-ins are actually used, keeping output lean.
-
-For directory builds (`glisp build dir/`) the helpers are emitted once into a shared `glisp_runtime.go` file instead of duplicated in every file. Individual files are transpiled with `TranspileNoRuntime` which omits the helpers.
-
 ## Documentation
 
 - [`docs/builtins.md`](docs/builtins.md) — all built-in forms and functions
-- [`docs/stdlib.md`](docs/stdlib.md) — standard library reference
+- [`docs/stdlib.md`](docs/stdlib.md) — standard library / package reference
+- [`docs/architecture.md`](docs/architecture.md) — how the transpiler works
+- [`docs/deployment.md`](docs/deployment.md) — Docker packaging (`scratch` images)
+- [`docs/editor-setup.md`](docs/editor-setup.md) — Neovim syntax highlighting + LSP
 - [`docs/adr/`](docs/adr/) — architecture decision records
+- [`ROADMAP.md`](ROADMAP.md) — planned features
 
 ## Examples
 

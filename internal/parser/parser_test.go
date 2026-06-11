@@ -228,6 +228,68 @@ func TestParseNS(t *testing.T) {
 	}
 }
 
+func TestParseNSImportForms(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want []ast.ImportSpec
+	}{
+		{
+			name: "bare paths in one vector",
+			src:  `(ns m (:import [net/http fmt]))`,
+			want: []ast.ImportSpec{{Path: "net/http"}, {Path: "fmt"}},
+		},
+		{
+			name: "one vector per path",
+			src:  `(ns m (:import [context] [github.com/google/uuid]))`,
+			want: []ast.ImportSpec{{Path: "context"}, {Path: "github.com/google/uuid"}},
+		},
+		{
+			name: "alias inside the vector",
+			src:  `(ns m (:import [github.com/jackc/pgx/v5 :as pgx]))`,
+			want: []ast.ImportSpec{{Path: "github.com/jackc/pgx/v5", Alias: "pgx"}},
+		},
+		{
+			name: "nested alias vector",
+			src:  `(ns m (:import [context [github.com/jackc/pgx/v5 :as pgx]]))`,
+			want: []ast.ImportSpec{{Path: "context"}, {Path: "github.com/jackc/pgx/v5", Alias: "pgx"}},
+		},
+		{
+			name: "alias applies to preceding path",
+			src:  `(ns m (:import [context github.com/google/uuid :as id]))`,
+			want: []ast.ImportSpec{{Path: "context"}, {Path: "github.com/google/uuid", Alias: "id"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodes := mustParse(t, tt.src)
+			ns, ok := nodes[0].(*ast.NSDecl)
+			if !ok {
+				t.Fatalf("got %T, want *ast.NSDecl", nodes[0])
+			}
+			if len(ns.Imports) != len(tt.want) {
+				t.Fatalf("imports: got %v, want %v", ns.Imports, tt.want)
+			}
+			for i, w := range tt.want {
+				if ns.Imports[i] != w {
+					t.Errorf("import %d: got %+v, want %+v", i, ns.Imports[i], w)
+				}
+			}
+		})
+	}
+}
+
+func TestParseNSImportErrors(t *testing.T) {
+	for _, src := range []string{
+		`(ns m (:import [:as pgx]))`,
+		`(ns m (:import [a :as x :as y]))`,
+	} {
+		if _, err := ParseString(src); err == nil {
+			t.Errorf("expected parse error for %s", src)
+		}
+	}
+}
+
 func TestParseLoop(t *testing.T) {
 	nodes := mustParse(t, `(loop [i 0 acc []] (if (>= i 10) acc (recur (+ i 1) (conj acc i))))`)
 	lo, ok := nodes[0].(*ast.LoopExpr)

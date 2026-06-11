@@ -53,6 +53,11 @@ End-to-end, this works today (after manual `go.mod` setup, see §3.1):
 
 ## 2. Verified defects
 
+> **Status update**: §2.1–2.3 and §2.5 are fixed on this branch (qualifier
+> resolution incl. `/vN` and `:as`, Clojure-shaped import clauses, the
+> `context` import, and the CLAUDE.md example). §2.4 (`go.mod` self-healing)
+> is part of the P2 proposal and still open.
+
 Each of these was reproduced with a freshly built `glisp` binary. They are
 ordinary bugs — fixable independently of any design change — but every one of
 them lands the user in raw Go errors or invalid generated Go, violating

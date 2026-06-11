@@ -626,8 +626,25 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(ns main (:import [fmt]) (:require [github.com/user/lib])) (defn f [] (fmt/println (lib/greet "World")))`,
 			wantSub: `"fmt"`,
 		},
+		// ns :import — external Go packages
+		{
+			name:    "ns import vN module path",
+			src:     `(ns db (:import [github.com/jackc/pgx/v5])) (defn f [c any] (pgx/connect c "url"))`,
+			wantSub: `"github.com/jackc/pgx/v5"`,
+		},
+		{
+			name:    "ns import alias in vector",
+			src:     `(ns m (:import [github.com/mattn/go-sqlite3 :as sqlite])) (defn f [] (sqlite/version))`,
+			wantSub: `sqlite "github.com/mattn/go-sqlite3"`,
+		},
+		{
+			name:    "ns import one vector per path",
+			src:     `(ns m (:import [context] [github.com/google/uuid])) (defn f [] (uuid/new-string))`,
+			wantSub: `"github.com/google/uuid"`,
+		},
 		// context propagation
 		{name: "ctx-background", src: `(defn f [] (ctx/background))`, wantSub: "context.Background()"},
+		{name: "ctx-background imports context", src: `(defn f [] (ctx/background))`, wantSub: "\"context\""},
 		{name: "ctx-todo", src: `(defn f [] (ctx/todo))`, wantSub: "context.TODO()"},
 		{name: "ctx-with-cancel", src: `(defn f [] (ctx/with-cancel (ctx/background)))`, wantSub: "_glispCtxWithCancel("},
 		{name: "ctx-with-timeout", src: `(defn f [] (ctx/with-timeout (ctx/background) 5000))`, wantSub: "_glispCtxWithTimeout("},
@@ -712,6 +729,67 @@ func TestTranspileSnippets(t *testing.T) {
 				t.Errorf("expected output to contain %q\nfull output:\n%s", tt.wantSub, got)
 			}
 		})
+	}
+}
+
+// TestNoSpuriousQualifierImports guards the qualifier-suppression logic:
+// a pkg/fn call whose qualifier resolves to a declared import (by path
+// segment, /vN convention, or :as alias) must not emit a bare import of
+// the qualifier itself.
+func TestNoSpuriousQualifierImports(t *testing.T) {
+	tests := []struct {
+		name   string
+		src    string
+		banned string
+	}{
+		{
+			name:   "vN module path",
+			src:    `(ns db (:import [github.com/jackc/pgx/v5])) (defn f [c any] (pgx/connect c "url"))`,
+			banned: "\"pgx\"",
+		},
+		{
+			name:   "as alias",
+			src:    `(ns m (:import [github.com/mattn/go-sqlite3 :as sqlite])) (defn f [] (sqlite/version))`,
+			banned: "\"sqlite\"",
+		},
+		{
+			name:   "last path segment",
+			src:    `(ns m (:import [golisp/web])) (defn f [h any] (web/run h 8080))`,
+			banned: "\"web\"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Transpile(tt.src)
+			if err != nil {
+				t.Fatalf("transpile error: %v", err)
+			}
+			if strings.Contains(got, tt.banned) {
+				t.Errorf("output must not contain bare import %s\nfull output:\n%s", tt.banned, got)
+			}
+		})
+	}
+}
+
+func TestPathQualifier(t *testing.T) {
+	tests := []struct {
+		path string
+		want string
+	}{
+		{"fmt", "fmt"},
+		{"net/http", "http"},
+		{"golisp/web", "web"},
+		{"github.com/google/uuid", "uuid"},
+		{"github.com/jackc/pgx/v5", "pgx"},
+		{"github.com/user/lib/v12", "lib"},
+		{"example.com/v1", "v1"},   // v1 is never a version suffix
+		{"example.com/v0", "v0"},   // neither is v0
+		{"example.com/v2x", "v2x"}, // not all digits
+	}
+	for _, tt := range tests {
+		if got := pathQualifier(tt.path); got != tt.want {
+			t.Errorf("pathQualifier(%q) = %q, want %q", tt.path, got, tt.want)
+		}
 	}
 }
 

@@ -168,29 +168,50 @@ func (e *Emitter) needImport(pkg string) {
 	e.builtinImports[pkg] = true
 }
 
-// isModuleAlias returns true if alias matches the last path segment of any
-// user-declared import or require (e.g. "web" matches "golisp/web").
+// isModuleAlias returns true if alias matches the Go package qualifier of any
+// user-declared import or require — either an explicit :as alias or the
+// qualifier derived from the path (e.g. "web" for "golisp/web", "pgx" for
+// "github.com/jackc/pgx/v5").
 // Used to avoid emitting a bare import "web" when the real path is "golisp/web".
 func (e *Emitter) isModuleAlias(alias string) bool {
 	for _, imp := range e.imports {
-		seg := imp.Path
-		if idx := strings.LastIndex(imp.Path, "/"); idx >= 0 {
-			seg = imp.Path[idx+1:]
-		}
-		if seg == alias {
+		if imp.Alias == alias || pathQualifier(imp.Path) == alias {
 			return true
 		}
 	}
 	for _, req := range e.requires {
-		seg := req.Path
-		if idx := strings.LastIndex(req.Path, "/"); idx >= 0 {
-			seg = req.Path[idx+1:]
-		}
-		if seg == alias {
+		if req.Alias == alias || pathQualifier(req.Path) == alias {
 			return true
 		}
 	}
 	return false
+}
+
+// pathQualifier returns the default Go package qualifier for an import path:
+// the last path segment, or the one before it when the last segment is a
+// major-version suffix per the Go module convention
+// ("github.com/jackc/pgx/v5" → "pgx").
+func pathQualifier(path string) string {
+	segs := strings.Split(path, "/")
+	last := segs[len(segs)-1]
+	if len(segs) >= 2 && isMajorVersionSegment(last) {
+		last = segs[len(segs)-2]
+	}
+	return last
+}
+
+// isMajorVersionSegment reports whether s is a Go module major-version path
+// segment: v2, v3, ... (v0/v1 never appear as path suffixes per the convention).
+func isMajorVersionSegment(s string) bool {
+	if len(s) < 2 || s[0] != 'v' || s[1] == '0' || s == "v1" {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func newEmitter() *Emitter {
@@ -400,7 +421,7 @@ func (e *Emitter) emitImports() error {
 	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
 	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
 	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true, "regexp": true}
-	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog"} {
+	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
 				continue

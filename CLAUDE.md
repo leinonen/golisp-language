@@ -218,7 +218,7 @@ require (
   (:import [golisp/web])
   (:require [github.com/user/mathlib]))
 ```
-The qualifier in glisp code is the last path segment: `(mathlib/add 3 4)`.
+The qualifier in glisp code is the last path segment: `(mathlib/add 3 4)`. A trailing Go major-version segment is skipped (`github.com/jackc/pgx/v5` → qualifier `pgx`), and an explicit alias may be given with `:as` — `(:import [github.com/mattn/go-sqlite3 :as sqlite])`. Both clauses accept bare paths in one vector, one vector per path, and nested `[path :as alias]` vectors interchangeably (parsed by `parseSpecList` in `parser.go`; qualifier matching in `isModuleAlias`/`pathQualifier` in `transpiler.go`).
 
 **Export convention** — library modules must use PascalCase names for exported functions:
 ```clojure
@@ -258,15 +258,14 @@ go-require (
 In the module's `.glsp` files, import the Go package via `:import` (not `:require` — that's for glisp modules):
 ```clojure
 (ns db
-  (:import [context]
-           [github.com/jackc/pgx/v5]))
+  (:import [github.com/jackc/pgx/v5]))
 
 (defn Connect [url string] -> [any error]
-  (pgx/connect context/background url))
+  (pgx/connect (ctx/background) url))
 
 (defn Exec [conn any sql string] -> [any error]
   (let [typed (as *pgx/Conn conn)]
-    (.Exec typed context/background sql)))
+    (.Exec typed (ctx/background) sql)))
 ```
 
 Key rules for Go-wrapping modules:

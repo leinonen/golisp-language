@@ -896,28 +896,6 @@ func (e *Emitter) emitAssertGuard(n *ast.CallExpr) error {
 	return nil
 }
 
-// caseCallToSwitch rewrites a Clojure-style (case expr v1 b1 ... default?) call
-// into a SwitchExpr, so case reuses switch's value/statement/return emission. A
-// trailing unpaired arg is the default clause (no :default keyword).
-func caseCallToSwitch(n *ast.CallExpr) (*ast.SwitchExpr, error) {
-	if len(n.Args) < 2 {
-		return nil, fmt.Errorf("case expects an expr and at least one clause or default (at %s)", n.Pos())
-	}
-	expr := n.Args[0]
-	rest := n.Args[1:]
-	var cases []ast.SwitchCase
-	var def ast.Node
-	for i := 0; i < len(rest); {
-		if i == len(rest)-1 { // lone trailing arg → default
-			def = rest[i]
-			break
-		}
-		cases = append(cases, ast.SwitchCase{Value: rest[i], Body: rest[i+1]})
-		i += 2
-	}
-	return ast.NewSwitchExpr(n.Pos(), expr, cases, def), nil
-}
-
 // emitSwitchExpr emits a switch expression (IIFE wrapper for expression position).
 func (e *Emitter) emitSwitchExpr(n *ast.SwitchExpr) error {
 	e.write("func() any {")
@@ -1297,12 +1275,6 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			}
 			e.write("; return nil }()")
 			return nil
-		case "case":
-			sw, err := caseCallToSwitch(n)
-			if err != nil {
-				return err
-			}
-			return e.emitSwitchExpr(sw)
 		case "os/env":
 			e.needImport("os")
 			if e.emitRuntime {

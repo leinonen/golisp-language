@@ -383,9 +383,11 @@ func NewCondExpr(pos Position, clauses []CondClause, def Node) *CondExpr {
 	return &CondExpr{Pos_: pos, Clauses: clauses, Default: def}
 }
 
-// SwitchExpr: (switch expr val1 body1 ... :default body). The Clojure-style
-// (case expr val1 body1 ... default) alias is parsed as a plain CallExpr and
-// rewritten into this node at emit time (see caseCallToSwitch).
+// SwitchExpr: (switch expr val1 body1 ... :default body) or the Clojure-style
+// alias (case expr val1 body1 ... default). Head ("switch"/"case") records the
+// surface form so the formatter round-trips it — switch spells the fallback as
+// `:default body`, case as a trailing unpaired `body` — while both share one
+// emitter and one (switch-style) layout.
 type SwitchCase struct {
 	Value Node
 	Body  Node
@@ -393,6 +395,7 @@ type SwitchCase struct {
 
 type SwitchExpr struct {
 	Pos_    Position
+	Head    string // "switch" or "case"
 	Expr    Node
 	Cases   []SwitchCase
 	Default Node
@@ -400,8 +403,8 @@ type SwitchExpr struct {
 
 func (n *SwitchExpr) nodeMarker()   {}
 func (n *SwitchExpr) Pos() Position { return n.Pos_ }
-func NewSwitchExpr(pos Position, expr Node, cases []SwitchCase, def Node) *SwitchExpr {
-	return &SwitchExpr{Pos_: pos, Expr: expr, Cases: cases, Default: def}
+func NewSwitchExpr(pos Position, head string, expr Node, cases []SwitchCase, def Node) *SwitchExpr {
+	return &SwitchExpr{Pos_: pos, Head: head, Expr: expr, Cases: cases, Default: def}
 }
 
 // DoExpr: (do body...)

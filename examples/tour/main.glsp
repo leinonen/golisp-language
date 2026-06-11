@@ -39,7 +39,11 @@
 ; unpaired form instead of :default. Both compile to a Go switch.
 ;;; Names a small integer, or "many" for anything else.
 (defn count-word [n int] -> string
-  (case n 0 "none" 1 "one" 2 "two" "many"))
+  (case n
+    0 "none"
+    1 "one"
+    2 "two"
+    "many"))
 
 ; --- Truthiness ---
 ; nil and false are falsy; every other value is truthy (ADR-011).

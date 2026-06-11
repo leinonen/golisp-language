@@ -69,7 +69,7 @@ var builtinArity = map[string][2]int{
 	"union": {2, 2}, "intersection": {2, 2}, "difference": {2, 2},
 
 	// effectful built-ins
-	"panic": {1, 1}, "recover": {0, 0}, "assert": {1, 2}, "case": {2, -1},
+	"panic": {1, 1}, "recover": {0, 0}, "assert": {1, 2},
 	"os/env":      {1, 2},
 	"json/encode": {1, 1}, "json/decode": {1, 1},
 	"http/get": {1, 2}, "http/post": {2, 3}, "http/put": {2, 3},

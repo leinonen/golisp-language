@@ -559,12 +559,21 @@ func inline(n ast.Node) string {
 		}
 		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.SwitchExpr:
-		parts := []string{"switch", inline(v.Expr)}
+		head := v.Head
+		if head == "" {
+			head = "switch"
+		}
+		parts := []string{head, inline(v.Expr)}
 		for _, sc := range v.Cases {
 			parts = append(parts, inline(sc.Value), inline(sc.Body))
 		}
 		if v.Default != nil {
-			parts = append(parts, ":default", inline(v.Default))
+			// switch spells the fallback `:default body`; case as a trailing body.
+			if head == "case" {
+				parts = append(parts, inline(v.Default))
+			} else {
+				parts = append(parts, ":default", inline(v.Default))
+			}
 		}
 		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.DoExpr:
@@ -944,7 +953,6 @@ const alignThreshold = maxLine / 2
 // gets its own line.
 var pairForms = map[string]bool{
 	"assoc":   true,
-	"case":    true,
 	"cond->":  true,
 	"cond->>": true,
 }
@@ -1292,8 +1300,12 @@ func (c *cfmt) formatCond(v *ast.CondExpr, indent int) string {
 }
 
 func (c *cfmt) formatSwitch(v *ast.SwitchExpr, indent int) string {
+	head := v.Head
+	if head == "" {
+		head = "switch"
+	}
 	var sb strings.Builder
-	sb.WriteString(ind(indent) + "(switch " + inline(v.Expr))
+	sb.WriteString(ind(indent) + "(" + head + " " + inline(v.Expr))
 	for _, sc := range v.Cases {
 		valStr := inline(sc.Value)
 		bodyStr := inline(sc.Body)
@@ -1307,12 +1319,22 @@ func (c *cfmt) formatSwitch(v *ast.SwitchExpr, indent int) string {
 	}
 	if v.Default != nil {
 		defStr := inline(v.Default)
-		combined := ind(indent+1) + ":default " + defStr
-		sb.WriteString("\n" + ind(indent+1) + ":default")
-		if len(combined) <= maxLine {
-			sb.WriteString(" " + defStr)
+		// switch spells the fallback as a `:default` clause; case as a trailing
+		// unpaired body (Clojure style). Both hang 2 spaces under the head.
+		if head == "case" {
+			if len(ind(indent+1)+defStr) <= maxLine {
+				sb.WriteString("\n" + ind(indent+1) + defStr)
+			} else {
+				sb.WriteString("\n" + c.format(v.Default, indent+1))
+			}
 		} else {
-			sb.WriteString("\n" + c.format(v.Default, indent+2))
+			combined := ind(indent+1) + ":default " + defStr
+			sb.WriteString("\n" + ind(indent+1) + ":default")
+			if len(combined) <= maxLine {
+				sb.WriteString(" " + defStr)
+			} else {
+				sb.WriteString("\n" + c.format(v.Default, indent+2))
+			}
 		}
 	}
 	sb.WriteString(")")

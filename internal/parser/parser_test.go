@@ -290,6 +290,30 @@ func TestParseNSImportErrors(t *testing.T) {
 	}
 }
 
+func TestParseCase(t *testing.T) {
+	// case parses into a SwitchExpr with Head "case"; a trailing unpaired form
+	// is the default.
+	nodes := mustParse(t, `(case n 0 "zero" 1 "one" "many")`)
+	sw, ok := nodes[0].(*ast.SwitchExpr)
+	if !ok {
+		t.Fatalf("got %T, want *ast.SwitchExpr", nodes[0])
+	}
+	if sw.Head != "case" {
+		t.Errorf("Head: got %q, want \"case\"", sw.Head)
+	}
+	if len(sw.Cases) != 2 {
+		t.Errorf("cases: got %d, want 2", len(sw.Cases))
+	}
+	if sw.Default == nil {
+		t.Error("expected a trailing default")
+	}
+
+	// A degenerate (case x) with no clauses or default is a parse error.
+	if _, err := ParseString(`(case n)`); err == nil {
+		t.Error("expected parse error for (case n) with no clauses or default")
+	}
+}
+
 func TestParseLoop(t *testing.T) {
 	nodes := mustParse(t, `(loop [i 0 acc []] (if (>= i 10) acc (recur (+ i 1) (conj acc i))))`)
 	lo, ok := nodes[0].(*ast.LoopExpr)

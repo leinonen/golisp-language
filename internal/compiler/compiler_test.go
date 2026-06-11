@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -9,6 +10,28 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestIsNotGlispModuleErr(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"no glsp files", errors.New("transpile x: no .glsp files found in /tmp/x"), true},
+		{"404 release", errors.New("download https://github.com/google/uuid/...latest.tar.gz: HTTP 404"), true},
+		{"unsupported host", errors.New("unsupported module host (only github.com supported): gitlab.com/foo/bar"), true},
+		{"transient network", errors.New("download ...: dial tcp: i/o timeout"), false},
+		{"real glisp error", errors.New("parse error: unexpected token"), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := IsNotGlispModuleErr(c.err); got != c.want {
+				t.Errorf("IsNotGlispModuleErr(%v) = %v, want %v", c.err, got, c.want)
+			}
+		})
+	}
+}
 
 func TestBuildError(t *testing.T) {
 	cases := []struct {

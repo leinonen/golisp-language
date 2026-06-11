@@ -144,6 +144,33 @@ func ProjectReplaceValid(projectDir, modulePath string) bool {
 	return err == nil && info.IsDir()
 }
 
+// RequireVersion returns the version the project's go.mod requires for path,
+// or "" if there is no such require (or go.mod can't be read). Used to read back
+// the concrete version `go get` resolved for a Go dependency.
+func RequireVersion(projectDir, path string) string {
+	cmd := exec.Command("go", "mod", "edit", "-json")
+	cmd.Dir = projectDir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	var gm struct {
+		Require []struct {
+			Path    string
+			Version string
+		}
+	}
+	if err := json.Unmarshal(out, &gm); err != nil {
+		return ""
+	}
+	for _, r := range gm.Require {
+		if r.Path == path {
+			return r.Version
+		}
+	}
+	return ""
+}
+
 // projectReplaceTarget returns the path the project's go.mod maps modulePath to
 // via a replace directive, or "" if there is none (or go.mod can't be read).
 func projectReplaceTarget(projectDir, modulePath string) string {

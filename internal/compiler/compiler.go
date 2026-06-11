@@ -233,6 +233,38 @@ func GetModule(projectDir, modulePath, version string) error {
 	return nil
 }
 
+// GetGoPackage fetches a Go package into the project with `go get`, inheriting
+// the Go toolchain's proxy, checksum database, GOPRIVATE auth, and semver/@latest
+// resolution (none of which the GitHub-tarball glisp-module path supports). It
+// returns the concrete version `go get` resolved, read back from go.mod.
+// go.mod must already exist (see module.EnsureProjectGoMod).
+func GetGoPackage(projectDir, pkg, version string) (string, error) {
+	ref := pkg + "@latest"
+	if version != "" && version != "latest" {
+		ref = pkg + "@" + version
+	}
+	cmd := exec.Command("go", "get", ref)
+	cmd.Dir = projectDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("go get %s: %w\n%s", ref, err, out)
+	}
+	return module.RequireVersion(projectDir, pkg), nil
+}
+
+// IsNotGlispModuleErr reports whether a GetModule failure indicates the target
+// is not a glisp module (no .glsp files, no fetchable glisp release, or an
+// unsupported host) rather than a transient/real error — i.e. the caller may
+// retry it as a plain Go package via GetGoPackage.
+func IsNotGlispModuleErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "no .glsp files found") ||
+		strings.Contains(s, "HTTP 404") ||
+		strings.Contains(s, "unsupported module host")
+}
+
 // ResolveDeps ensures all requires declared in glisp.mod are downloaded and registered.
 func ResolveDeps(projectDir string) error {
 	mf, err := module.ReadModFile(projectDir)

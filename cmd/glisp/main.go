@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -244,12 +245,16 @@ func docCmd(args []string) {
 }
 
 func getCmd(args []string) {
-	if len(args) < 1 {
+	fs := flag.NewFlagSet("get", flag.ExitOnError)
+	goFlag := fs.Bool("go", false, "fetch the target as a Go package (skip glisp-module resolution)")
+	if err := fs.Parse(args); err != nil {
+		os.Exit(1)
+	}
+	if fs.NArg() < 1 {
 		fmt.Fprintln(os.Stderr, "get: requires <module>[@version]")
 		os.Exit(1)
 	}
-	spec := args[0]
-	modulePath, version, _ := strings.Cut(spec, "@")
+	modulePath, version, _ := strings.Cut(fs.Arg(0), "@")
 	if version == "" {
 		version = "latest"
 	}
@@ -258,17 +263,38 @@ func getCmd(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	// Ensure go.mod exists before GetModule wires the dependency into it.
+
+	// Bootstrap a minimal glisp.mod (and, via EnsureProjectGoMod, go.mod) so
+	// `glisp get` works in a fresh directory and the toolchain can wire the dep.
+	if _, statErr := os.Stat(module.ModFilePath(cwd)); os.IsNotExist(statErr) {
+		if err := module.InitModFile(cwd, filepath.Base(cwd)); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
 	if err := module.EnsureProjectGoMod(cwd); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := compiler.GetModule(cwd, modulePath, version); err != nil {
+
+	// Forced Go-package path, or auto: try glisp module first, fall back to a Go
+	// package when the target clearly isn't a glisp module.
+	if *goFlag {
+		getGoPackage(cwd, modulePath, version)
+		return
+	}
+	err = compiler.GetModule(cwd, modulePath, version)
+	if compiler.IsNotGlispModuleErr(err) {
+		fmt.Fprintf(os.Stderr, "glisp: %s is not a glisp module; fetching as a Go package\n", modulePath)
+		getGoPackage(cwd, modulePath, version)
+		return
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	// Update glisp.mod
+	// Record the glisp module dependency in glisp.mod.
 	mf, err := module.ReadModFile(cwd)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -280,6 +306,31 @@ func getCmd(args []string) {
 		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stdout, "added %s %s\n", modulePath, version)
+}
+
+// getGoPackage fetches a Go package via the Go toolchain and records the
+// resolved version under go-require in glisp.mod (the single source of truth),
+// then exits non-zero on failure.
+func getGoPackage(cwd, pkg, version string) {
+	resolved, err := compiler.GetGoPackage(cwd, pkg, version)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if resolved == "" {
+		resolved = version
+	}
+	mf, err := module.ReadModFile(cwd)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	mf.AddGoRequire(pkg, resolved)
+	if err := module.WriteModFile(cwd, mf); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stdout, "added Go package %s %s\n", pkg, resolved)
 }
 
 func modCmd(args []string) {
@@ -331,7 +382,7 @@ Usage:
   glisp test    <file.glsp>                  compile + run tests
   glisp fmt     [--check]      <file.glsp>   format source in-place (- = stdin→stdout)
   glisp doc     [name]                       show built-in docs (all if no name)
-  glisp get     <module>[@version]           download + register a glisp module
+  glisp get     [-go] <module>[@version]     fetch a glisp module, or a Go package (-go / auto)
   glisp mod     init [module-path]           create glisp.mod for a new module/app
   glisp repl                                 start interactive REPL
   glisp version                              print version`)

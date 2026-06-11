@@ -1,5 +1,6 @@
 glisp
 glisp-lsp
+dist/
 examples/*/*
 !examples/**/*.glsp
 !examples/**/*.mod

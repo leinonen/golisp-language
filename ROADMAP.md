@@ -95,11 +95,11 @@
 ### 4d. Release infrastructure
 Without this, "try glisp" means cloning the repo and running `go build`. Barrier too high for public release.
 
-- [ ] GitHub Actions release workflow — build binaries for linux/mac/windows on tag push
-- [ ] Publish binaries to GitHub Releases (amd64 + arm64 for each OS)
-- [ ] Install script — `curl -sSL https://get.glisp.dev | sh` (or equivalent)
+- [x] GitHub Actions release workflow — build binaries for linux/mac/windows on tag push (`.github/workflows/release.yml`)
+- [x] Publish binaries to GitHub Releases (amd64 + arm64 for each OS) — 6-target matrix + `SHA256SUMS`
+- [x] Install script — `curl -fsSL …/install.sh | sh` (detects OS/arch, verifies checksum)
 - [ ] Homebrew tap — `brew install glisp-lang/tap/glisp`
-- [ ] `glisp version` reports semver tag
+- [x] `glisp version` reports semver tag — ldflags-stamped via `internal/version`, VCS-info fallback; also `make dist` for local cross-compiles
 
 ---
 

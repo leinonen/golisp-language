@@ -82,6 +82,50 @@ func EnsureGoMod(moduleDir, modulePath string, goReqs []GoRequire) error {
 	return nil
 }
 
+// EnsureProjectGoMod makes go.mod a derived artifact of glisp.mod for a project
+// directory. If glisp.mod is present but go.mod is not, it generates go.mod from
+// glisp.mod's module path (falling back to the directory basename when the
+// module line is absent), so a glisp.mod + *.glsp checkout is a sufficient,
+// buildable project. It then syncs every go-require entry from glisp.mod into
+// go.mod, wiring app-level Go dependencies that were previously declared but
+// never propagated. A no-op when glisp.mod is absent.
+func EnsureProjectGoMod(projectDir string) error {
+	if _, err := os.Stat(ModFilePath(projectDir)); os.IsNotExist(err) {
+		return nil
+	}
+	mf, err := ReadModFile(projectDir)
+	if err != nil {
+		return err
+	}
+
+	goModPath := filepath.Join(projectDir, "go.mod")
+	if _, err := os.Stat(goModPath); os.IsNotExist(err) {
+		modulePath := mf.Module
+		if modulePath == "" {
+			if abs, aerr := filepath.Abs(projectDir); aerr == nil {
+				modulePath = filepath.Base(abs)
+			}
+			if modulePath == "" || modulePath == "." || modulePath == string(filepath.Separator) {
+				modulePath = "app"
+			}
+		}
+		content := "module " + modulePath + "\n\ngo 1.21\n"
+		if err := os.WriteFile(goModPath, []byte(content), 0644); err != nil {
+			return err
+		}
+	}
+
+	for _, gr := range mf.GoRequires {
+		ref := gr.Path + "@" + gr.Version
+		cmd := exec.Command("go", "mod", "edit", "-require="+ref)
+		cmd.Dir = projectDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("go mod edit -require=%s: %w\n%s", ref, err, out)
+		}
+	}
+	return nil
+}
+
 // ProjectReplaceValid reports whether the project's go.mod already maps
 // modulePath to an existing local directory via an absolute replace directive.
 // A committed replace can carry another machine's absolute cache path (the cache
@@ -98,6 +142,33 @@ func ProjectReplaceValid(projectDir, modulePath string) bool {
 	}
 	info, err := os.Stat(target)
 	return err == nil && info.IsDir()
+}
+
+// RequireVersion returns the version the project's go.mod requires for path,
+// or "" if there is no such require (or go.mod can't be read). Used to read back
+// the concrete version `go get` resolved for a Go dependency.
+func RequireVersion(projectDir, path string) string {
+	cmd := exec.Command("go", "mod", "edit", "-json")
+	cmd.Dir = projectDir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	var gm struct {
+		Require []struct {
+			Path    string
+			Version string
+		}
+	}
+	if err := json.Unmarshal(out, &gm); err != nil {
+		return ""
+	}
+	for _, r := range gm.Require {
+		if r.Path == path {
+			return r.Version
+		}
+	}
+	return ""
 }
 
 // projectReplaceTarget returns the path the project's go.mod maps modulePath to

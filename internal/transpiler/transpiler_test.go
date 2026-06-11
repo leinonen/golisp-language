@@ -771,6 +771,67 @@ func TestNoSpuriousQualifierImports(t *testing.T) {
 	}
 }
 
+// TestStdlibQualifierResolution covers the unknown-qualifier diagnostic and the
+// multi-segment stdlib auto-import (go-interop-exploration P4): a unique stdlib
+// last-segment qualifier resolves to its full import path, while an ambiguous or
+// unknown qualifier yields a position-tagged glisp error instead of a raw Go
+// "package X is not in std" failure.
+func TestStdlibQualifierResolution(t *testing.T) {
+	t.Run("multi-segment stdlib auto-imports full path", func(t *testing.T) {
+		got, err := Transpile(`(defn f [] -> string (filepath/join "a" "b"))`)
+		if err != nil {
+			t.Fatalf("transpile error: %v", err)
+		}
+		if !strings.Contains(got, `"path/filepath"`) {
+			t.Errorf("expected import \"path/filepath\", got:\n%s", got)
+		}
+		if !strings.Contains(got, "filepath.Join") {
+			t.Errorf("expected filepath.Join call, got:\n%s", got)
+		}
+	})
+
+	errCases := []struct {
+		name    string
+		src     string
+		wantSub string
+	}{
+		{
+			name:    "ambiguous qualifier",
+			src:     `(defn f [] (rand/intn 10))`,
+			wantSub: `ambiguous package qualifier "rand"`,
+		},
+		{
+			name:    "unknown qualifier",
+			src:     `(defn f [] (frobnicate/wibble 1))`,
+			wantSub: `unknown package "frobnicate"`,
+		},
+	}
+	for _, tt := range errCases {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Transpile(tt.src)
+			if err == nil {
+				t.Fatalf("expected a transpile error")
+			}
+			if !strings.Contains(err.Error(), tt.wantSub) {
+				t.Errorf("error = %q, want it to contain %q", err.Error(), tt.wantSub)
+			}
+			if !strings.Contains(err.Error(), "(at ") {
+				t.Errorf("error should be position-tagged, got %q", err.Error())
+			}
+		})
+	}
+
+	t.Run("ambiguity resolves once declared", func(t *testing.T) {
+		got, err := Transpile(`(ns m (:import [math/rand])) (defn f [] (rand/intn 10))`)
+		if err != nil {
+			t.Fatalf("declared import should resolve, got error: %v", err)
+		}
+		if !strings.Contains(got, "rand.Intn") {
+			t.Errorf("expected rand.Intn, got:\n%s", got)
+		}
+	})
+}
+
 func TestPathQualifier(t *testing.T) {
 	tests := []struct {
 		path string

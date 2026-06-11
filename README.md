@@ -15,9 +15,25 @@ Clojure-style S-expression language that transpiles to Go.
 
 ## Install
 
+**Prebuilt binary** (Linux/macOS, amd64/arm64):
+
 ```
-make install
+curl -fsSL https://raw.githubusercontent.com/leinonen/golisp-language/main/install.sh | sh
 ```
+
+Installs `glisp` and `glisp-lsp` to `/usr/local/bin` (or `~/.local/bin`). Override
+with `GLISP_VERSION` / `GLISP_INSTALL_DIR`. Windows users can download the `.zip`
+from the [releases page](https://github.com/leinonen/golisp-language/releases).
+
+**From source** (requires the Go toolchain):
+
+```
+git clone https://github.com/leinonen/golisp-language && cd golisp-language
+make install        # go install ./cmd/glisp ./cmd/glisp-lsp
+```
+
+`make dist` cross-compiles release archives into `dist/`. Check your build with
+`glisp version`.
 
 ## Usage
 

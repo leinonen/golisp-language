@@ -27,7 +27,8 @@ source.glsp → lexer → parser → transpiler → Go source → gofmt → go b
 | `internal/formatter/formatter.go` | AST → formatted glisp source; `Format(src)` public API |
 | `internal/compiler/compiler.go` | Orchestrates pipeline: `Compile`, `CompileAndBuild`, `CompileDir`, `CompileTest`, `TranspileDir`, `Run`, `GetModule`, `ResolveDeps` |
 | `internal/module/modfile.go` | `glisp.mod` parsing/writing: `ReadModFile`, `WriteModFile`, `InitModFile`; `GoRequire` type, `AddGoRequire` |
-| `internal/module/resolver.go` | Module download (GitHub tar.gz), go.mod wiring: `Download`, `EnsureGoMod`, `RegisterInGoMod`, `IsCached` |
+| `internal/module/resolver.go` | Module download (GitHub tar.gz), go.mod wiring: `Download`, `EnsureGoMod`, `EnsureProjectGoMod`, `RegisterInGoMod`, `RequireVersion`, `IsCached` |
+| `internal/version/version.go` | Build version: ldflags-injected `Version`, VCS-info fallback; `String()`, `Full()` (used by `glisp version`) |
 | `cmd/glisp/main.go` | CLI: `print`, `compile`, `build`, `run`, `test`, `fmt`, `get`, `mod`, `repl`, `doc` subcommands |
 | `web/web.go` | Ring adapter, routing, middleware, request helpers, static files, graceful shutdown — plain Go, not glisp |
 | `cmd/glisp-lsp/main.go` | LSP server entry point — JSON-RPC 2.0 over stdio |
@@ -282,6 +283,12 @@ Key rules for Go-wrapping modules:
 - Go interop primitives available: `(.Method obj args)` for method calls, `(.-Field obj)` for field access, `(Type. {:field val})` for struct literals, `(as T val)` for type assertions
 - **Bridge pattern for variadic Go APIs**: write a hand-written `bridge.go` (same package) with unexported Go helpers that handle variadic spreading and type assertions; call them from glisp as unqualified names. Unqualified calls use `identToGo` (camelCase, lowercase first letter), so `(bridge-query ...)` → `bridgeQuery`. The bridge functions must be unexported (lowercase) — they're only accessible within the package.
 - **Collections accept common concrete slices**: `_glispToSlice` converts `[]string`, `[]int`, `[]int64`, `[]float64`, `[]bool`, and `[]map[string]any` (in addition to `[]any`), so bridge functions returning those work directly with `map`/`filter`/`reduce`/`first`/`rest`/`get`/`contains?`. A bridge returning some *other* concrete slice type should still convert to `[]any` before returning.
+
+## Releases
+
+Pushing a `v*` tag triggers `.github/workflows/release.yml`: a 6-target matrix (`linux`/`darwin`/`windows` × `amd64`/`arm64`) cross-compiles `glisp` + `glisp-lsp` with `CGO_ENABLED=0 -trimpath -ldflags "-s -w -X golisp/internal/version.Version=<tag>"`, packages each into a `tar.gz` (`.zip` for windows) named `glisp_<tag>_<os>_<arch>`, and a single release job downloads all artifacts, writes `SHA256SUMS`, and publishes them to the GitHub Release (`softprops/action-gh-release`, `generate_release_notes`). The runner drops the machine-local `glispdb` replace first (same as CI). `make dist [VERSION=…]` reproduces the archives locally. `install.sh` (advertised in the README via `curl … | sh`) detects OS/arch, resolves the latest tag from the GitHub API, verifies the checksum, and installs both binaries. `glisp version` prints `internal/version.Full()` — the injected tag at release, a VCS pseudo-version otherwise.
+
+`go install <repo>@latest` is **not** supported: the Go module path is `golisp`, not the repo URL, so a remote `go install` can't resolve it — install via the script or from a source checkout.
 
 ## Go module
 

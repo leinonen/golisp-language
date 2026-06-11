@@ -1,0 +1,95 @@
+name: Release
+
+# Build cross-platform binaries on a version tag and publish them to a GitHub
+# Release. Tag with `git tag v1.2.3 && git push origin v1.2.3`.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+          - { goos: windows, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # The committed go.mod carries a machine-local replace for glispdb; drop it
+      # so the runner resolves the dependency from the module proxy (same as CI).
+      - name: Drop local replace directives
+        run: go mod edit -dropreplace=github.com/leinonen/glispdb
+
+      - name: Build and package
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ldflags="-s -w -X golisp/internal/version.Version=${VERSION}"
+          name="glisp_${VERSION}_${GOOS}_${GOARCH}"
+          stage="dist/${name}"
+          mkdir -p "${stage}"
+          ext=""
+          [ "${GOOS}" = "windows" ] && ext=".exe"
+          go build -trimpath -ldflags "${ldflags}" -o "${stage}/glisp${ext}" ./cmd/glisp
+          go build -trimpath -ldflags "${ldflags}" -o "${stage}/glisp-lsp${ext}" ./cmd/glisp-lsp
+          cp README.md LICENSE "${stage}/"
+          mkdir -p out
+          if [ "${GOOS}" = "windows" ]; then
+            (cd dist && zip -qr "../out/${name}.zip" "${name}")
+          else
+            tar -C dist -czf "out/${name}.tar.gz" "${name}"
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: out/*
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: out
+          pattern: dist-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          cd out
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

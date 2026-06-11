@@ -24,6 +24,7 @@ import (
 	"golisp/internal/module"
 	"golisp/internal/repl"
 	"golisp/internal/transpiler"
+	"golisp/internal/version"
 )
 
 func main() {
@@ -54,7 +55,7 @@ func main() {
 	case "mod":
 		modCmd(os.Args[2:])
 	case "version":
-		fmt.Println("glisp 0.1.0")
+		fmt.Println(version.Full())
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		usage()

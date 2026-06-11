@@ -469,6 +469,11 @@ func (c *cfmt) format(n ast.Node, indent int) string {
 }
 
 // inline renders node as a single-line string with no leading whitespace.
+// FormatNode renders a single AST node to a compact one-line string. It is the
+// node-level entry point reused by the transpiler (e.g. to embed an assert's
+// condition source in its panic message); comments are not consulted.
+func FormatNode(n ast.Node) string { return inline(n) }
+
 func inline(n ast.Node) string {
 	switch v := n.(type) {
 	case *ast.NilLit:

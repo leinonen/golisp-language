@@ -236,6 +236,26 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [] (defer (fn [] (let [r (recover)] (fmt/println r)))) nil)`,
 			wantSub: "recover()",
 		},
+		{
+			name:    "assert with explicit message",
+			src:     `(defn f [n int] -> void (assert (> n 0) "must be positive"))`,
+			wantSub: `panic("must be positive")`,
+		},
+		{
+			name:    "assert auto message from source",
+			src:     `(defn f [n int] -> void (assert (> n 0)))`,
+			wantSub: `panic("assertion failed: (> n 0)")`,
+		},
+		{
+			name:    "case compiles to switch with default",
+			src:     `(defn f [n int] -> string (case n 0 "zero" "other"))`,
+			wantSub: "switch n {",
+		},
+		{
+			name:    "case typed return (no any wrapper)",
+			src:     `(defn f [n int] -> string (case n 0 "zero" "other"))`,
+			wantSub: `return "zero"`,
+		},
 		// 2a: collection operations
 		{
 			name:    "map",
@@ -1071,6 +1091,10 @@ func TestBuiltinArity(t *testing.T) {
 		{"get below min", `(defn main [] (get))`, "get expects 2 to 3 arguments, got 0"},
 		{"merge below min", `(defn main [] (merge {}))`, "merge expects at least 2 argument(s), got 1"},
 		{"re/replace wrong", `(defn main [] (re/replace "a" "b"))`, "re/replace expects 3 argument(s), got 2"},
+		{"assert too many", `(defn main [] (assert true "a" "b"))`, "assert expects 1 to 2 arguments, got 3"},
+		{"case too few", `(defn main [] (case 1))`, "case expects at least 2 argument(s), got 1"},
+		{"assert valid 1", `(defn main [] (assert true))`, ""},
+		{"case valid", `(defn main [] (case 1 1 "a" "b"))`, ""},
 		{"error carries position", `(defn main [] (count))`, "at 1:15"},
 		{"get valid 2", `(defn main [] (get {:a 1} :a))`, ""},
 		{"get valid 3", `(defn main [] (get {:a 1} :b 0))`, ""},

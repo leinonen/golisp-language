@@ -328,6 +328,16 @@ func TestFormat(t *testing.T) {
 			want:  "(case status-code\n      200 :ok\n      404 :not-found\n      500 :server-error\n      :unknown-status-default)\n",
 		},
 		{
+			name:  "short case stays inline",
+			input: "(case n 0 \"zero\" \"many\")",
+			want:  "(case n 0 \"zero\" \"many\")\n",
+		},
+		{
+			name:  "assert with message inline",
+			input: "(assert (> n 0) \"must be positive\")",
+			want:  "(assert (> n 0) \"must be positive\")\n",
+		},
+		{
 			name:  "cond-> pairs test/expr per line",
 			input: "(cond-> base-value pred-one (assoc :a 1) pred-two (assoc :b 2) pred-three (final-x))",
 			want:  "(cond-> base-value\n        pred-one (assoc :a 1)\n        pred-two (assoc :b 2)\n        pred-three (final-x))\n",

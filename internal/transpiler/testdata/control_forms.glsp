@@ -1,0 +1,25 @@
+(defn classify [n int] -> string
+  (case n
+    0 "zero"
+    1 "one"
+    "many"))
+
+(defn dispatch [code int] -> void
+  (case code
+    200 (fmt/println "ok")
+    (fmt/println "other")))
+
+(defn checked-double [n int] -> int
+  (assert (>= n 0) "must be non-negative")
+  (* n 2))
+
+(defn guard [n int] -> void
+  (assert (> n 0)))
+
+(defn main [] -> void
+  (fmt/println (classify 1) (classify 9))
+  (dispatch 200)
+  (fmt/println (checked-double 4))
+  (guard 1)
+  (let [label (case 2 1 "a" 2 "b" "z")]
+    (fmt/println label)))

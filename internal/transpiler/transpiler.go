@@ -744,6 +744,23 @@ func (e *Emitter) emitStmtNode(n ast.Node) error {
 				}
 				e.nl()
 				return nil
+			case "assert":
+				// Statement position: bare guard, no IIFE.
+				e.writeIndent()
+				if err := e.emitAssertGuard(v); err != nil {
+					return err
+				}
+				e.nl()
+				return nil
+			case "case":
+				if err := e.checkBuiltinArity("case", v); err != nil {
+					return err
+				}
+				sw, err := caseCallToSwitch(v)
+				if err != nil {
+					return err
+				}
+				return e.emitSwitchStmt(sw)
 			}
 		}
 		e.writeIndent()
@@ -997,6 +1014,25 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 				e.writeIndent()
 				e.write("return nil\n")
 				return nil
+			case "assert":
+				// Return/tail position: guard, then return nil.
+				e.writeIndent()
+				if err := e.emitAssertGuard(v); err != nil {
+					return err
+				}
+				e.nl()
+				e.writeIndent()
+				e.write("return nil\n")
+				return nil
+			case "case":
+				if err := e.checkBuiltinArity("case", v); err != nil {
+					return err
+				}
+				sw, err := caseCallToSwitch(v)
+				if err != nil {
+					return err
+				}
+				return e.emitSwitchExprReturn(sw)
 			}
 		}
 		// `return f()` from a multi-return fn is legal Go; everywhere else a

@@ -383,7 +383,9 @@ func NewCondExpr(pos Position, clauses []CondClause, def Node) *CondExpr {
 	return &CondExpr{Pos_: pos, Clauses: clauses, Default: def}
 }
 
-// SwitchExpr: (switch expr val1 body1 ... :default body)
+// SwitchExpr: (switch expr val1 body1 ... :default body). The Clojure-style
+// (case expr val1 body1 ... default) alias is parsed as a plain CallExpr and
+// rewritten into this node at emit time (see caseCallToSwitch).
 type SwitchCase struct {
 	Value Node
 	Body  Node

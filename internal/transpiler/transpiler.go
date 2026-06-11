@@ -334,11 +334,14 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			e.needImport("regexp")
 		}
 		// String runtime helpers (_glispJoin, _glispSplit, etc.) use the strings
-		// package internally. In single-file mode they are inlined in the same file,
-		// so we must import strings here. In multi-file mode the runtime file handles
-		// its own import; _strruntime does NOT add a per-file strings import.
-		if e.builtinImports["_strruntime"] {
+		// package internally, and _glispJoin uses fmt.Sprintf for non-string
+		// elements. In single-file mode the whole glispStrRuntime block is inlined
+		// in this file (gated on "strings" || "_strruntime"), so we must import both
+		// strings and fmt here. In multi-file mode the runtime file handles its own
+		// imports; _strruntime does NOT add a per-file strings import.
+		if e.builtinImports["strings"] || e.builtinImports["_strruntime"] {
 			e.needImport("strings")
+			e.needImport("fmt")
 		}
 		if e.builtinImports["_atom"] {
 			e.needImport("sync")

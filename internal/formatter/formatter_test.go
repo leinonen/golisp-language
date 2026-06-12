@@ -496,3 +496,83 @@ func TestIdempotent(t *testing.T) {
 		}
 	}
 }
+
+// TestFormatHiccup covers width-aware vector/map nesting: oversized vector
+// children recurse instead of staying on one long line, and a keyword tag
+// keeps a fitting attrs map on the bracket line (hiccup layout).
+func TestFormatHiccup(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "fitting hiccup vector stays inline",
+			input: `(def x [:li.todo {:id "1"} [:span "hi"]])`,
+			want:  `(def x [:li.todo {:id "1"} [:span "hi"]])` + "\n",
+		},
+		{
+			name:  "tag keeps fitting attrs on head line, children break",
+			input: `(def x [:li.todo {:id "1"} [:input {:type "checkbox" :checked true :hx-post "/todos/1/toggle" :hx-target "closest li" :hx-swap "outerHTML"}] [:span "title text"]])`,
+			want: `(def x
+  [:li.todo {:id "1"}
+   [:input
+    {:type      "checkbox"
+     :checked   true
+     :hx-post   "/todos/1/toggle"
+     :hx-target "closest li"
+     :hx-swap   "outerHTML"}]
+   [:span "title text"]])` + "\n",
+		},
+		{
+			name:  "oversized attrs map leaves the head line",
+			input: `(def x [:form {:hx-post "/todos" :hx-target "#todo-list" :hx-swap "outerHTML" "hx-on::after-request" "this.reset()"} [:button "add"]])`,
+			want: `(def x
+  [:form
+   {:hx-post               "/todos"
+    :hx-target             "#todo-list"
+    :hx-swap               "outerHTML"
+    "hx-on::after-request" "this.reset()"}
+   [:button "add"]])` + "\n",
+		},
+		{
+			name:  "long map value breaks recursively",
+			input: `(def x {:supplier {:name "A very long supplier name indeed" :tier 1 :region "north-by-northwest"} :id 1})`,
+			want: `(def x
+  {:supplier {:name   "A very long supplier name indeed"
+              :tier   1
+              :region "north-by-northwest"}
+   :id       1})` + "\n",
+		},
+		{
+			name:  "non-keyword vector children still break by width",
+			input: `(def xs [{:id 1 :name "Widget A" :category "hardware" :price 999 :stock 50 :supplier "x"} {:id 2 :name "B"}])`,
+			want: `(def xs
+  [{:id       1
+    :name     "Widget A"
+    :category "hardware"
+    :price    999
+    :stock    50
+    :supplier "x"}
+   {:id 2 :name "B"}])` + "\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := formatter.Format(tt.input)
+			if err != nil {
+				t.Fatalf("format error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("mismatch\n--- want ---\n%s\n--- got ---\n%s", tt.want, got)
+			}
+			again, err := formatter.Format(got)
+			if err != nil {
+				t.Fatalf("re-format error: %v", err)
+			}
+			if again != got {
+				t.Errorf("not idempotent\n--- first ---\n%s\n--- second ---\n%s", got, again)
+			}
+		})
+	}
+}

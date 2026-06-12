@@ -1,14 +1,21 @@
-;;; Server-rendered todos — hiccup + htmx
-;;; A complete hypermedia app in one file: hiccup vectors render the HTML
-;;; (escaped by default), htmx attributes drive the interactions, and every
-;;; handler returns either a full page or a fragment of it.
+;;; Server-rendered todos — hiccup + htmx + SSE + websockets
+;;; The full hypermedia stack in one file: hiccup vectors render the HTML
+;;; (escaped by default), htmx attributes drive the interactions, a
+;;; server-sent event stream pushes live stats, and a websocket powers a
+;;; tiny chat — no JS framework, no CDN, one static binary.
 ;;;   hiccup    — [:tag {:attrs ...} children...]; keywords are plain data,
 ;;;               (map ...) output splices as children, #id.class shorthand
 ;;;   htmx      — hx-post/hx-delete/hx-target/hx-swap attributes; fragment
 ;;;               responses; web/htmx-js serves the embedded htmx.min.js,
 ;;;               so the binary needs no CDN
-;;;   state     — an atom guards the in-memory todo list
-;;; Run it, then open http://localhost:8080
+;;;   sse       — (web/sse-response ch) + the canonical producer pattern:
+;;;               web/go-recover, (defer (close! ch)), select! on (web/done req)
+;;;   websocket — (web/websocket (fn [req in out] ...)) chat with an
+;;;               atom-guarded broadcast hub; for-chan reads, send! writes
+;;;   static    — app.css/app.js served from static/ via web/serve-files
+;;;               (wildcard route), resolved relative to the binary
+;;;   state     — atoms guard the todo list and the chat client registry
+;;; Run it, then open http://localhost:8080 (two tabs for the chat).
 (ns main (:import [golisp/web]))
 
 (def todos
@@ -26,27 +33,68 @@
 ; ── views ──────────────────────────────────────────────────────────
 (defn todo-item [todo any] -> any
   (let [id (str (:id todo))]
-    [:li.todo
-     {:id (format "todo-%s" id)}
-     [:input {:type "checkbox" :checked (= (:done todo) true) :hx-post (format "/todos/%s/toggle" id) :hx-target "closest li" :hx-swap "outerHTML"}]
+    [:li.todo {:id (format "todo-%s" id)}
+     [:input
+      {:type      "checkbox"
+       :checked   (= (:done todo) true)
+       :hx-post   (format "/todos/%s/toggle" id)
+       :hx-target "closest li"
+       :hx-swap   "outerHTML"}]
      [:span (if (= (:done todo) true) {:class "done"} {}) (:title todo)]
-     [:button.delete {:hx-delete (format "/todos/%s" id) :hx-target "closest li" :hx-swap "delete" :hx-confirm "Delete this todo?"} "x"]]))
+     [:button.delete
+      {:hx-delete  (format "/todos/%s" id)
+       :hx-target  "closest li"
+       :hx-swap    "delete"
+       :hx-confirm "Delete this todo?"}
+      "x"]]))
 
 (defn todo-list [items any] -> any
   [:div#todo-list
    [:ul.todos (map (fn [t] (todo-item t)) items)]
    [:p.summary (format "%d of %d done" (len (filter :done items)) (len items))]])
 
-(def css
-  "\n  body { max-width: 40rem; margin: 2rem auto; font-family: sans-serif; }\n  ul.todos { list-style: none; padding: 0; }\n  li.todo { display: flex; gap: .5rem; padding: .3rem 0; align-items: center; }\n  li.todo span { flex: 1; }\n  span.done { text-decoration: line-through; color: #888; }\n  button.delete { border: none; background: none; color: #c00; cursor: pointer; }\n  p.summary { color: #666; }\n")
+;;; The css/js live in static/, served by web/serve-files. Prefer the
+;;; directory next to the binary (works from any cwd); fall back to a
+;;; cwd-relative static/ for `glisp run`, whose binary lives in a temp dir.
+(def static-dir
+  (str
+    (let [bin-rel (filepath/join (filepath/dir (str (nth os/args 0))) "static")]
+      (if (file-exists? bin-rel) bin-rel "static"))))
 
 (defn page [items any] -> string
   (web/html-page
     [:html
-     [:head [:meta {:charset "utf-8"}] [:title "todos"] [:script {:src "/htmx.js"}] [:style (web/raw css)]]
-     [:body [:h1 "todos"] [:form {:hx-post "/todos" :hx-target "#todo-list" :hx-swap "outerHTML" "hx-on::after-request" "this.reset()"} [:input {:type "text" :name "title" :placeholder "What needs doing?" :autofocus true :required true}] [:button "add"]] (todo-list items)]]))
+     [:head
+      [:meta {:charset "utf-8"}]
+      [:title "todos"]
+      [:script {:src "/htmx.js"}]
+      [:link {:rel "stylesheet" :href "/static/app.css"}]]
+     [:body
+      [:h1 "todos"]
+      [:form
+       {:hx-post               "/todos"
+        :hx-target             "#todo-list"
+        :hx-swap               "outerHTML"
+        "hx-on::after-request" "this.reset()"}
+       [:input
+        {:type        "text"
+         :name        "title"
+         :placeholder "What needs doing?"
+         :autofocus   true
+         :required    true}]
+       [:button "add"]]
+      (todo-list items)
+      [:section.chat
+       [:h2 "chat"]
+       [:ul#chat-log]
+       [:form#chat-form
+        [:input#chat-input
+         {:type "text" :placeholder "Say something" :autocomplete "off"}]
+        [:button "send"]]]
+      [:p#live-stats.summary "connecting..."]
+      [:script {:src "/static/app.js" :defer true}]]]))
 
-; ── handlers ───────────────────────────────────────────────────────
+; ── todo handlers ──────────────────────────────────────────────────
 (defn home [req web/Request] -> web/Response
   (web/html-response 200 (page (deref todos))))
 
@@ -84,8 +132,57 @@
       {:status 200
        :body   ""})))
 
+; ── websocket: chat ────────────────────────────────────────────────
+(def chat-clients (atom []))
+
+;;; Sends msg to every connected chat client. The :default case drops the
+;;; message for a client whose buffer is full instead of blocking the hub.
+(defn broadcast [msg string] -> void
+  (doseq [c (deref chat-clients)]
+    (let [out (as (chan any) c)]
+      (select! ([(send! out msg)] nil) (:default nil)))))
+
+;;; One connection: register, relay every line to everyone, unregister.
+;;; in closes when the client disconnects, ending the for-chan loop.
+(defn chat [req web/Request in (chan any) out (chan any)] -> any
+  (do
+    (swap! chat-clients (fn [cs] (conj cs out)))
+    (broadcast "* someone joined")
+    (for-chan [msg in] (when (not (blank? (str msg))) (broadcast (str msg))))
+    (swap! chat-clients (fn [cs] (remove (fn [c] (= c out)) cs)))
+    (broadcast "* someone left")
+    nil))
+
+; ── SSE: live stats ────────────────────────────────────────────────
+(defn stats-line [] -> string
+  (let [items (deref todos)
+        now (time/now)]
+    (format "%d of %d done · %d chatting · %s"
+            (len (filter :done items))
+            (len items)
+            (len (deref chat-clients))
+            (.Format now "15:04:05"))))
+
+;;; The canonical SSE producer: go-recover contains panics, the deferred
+;;; close! ends the stream, and racing (web/done req) in select! stops the
+;;; loop the moment the client disconnects.
+(defn handle-events [req web/Request] -> web/Response
+  (let [events (chan any 4)
+        done (web/done req)]
+    (web/go-recover
+      (fn []
+        (do
+          (defer (close! events))
+          (loop []
+            (select!
+              ([_ done]
+                nil)
+              ([(send! events {:event "stats" :data (stats-line)})]
+                (do (select! ([_ done] nil) (:timeout 2000 nil)) (recur))))))))
+    (web/sse-response events)))
+
 (defn main [] -> void
-  (let [handler (web/routes (web/get "/" home) (web/get "/htmx.js" web/htmx-js) (web/post "/todos" add-todo) (web/post "/todos/:id/toggle" toggle-todo) (web/delete "/todos/:id" delete-todo))]
+  (let [handler (web/routes (web/get "/" home) (web/get "/htmx.js" web/htmx-js) (web/get "/static/*path" (web/serve-files "/static/" static-dir)) (web/get "/events" handle-events) (web/get "/chat" (web/websocket chat)) (web/post "/todos" add-todo) (web/post "/todos/:id/toggle" toggle-todo) (web/delete "/todos/:id" delete-todo))]
     (log/info "todos listening" "addr" ":8080")
     (web/serve-graceful ":8080"
                         (web/wrap handler web/wrap-logging web/wrap-recover))))

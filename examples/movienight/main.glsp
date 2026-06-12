@@ -18,7 +18,11 @@
    {:title "Dune" :genre "scifi" :year 2021 :rating 8 :minutes 155}
    {:title "Heat" :genre "crime" :year 1995 :rating 8.3 :minutes 170}
    {:title "Parasite" :genre "thriller" :year 2019 :rating 8.5 :minutes 132}
-   {:title "Spirited Away" :genre "animation" :year 2001 :rating 8.6 :minutes 125}
+   {:title   "Spirited Away"
+    :genre   "animation"
+    :year    2001
+    :rating  8.6
+    :minutes 125}
    {:title "The Thing" :genre "horror" :year 1982 :rating 8.2 :minutes 109}
    {:title "Amelie" :genre "comedy" :year 2001 :rating 8.3 :minutes 122}
    {:title "Blade Runner" :genre "scifi" :year 1982 :rating 8.1 :minutes 117}])

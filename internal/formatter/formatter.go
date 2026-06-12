@@ -329,9 +329,9 @@ func (c *cfmt) format(n ast.Node, indent int) string {
 	case *ast.Symbol:
 		return ind(indent) + inline(n)
 	case *ast.VectorLit:
-		return formatVector(v, indent)
+		return c.formatVector(v, indent)
 	case *ast.MapLit:
-		return formatMap(v, indent)
+		return c.formatMap(v, indent)
 	case *ast.SetLit:
 		return ind(indent) + inline(n)
 	case *ast.CallExpr:
@@ -890,7 +890,30 @@ func (c *cfmt) formatBody(keyword string, body []ast.Node, indent, afterLine int
 	return sb.String()
 }
 
-func formatVector(v *ast.VectorLit, indent int) string {
+// elemAt renders e starting at absolute column col. The first line carries
+// no leading pad (the caller positions it); continuation lines are padded to
+// col. Elements whose inline rendering fits stay on one line; oversized ones
+// recurse through the full formatter — this is what lets hiccup trees break
+// into readable nested layout instead of one long line.
+func (c *cfmt) elemAt(e ast.Node, col int) string {
+	il := inline(e)
+	if col+len(il) <= maxLine && !c.hasComments(e.Pos().Line+1, nodeMaxLine(e)) {
+		return il
+	}
+	block := c.format(e, col/2)
+	shift := col - (col/2)*2
+	lines := strings.Split(block, "\n")
+	for i, ln := range lines {
+		if i == 0 {
+			lines[i] = strings.TrimLeft(ln, " ")
+		} else if shift > 0 && ln != "" {
+			lines[i] = strings.Repeat(" ", shift) + ln
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (c *cfmt) formatVector(v *ast.VectorLit, indent int) string {
 	il := inline(v)
 	if fits(il, indent) {
 		return ind(indent) + il
@@ -898,21 +921,33 @@ func formatVector(v *ast.VectorLit, indent int) string {
 	if len(v.Elements) == 0 {
 		return ind(indent) + "[]"
 	}
+	col := indent*2 + 1
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "[")
-	contPad := ind(indent) + " "
-	for i, e := range v.Elements {
-		if i == 0 {
-			sb.WriteString(inline(e))
-		} else {
-			sb.WriteString("\n" + contPad + inline(e))
+	head := c.elemAt(v.Elements[0], col)
+	sb.WriteString(head)
+	rest := v.Elements[1:]
+	// Hiccup head: a keyword tag keeps a fitting attrs map on its line,
+	// so [:li.todo {:id x} child...] breaks after the attrs, not before.
+	if _, isKw := v.Elements[0].(*ast.KeywordLit); isKw && len(rest) > 0 {
+		if m, ok := rest[0].(*ast.MapLit); ok {
+			attrs := inline(m)
+			if col+len(head)+1+len(attrs) <= maxLine &&
+				!c.hasComments(m.Pos().Line+1, nodeMaxLine(m)) {
+				sb.WriteString(" " + attrs)
+				rest = rest[1:]
+			}
 		}
+	}
+	contPad := ind(indent) + " "
+	for _, e := range rest {
+		sb.WriteString("\n" + contPad + c.elemAt(e, col))
 	}
 	sb.WriteString("]")
 	return sb.String()
 }
 
-func formatMap(v *ast.MapLit, indent int) string {
+func (c *cfmt) formatMap(v *ast.MapLit, indent int) string {
 	if len(v.Pairs) == 0 {
 		return ind(indent) + "{}"
 	}
@@ -938,7 +973,8 @@ func formatMap(v *ast.MapLit, indent int) string {
 			sb.WriteString("\n" + contPad)
 		}
 		padding := strings.Repeat(" ", maxKeyW-len(keyStrs[i]))
-		sb.WriteString(keyStrs[i] + padding + " " + inline(p.Value))
+		valueCol := indent*2 + 1 + maxKeyW + 1
+		sb.WriteString(keyStrs[i] + padding + " " + c.elemAt(p.Value, valueCol))
 	}
 	sb.WriteString("}")
 	return sb.String()

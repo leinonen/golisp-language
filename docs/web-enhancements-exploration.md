@@ -112,15 +112,24 @@ The *entire* friction was hand-assembling HTML with `str`/`format` and
 escaped quotes, with no escaping of interpolated data. Hiccup (§1) is the
 htmx enabler; nothing else is required.
 
-### 2.2 Small candidate helpers (not prototyped — sugar only)
+### 2.2 Small helpers (shipped as P5)
 
 - `(web/hx-request? req)` → bool — `HX-Request` header check, for routes
   that serve both full pages and fragments.
 - `(web/hx-trigger resp event)` / `(web/hx-redirect url)` /
-  `(web/hx-refresh)` — `HX-*` response-header setters.
-- Embedding `htmx.min.js` in the `web` package (`//go:embed`) so
-  `(web/get "/htmx.js" web/htmx-js)` works offline — fits the
-  "single static binary" pitch (~50 kB). Left open; CDN works today.
+  `(web/hx-refresh)` — `HX-*` response-header setters (`hx-redirect`
+  answers 200, since htmx ignores `HX-Redirect` on 3xx).
+- `web/htmx-js` serves the embedded `htmx.min.js` v2.0.4 (`//go:embed`,
+  vendored from the official htmx repo, Zero-Clause BSD) — a glisp web
+  app is a single offline binary with no CDN dependency.
+  `examples/todos` uses it.
+
+Shipping `hx-request?` also closed a general naming gap: `fnToGo`
+(module-qualified exported calls) didn't apply identToGo's suffix rules,
+so *any* `pkg/fn?` / `pkg/fn!` / `pkg/a->b` call emitted invalid Go
+(`web.HxRequest?`). It now mirrors them in exported form:
+`hx-request?` → `IsHxRequest`, `reset!` → `Reset`,
+`ring->handler` → `RingToHandler`.
 
 ### 2.3 Friction found
 
@@ -360,5 +369,5 @@ error. Still open: built-ins are not values (`(swap! a inc)` →
 | P2 Hiccup: promote prototype (CLAUDE.md web-API entry, example app) | docs + examples | low | ✅ done — promoted in CLAUDE.md; reference app `examples/todos` (hiccup + htmx) |
 | P3 SSE: decide `req["done"]` vs lazy `(web/done req)`; document the leak/panic caveats | `web/` | low | ✅ done — lazy `(web/done req)` (no cast needed), `web/go-recover` for producer panics, idle keepalive comments; promoted in CLAUDE.md |
 | P4 Websockets: harden (UTF-8 validation, close-code pass-through, write deadlines, max-frame config) or swap internals for `coder/websocket` | `web/ws.go` | medium | ✅ done — hardened in-tree (see §4.1); re-validated against `coder/websocket` |
-| P5 htmx sugar (`hx-request?`, `HX-*` setters, embedded htmx.js) | `web/` | low | optional; decide after a real example app |
+| P5 htmx sugar (`hx-request?`, `HX-*` setters, embedded htmx.js) | `web/` | low | ✅ done — incl. the `fnToGo` suffix-rule fix it surfaced |
 | P6 Example app (`examples/todos`: hiccup + htmx + SSE ticker + WS chat) | examples | low | doubles as regression surface for P1 |

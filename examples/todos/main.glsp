@@ -5,7 +5,8 @@
 ;;;   hiccup    — [:tag {:attrs ...} children...]; keywords are plain data,
 ;;;               (map ...) output splices as children, #id.class shorthand
 ;;;   htmx      — hx-post/hx-delete/hx-target/hx-swap attributes; fragment
-;;;               responses; HX-Request header detection
+;;;               responses; web/htmx-js serves the embedded htmx.min.js,
+;;;               so the binary needs no CDN
 ;;;   state     — an atom guards the in-memory todo list
 ;;; Run it, then open http://localhost:8080
 (ns main (:import [golisp/web]))
@@ -42,7 +43,7 @@
 (defn page [items any] -> string
   (web/html-page
     [:html
-     [:head [:meta {:charset "utf-8"}] [:title "todos"] [:script {:src "https://unpkg.com/htmx.org@2.0.4"}] [:style (web/raw css)]]
+     [:head [:meta {:charset "utf-8"}] [:title "todos"] [:script {:src "/htmx.js"}] [:style (web/raw css)]]
      [:body [:h1 "todos"] [:form {:hx-post "/todos" :hx-target "#todo-list" :hx-swap "outerHTML" "hx-on::after-request" "this.reset()"} [:input {:type "text" :name "title" :placeholder "What needs doing?" :autofocus true :required true}] [:button "add"]] (todo-list items)]]))
 
 ; ── handlers ───────────────────────────────────────────────────────
@@ -84,7 +85,7 @@
        :body   ""})))
 
 (defn main [] -> void
-  (let [handler (web/routes (web/get "/" home) (web/post "/todos" add-todo) (web/post "/todos/:id/toggle" toggle-todo) (web/delete "/todos/:id" delete-todo))]
+  (let [handler (web/routes (web/get "/" home) (web/get "/htmx.js" web/htmx-js) (web/post "/todos" add-todo) (web/post "/todos/:id/toggle" toggle-todo) (web/delete "/todos/:id" delete-todo))]
     (log/info "todos listening" "addr" ":8080")
     (web/serve-graceful ":8080"
                         (web/wrap handler web/wrap-logging web/wrap-recover))))

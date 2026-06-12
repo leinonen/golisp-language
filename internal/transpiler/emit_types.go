@@ -6,13 +6,14 @@ import (
 )
 
 // identToGo converts a Lisp identifier to a Go identifier.
-//   my-func   → myFunc
-//   MyType    → MyType (PascalCase preserved)
-//   nil?      → isNil
-//   send!     → send
-//   *global*  → global
-//   fmt/Println → fmt.Println  (slash→dot for qualified names)
-//   _         → _
+//
+//	my-func   → myFunc
+//	MyType    → MyType (PascalCase preserved)
+//	nil?      → isNil
+//	send!     → send
+//	*global*  → global
+//	fmt/Println → fmt.Println  (slash→dot for qualified names)
+//	_         → _
 func identToGo(s string) string {
 	if s == "_" {
 		return "_"
@@ -76,17 +77,27 @@ func identToGo(s string) string {
 // fnToGo converts the function-name part of a pkg/fn identifier to Go PascalCase.
 // If fn already contains any uppercase letter it is treated as explicit Go naming
 // and returned as-is (backward-compatible with old-style pkg/PascalCase calls).
-// Otherwise it is assumed to be Clojure-style lowercase-hyphenated and converted:
+// Otherwise it is assumed to be Clojure-style lowercase-hyphenated and converted
+// with the same suffix rules as identToGo (exported variants):
 //
 //	println        → Println
 //	has-prefix     → HasPrefix
 //	json-response  → JsonResponse
+//	hx-request?    → IsHxRequest
+//	reset!         → Reset
+//	ring->handler  → RingToHandler
 func fnToGo(fn string) string {
 	for _, c := range fn {
 		if unicode.IsUpper(c) {
 			return fn
 		}
 	}
+	// ? suffix → Is prefix; ! suffix → strip; -> → -To- (mirrors identToGo)
+	if strings.HasSuffix(fn, "?") {
+		fn = "is-" + fn[:len(fn)-1]
+	}
+	fn = strings.TrimSuffix(fn, "!")
+	fn = strings.ReplaceAll(fn, "->", "-To-")
 	parts := strings.Split(fn, "-")
 	var b strings.Builder
 	for _, p := range parts {
@@ -110,13 +121,14 @@ func cleanIdentPart(s string) string {
 
 // typeExprToGo converts a TypeExpr text to a Go type string.
 // Input examples:
-//   "int"              → "int"
-//   "(chan int)"        → "chan int"        (strip outer parens)
-//   "[string error]"   → "(string, error)"  (multi-return, strip brackets)
-//   "*http.Request"    → "*http.Request"   (unchanged)
-//   "[]string"         → "[]string"        (unchanged)
-//   "web/Request"   → "web.Request"  (slash→dot for qualified types)
-//   "(chan web/Response)" → "chan web.Response"
+//
+//	"int"              → "int"
+//	"(chan int)"        → "chan int"        (strip outer parens)
+//	"[string error]"   → "(string, error)"  (multi-return, strip brackets)
+//	"*http.Request"    → "*http.Request"   (unchanged)
+//	"[]string"         → "[]string"        (unchanged)
+//	"web/Request"   → "web.Request"  (slash→dot for qualified types)
+//	"(chan web/Response)" → "chan web.Response"
 func typeExprToGo(text string) string {
 	text = strings.TrimSpace(text)
 	// Multi-return: [T1 T2 ...]

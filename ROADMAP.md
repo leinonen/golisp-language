@@ -73,7 +73,7 @@
 ### 3g. Hypermedia & streaming (see `docs/web-enhancements-exploration.md`)
 Hiccup (`web/html.go`), SSE (`web/sse.go`), and websockets (`web/ws.go`) are promoted. The §5 transpiler bug cluster (Phase 11 below) is fixed — natural-style SSE/websocket producer code compiles.
 
-- [x] Hiccup rendering — `(web/html [:div {:class "x"} ...])`, `web/html-page`, `web/render-response`, `web/raw`; escaped by default, `#id.class` tag shorthand, `map`-output splicing. Promoted; reference app `examples/todos` (hiccup + htmx)
+- [x] Hiccup rendering — `(web/html [:div {:class "x"} ...])`, `web/html-page`, `web/render-response`, `web/raw`; escaped by default, `#id.class` tag shorthand, `map`-output splicing. Promoted; reference app `examples/todos` (the full stack: hiccup + htmx + SSE + websocket chat)
 - [x] SSE — `(web/sse-response ch)` streams a `chan any` as `text/event-stream` with idle keepalive comments; `(web/done req)` (lazy, cached) closes on client disconnect for `select!`-based producers; `(web/go-recover (fn [] …))` contains producer panics
 - [x] Websockets — `(web/websocket (fn [req in out] ...))`; dependency-free RFC 6455 (text + binary, ping/pong + idle server ping, fragmentation, close-code negotiation, UTF-8/protocol validation, message cap, write deadlines); in/out are `chan any`, reads via `for-chan`. Validated against `coder/websocket`
 - [x] htmx helpers — `(web/hx-request? req)`, `web/hx-trigger`/`hx-redirect`/`hx-refresh` header setters, and `web/htmx-js` serving the embedded `htmx.min.js` (offline single binary; `examples/todos` uses it instead of a CDN)

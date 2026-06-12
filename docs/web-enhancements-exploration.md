@@ -1,6 +1,6 @@
 # Exploration: web enhancements — hiccup, htmx, SSE, websockets
 
-**Status**: Complete — P1–P4 shipped (the §7 table tracks each step).
+**Status**: Complete — P1–P6 all shipped (the §7 table tracks each step).
 Hiccup, SSE, and websockets are stable parts of the web API; htmx needs no
 support beyond hiccup (§2). Everything below was validated hands-on against
 a freshly built `glisp`: the htmx flow with curl, SSE with curl (including
@@ -370,4 +370,4 @@ error. Still open: built-ins are not values (`(swap! a inc)` →
 | P3 SSE: decide `req["done"]` vs lazy `(web/done req)`; document the leak/panic caveats | `web/` | low | ✅ done — lazy `(web/done req)` (no cast needed), `web/go-recover` for producer panics, idle keepalive comments; promoted in CLAUDE.md |
 | P4 Websockets: harden (UTF-8 validation, close-code pass-through, write deadlines, max-frame config) or swap internals for `coder/websocket` | `web/ws.go` | medium | ✅ done — hardened in-tree (see §4.1); re-validated against `coder/websocket` |
 | P5 htmx sugar (`hx-request?`, `HX-*` setters, embedded htmx.js) | `web/` | low | ✅ done — incl. the `fnToGo` suffix-rule fix it surfaced |
-| P6 Example app (`examples/todos`: hiccup + htmx + SSE ticker + WS chat) | examples | low | doubles as regression surface for P1 |
+| P6 Example app (`examples/todos`: hiccup + htmx + SSE ticker + WS chat) | examples | low | ✅ done — live stats over SSE (canonical producer pattern), websocket chat with an atom-guarded broadcast hub |

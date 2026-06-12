@@ -1022,6 +1022,15 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 				e.writeIndent()
 				e.write("return nil\n")
 				return nil
+			case "panic":
+				// panic never returns; `return panic(...)` is invalid Go and
+				// a bare panic satisfies Go's termination analysis.
+				e.writeIndent()
+				if err := e.emitCallExpr(v); err != nil {
+					return err
+				}
+				e.nl()
+				return nil
 			}
 		}
 		// `return f()` from a multi-return fn is legal Go; everywhere else a

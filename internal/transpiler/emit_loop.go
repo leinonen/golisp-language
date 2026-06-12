@@ -156,6 +156,13 @@ func (e *Emitter) emitLoopTailNode(n ast.Node, retVar string) error {
 		}
 		return e.emitLoopBody(v.Body, retVar)
 	default:
+		if call, ok := n.(*ast.CallExpr); ok {
+			if sym, ok := call.Head.(*ast.Symbol); ok && sym.Name == "panic" {
+				// panic never returns — emit it bare; assigning it to the
+				// loop result (or returning it) is invalid Go.
+				return e.emitStmtNode(n)
+			}
+		}
 		if e.loopInReturn {
 			if !strings.Contains(e.currentRetType, ",") {
 				if err := e.checkMultiReturnValue(n); err != nil {

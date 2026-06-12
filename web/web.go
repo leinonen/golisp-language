@@ -36,14 +36,16 @@ type Handler func(req Request) Response
 // Middleware wraps a handler to produce a new handler.
 type Middleware func(Handler) Handler
 
+// ctxKey is the request-map key under which the adapter stashes the raw
+// request context for Done. Private by convention — handlers should use
+// (web/done req) rather than reading it.
+const ctxKey = "__context"
+
 // RingToHTTP adapts a Ring handler into an http.Handler.
 func RingToHTTP(h Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req := buildRequest(r)
-		// PROTOTYPE (exploration): req["done"] closes on client disconnect.
-		done := make(chan any)
-		go func() { <-r.Context().Done(); close(done) }()
-		req["done"] = done
+		req[ctxKey] = r.Context()
 		resp := h(req)
 		if streamSse(w, r, resp) {
 			return
@@ -53,6 +55,43 @@ func RingToHTTP(h Handler) http.Handler {
 		}
 		writeResponse(w, resp)
 	})
+}
+
+// Done returns a channel that closes when the client disconnects (or the
+// request is otherwise cancelled). The bridge goroutine is created on first
+// call and cached in req["done"], so only handlers that ask for it pay for
+// it; it exits when the request finishes. SSE producers race it with
+// select! to stop streaming when the client goes away. Outside the HTTP
+// adapter (e.g. a handler invoked directly in a test) the channel never
+// closes.
+func Done(req Request) chan any {
+	if ch, ok := req["done"].(chan any); ok {
+		return ch
+	}
+	done := make(chan any)
+	if ctx, ok := req[ctxKey].(context.Context); ok {
+		go func() { <-ctx.Done(); close(done) }()
+	}
+	req["done"] = done
+	return done
+}
+
+// GoRecover runs f in a goroutine, recovering and logging any panic — the
+// goroutine-side analog of WrapRecover. A panic in a plain (go ...) block
+// kills the whole process; SSE/websocket producers should run under this
+// instead. Pair it with (defer (close! ch)) inside f so the stream still
+// ends when f panics.
+func GoRecover(f func() any) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("goroutine panic",
+					"error", fmt.Sprint(r),
+					"stack", string(debug.Stack()))
+			}
+		}()
+		f()
+	}()
 }
 
 func buildRequest(r *http.Request) Request {

@@ -71,10 +71,10 @@
 - [x] `serve-graceful` — drains in-flight requests on SIGINT/SIGTERM
 
 ### 3g. Hypermedia & streaming (see `docs/web-enhancements-exploration.md`)
-Hiccup (`web/html.go`) is promoted; SSE (`web/sse.go`) and websockets (`web/ws.go`) remain validated prototypes. The §5 transpiler bug cluster (Phase 11 below) is fixed — natural-style SSE/websocket producer code compiles.
+Hiccup (`web/html.go`) and SSE (`web/sse.go`) are promoted; websockets (`web/ws.go`) remain a validated prototype. The §5 transpiler bug cluster (Phase 11 below) is fixed — natural-style SSE/websocket producer code compiles.
 
 - [x] Hiccup rendering — `(web/html [:div {:class "x"} ...])`, `web/html-page`, `web/render-response`, `web/raw`; escaped by default, `#id.class` tag shorthand, `map`-output splicing. Promoted; reference app `examples/todos` (hiccup + htmx)
-- [ ] SSE — `(web/sse-response ch)` streams a `chan any` as `text/event-stream`; `req["done"]` closes on client disconnect for `select!`-based producers
+- [x] SSE — `(web/sse-response ch)` streams a `chan any` as `text/event-stream` with idle keepalive comments; `(web/done req)` (lazy, cached) closes on client disconnect for `select!`-based producers; `(web/go-recover (fn [] …))` contains producer panics
 - [ ] Websockets — `(web/websocket (fn [req in out] ...))`; dependency-free RFC 6455 (text, ping/pong, fragmentation, close); in/out are `chan any`, reads via `for-chan`
 - [ ] htmx helpers — `hx-request?`, `HX-*` response-header setters, optional embedded `htmx.min.js` (htmx itself already works: attributes + fragment responses — see `examples/todos`)
 
@@ -377,3 +377,4 @@ either gets absorbed by emission or becomes a glisp-level diagnostic.
 - [x] `_` binding in a `select!` recv case — `([_ ch] body)` now emits `case <-ch:` (was `case _ := <-ch:`, "no new variables on left side of :=")
 - [x] bare `nil` as a `select!` case body — bare scalar literals in statement position are skipped (a `nil` expression statement is illegal Go)
 - [x] statement-only forms (`close!`, `send!`, …) as `if` branches in a loop tail — handled by the same loop-tail statement-only rule (was `close(ch)` in value position, "used as value")
+- [x] `panic` in tail position of a value-returning fn (incl. `do`/loop tails) — emits a bare `panic(...)` statement (was `return panic(...)`, invalid Go; a bare panic satisfies Go's termination analysis)

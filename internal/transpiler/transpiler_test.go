@@ -156,6 +156,18 @@ func TestTranspileSnippets(t *testing.T) {
 			wantNot: "\tnil",
 		},
 		{
+			name:    "panic in fn tail emits bare statement",
+			src:     `(defn f [] -> any (do (fmt/println "x") (panic "boom")))`,
+			wantSub: "panic(\"boom\")",
+			wantNot: "return panic",
+		},
+		{
+			name:    "panic in loop tail emits bare statement",
+			src:     `(defn f [] -> any (loop [n 0] (if (< n 3) (recur (+ n 1)) (panic "boom"))))`,
+			wantSub: "panic(\"boom\")",
+			wantNot: "return panic",
+		},
+		{
 			name:    "pipeline",
 			src:     `(defn pipe [ch (chan any)] (pipeline [x ch] (* x 2)))`,
 			wantSub: "defer close(",

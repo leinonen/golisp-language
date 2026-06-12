@@ -168,42 +168,60 @@ data: {"n":0}
 Named events make this compose directly with htmx's `sse` extension
 (`sse-connect` + `sse-swap="tick"`).
 
-### 3.2 Client disconnect: `req["done"]`
+### 3.2 Client disconnect: `(web/done req)`
 
 Producers must find out when the client goes away or they leak goroutines.
-`buildRequest`'s request map now carries `"done"` — a `chan any` the adapter
-closes when `r.Context()` is cancelled. A producer races it with `select!`:
+`(web/done req)` returns a `chan any` that closes when the request context
+is cancelled. A producer races it with `select!`:
 
 ```clojure
-(let [done (as (chan any) (get req "done"))]
-  (go (loop [n 0]
-        (select!
-          ([_ done] (log/info "client gone"))
-          ([(send! events (format "beat %d" n))]
-            (do ... (recur (+ n 1))))))))
+(let [done (web/done req)]
+  (web/go-recover
+    (fn []
+      (do
+        (defer (close! events))
+        (loop [n 0]
+          (select!
+            ([_ done] (log/info "client gone"))
+            ([(send! events (format "beat %d" n))]
+              (do ... (recur (+ n 1))))))))))
 ```
 
 Verified: killing curl mid-stream fired the `done` case and the producer
-goroutine exited ("client disconnected at 4" in the server log).
+goroutine exited ("client gone at 4" in the server log).
 
-Costs and caveats, recorded deliberately:
+**Promotion decisions** (the prototype's eager `req["done"]` bridge spawned
+a goroutine on *every* request):
 
-- One bridge goroutine per request (`go func() { <-ctx.Done(); close(done) }`).
-  It exits when the request finishes, so it doesn't leak, but a lazy
-  `(web/done req)` helper (raw context stashed under a private key, bridged
-  on demand) would make it pay-per-use. Decide before shipping.
-- A producer that *ignores* `done` and sends on an unbuffered channel blocks
-  forever after a disconnect. The adapter cannot drain on its behalf —
-  draining an infinite producer would spin forever. Documentation must
-  prescribe the `select!`-on-`done` pattern (or buffered channels + finite
-  streams).
-- A panic inside the producer `go` block kills the *process* —
-  `wrap-recover` only guards the handler call itself. Acceptable for a
-  prototype; a `(web/sse-handler (fn [req send!] ...))` variant that runs
-  the producer under `recover` is a candidate hardening.
+- `web/done` is **lazy** — `RingToHTTP` stashes the raw request context
+  under the private `"__context"` key, and the bridge goroutine is created
+  on first call, cached in `req["done"]`. Only handlers that ask for it pay
+  for it; outside the adapter (handler invoked directly in a test) the
+  channel simply never closes. Bonus: the Go signature returns a concrete
+  `chan any`, so the old `(as (chan any) (get req "done"))` cast is gone.
+- **`web/go-recover`** is the goroutine analog of `wrap-recover`: a panic
+  in a plain `(go ...)` producer kills the whole process; under
+  `(web/go-recover (fn [] ...))` it is logged (with the `.glsp`-mapped
+  frame) and contained. Pairing it with `(defer (close! ch))` ends the
+  stream cleanly even on panic — verified end-to-end: the `/boom` endpoint
+  panicked mid-stream, the stream closed, and the server kept serving.
+- **Idle keepalive**: `streamSse` writes a `: keepalive` comment every 15 s
+  while no events flow, so proxies/load balancers don't drop quiet
+  streams. A `"keepalive"` key on the response (seconds) overrides; `0`
+  disables.
+- A producer that ignores `done` and sends on an unbuffered channel still
+  blocks forever after a disconnect — the adapter cannot drain on its
+  behalf (draining an infinite producer would spin forever). The
+  `select!`-on-`done` pattern above is the documented contract (or
+  buffered channels + finite streams).
 - Middleware interplay: response headers set by middleware are merged into
   the stream's initial headers; `wrap-timeout` is harmless (the handler
   returns immediately — the deadline doesn't govern the stream itself).
+
+Promoting the producer pattern also surfaced one more ADR-011 gap, fixed
+alongside: `panic` in the tail of a value-returning fn emitted
+`return panic(...)` — invalid Go. It now emits a bare `panic(...)`
+statement (fn tails, `do` tails, and loop tails).
 
 ## 4. Websockets (`web/ws.go`)
 
@@ -328,7 +346,7 @@ error. Still open: built-ins are not values (`(swap! a inc)` →
 |---|---|---|---|
 | P1 Fix the §5 bug cluster (select!/loop-tail emission) | transpiler, isolated | low | ✅ done — hits exactly the code style SSE/WS demand |
 | P2 Hiccup: promote prototype (CLAUDE.md web-API entry, example app) | docs + examples | low | ✅ done — promoted in CLAUDE.md; reference app `examples/todos` (hiccup + htmx) |
-| P3 SSE: decide `req["done"]` vs lazy `(web/done req)`; document the leak/panic caveats | `web/` | low | semantics validated |
+| P3 SSE: decide `req["done"]` vs lazy `(web/done req)`; document the leak/panic caveats | `web/` | low | ✅ done — lazy `(web/done req)` (no cast needed), `web/go-recover` for producer panics, idle keepalive comments; promoted in CLAUDE.md |
 | P4 Websockets: harden (UTF-8 validation, close-code pass-through, write deadlines, max-frame config) or swap internals for `coder/websocket` | `web/ws.go` | medium | glisp API stable either way |
 | P5 htmx sugar (`hx-request?`, `HX-*` setters, embedded htmx.js) | `web/` | low | optional; decide after a real example app |
 | P6 Example app (`examples/todos`: hiccup + htmx + SSE ticker + WS chat) | examples | low | doubles as regression surface for P1 |

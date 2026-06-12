@@ -960,6 +960,11 @@ func TestIdentToGo(t *testing.T) {
 		{"*global*", "global"},
 		{"_", "_"},
 		{"http-request", "httpRequest"},
+		// qualified predicates/mutators route through fnToGo's exported rules
+		{"web/hx-request?", "web.IsHxRequest"},
+		{"lib/reset!", "lib.Reset"},
+		{"lib/ring->handler", "lib.RingToHandler"},
+		{"web/HxTrigger", "web.HxTrigger"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {

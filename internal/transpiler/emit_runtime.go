@@ -247,6 +247,20 @@ func _glispToSlice(v any) []any {
 			result[i] = e
 		}
 		return result
+	case map[any]struct{}:
+		// Sets enumerate in sorted order (Go map iteration is random, which
+		// would make map/doseq/join over a set non-deterministic). Insertion
+		// sort: no sort-package dependency in the always-present runtime.
+		result := make([]any, 0, len(s))
+		for k := range s {
+			result = append(result, k)
+		}
+		for i := 1; i < len(result); i++ {
+			for j := i; j > 0 && _glispKeyLess(result[j], result[j-1]); j-- {
+				result[j], result[j-1] = result[j-1], result[j]
+			}
+		}
+		return result
 	}
 	return nil
 }
@@ -355,10 +369,98 @@ func _glispToFloat64(v any) float64 {
 }
 
 func _glispToString(v any) string {
-	if s, ok := v.(string); ok {
+	switch s := v.(type) {
+	case string:
 		return s
+	case []byte:
+		return string(s)
+	case int:
+		return strconv.Itoa(s)
+	case int64:
+		return strconv.FormatInt(s, 10)
+	case float64:
+		return strconv.FormatFloat(s, 'g', -1, 64)
+	case bool:
+		if s {
+			return "true"
+		}
+		return "false"
 	}
 	return ""
+}
+
+func _glispMax(args ...any) any {
+	if len(args) == 0 {
+		return nil
+	}
+	best := args[0]
+	for _, a := range args[1:] {
+		if _glispToFloat64(a) > _glispToFloat64(best) {
+			best = a
+		}
+	}
+	return best
+}
+
+func _glispMin(args ...any) any {
+	if len(args) == 0 {
+		return nil
+	}
+	best := args[0]
+	for _, a := range args[1:] {
+		if _glispToFloat64(a) < _glispToFloat64(best) {
+			best = a
+		}
+	}
+	return best
+}
+
+// _glispKeyLess orders int/int64/float64/string keys; mismatched or
+// unsupported types compare as not-less (mirrors min-key/max-key).
+func _glispKeyLess(a any, b any) bool {
+	switch av := a.(type) {
+	case int:
+		if bv, ok := b.(int); ok {
+			return av < bv
+		}
+	case int64:
+		if bv, ok := b.(int64); ok {
+			return av < bv
+		}
+	case float64:
+		if bv, ok := b.(float64); ok {
+			return av < bv
+		}
+	case string:
+		if bv, ok := b.(string); ok {
+			return av < bv
+		}
+	}
+	return false
+}
+
+func _glispMinBy(f any, coll any) any {
+	fn := f.(func(any) any)
+	var best, bestKey any
+	for i, v := range _glispToSlice(coll) {
+		k := fn(v)
+		if i == 0 || _glispKeyLess(k, bestKey) {
+			best, bestKey = v, k
+		}
+	}
+	return best
+}
+
+func _glispMaxBy(f any, coll any) any {
+	fn := f.(func(any) any)
+	var best, bestKey any
+	for i, v := range _glispToSlice(coll) {
+		k := fn(v)
+		if i == 0 || _glispKeyLess(bestKey, k) {
+			best, bestKey = v, k
+		}
+	}
+	return best
 }
 
 func _glispMap(f any, coll any) []any {
@@ -532,6 +634,16 @@ func _glispConstantly(v any) any {
 	return func(_ any) any { return v }
 }
 
+func _glispFnil(f any, def any) any {
+	fn := f.(func(any) any)
+	return func(x any) any {
+		if x == nil {
+			x = def
+		}
+		return fn(x)
+	}
+}
+
 func _glispApply(f any, args any) any {
 	s := _glispToSlice(args)
 	switch len(s) {
@@ -699,6 +811,15 @@ func _glispInto(target any, coll any) any {
 		result := make([]any, len(t), len(t)+len(s))
 		copy(result, t)
 		return append(result, s...)
+	case map[any]struct{}:
+		result := make(map[any]struct{}, len(t)+len(s))
+		for k := range t {
+			result[k] = struct{}{}
+		}
+		for _, v := range s {
+			result[v] = struct{}{}
+		}
+		return result
 	}
 	return s
 }
@@ -1442,6 +1563,20 @@ func _glispReduceKV(f any, init any, m any) any {
 `
 
 const glispSetRuntime = `
+func _glispToSet(coll any) map[any]struct{} {
+	result := make(map[any]struct{})
+	if s, ok := coll.(map[any]struct{}); ok {
+		for k := range s {
+			result[k] = struct{}{}
+		}
+		return result
+	}
+	for _, v := range _glispToSlice(coll) {
+		result[v] = struct{}{}
+	}
+	return result
+}
+
 func _glispSetUnion(a any, b any) map[any]struct{} {
 	result := make(map[any]struct{})
 	if s, ok := a.(map[any]struct{}); ok {
@@ -1551,5 +1686,13 @@ func _glispCtxValue(ctx any, key any) any {
 
 func _glispCtxWithValue(ctx any, key any, val any) any {
 	return context.WithValue(ctx.(context.Context), key, val)
+}
+
+func _glispCtxDone(ctx any) bool {
+	return ctx.(context.Context).Err() != nil
+}
+
+func _glispCtxErr(ctx any) error {
+	return ctx.(context.Context).Err()
 }
 `

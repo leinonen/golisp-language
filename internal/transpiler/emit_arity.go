@@ -58,6 +58,10 @@ var builtinArity = map[string][2]int{
 	// higher-order utilities
 	"complement": {1, 1}, "identity": {1, 1}, "constantly": {1, 1},
 	"apply": {2, 2}, "partial": {1, -1}, "format": {1, -1},
+	"fnil": {2, 2},
+
+	// numeric min/max
+	"max": {1, -1}, "min": {1, -1}, "max-by": {2, 2}, "min-by": {2, 2},
 
 	// string operations
 	"upper-case": {1, 1}, "lower-case": {1, 1}, "trim": {1, 1},
@@ -67,6 +71,7 @@ var builtinArity = map[string][2]int{
 
 	// set algebra
 	"union": {2, 2}, "intersection": {2, 2}, "difference": {2, 2},
+	"set": {1, 1},
 
 	// effectful built-ins
 	"panic": {1, 1}, "recover": {0, 0}, "assert": {1, 2},
@@ -88,7 +93,7 @@ var builtinArity = map[string][2]int{
 	"atom": {1, 1}, "swap!": {2, 2}, "reset!": {2, 2}, "deref": {1, 1},
 	"ctx/background": {0, 0}, "ctx/todo": {0, 0}, "ctx/with-cancel": {1, 1},
 	"ctx/with-timeout": {2, 2}, "ctx/cancel!": {1, 1}, "ctx/value": {2, 2},
-	"ctx/with-value": {3, 3},
+	"ctx/with-value": {3, 3}, "ctx/done?": {1, 1}, "ctx/err": {1, 1},
 }
 
 // checkBuiltinArity reports a position-tagged error if name is a known built-in

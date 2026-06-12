@@ -471,6 +471,7 @@ var boolBuiltins = map[string]bool{
 	"neg?": true, "zero?": true, "blank?": true,
 	"starts-with?": true, "ends-with?": true,
 	"file-exists?": true, "re/match": true, "errors/is?": true,
+	"ctx/done?": true,
 }
 
 // isBoolExpr reports whether n is statically known to emit a Go bool.
@@ -1193,6 +1194,17 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "max-key":
 			e.needImport("sort")
 			return e.emitVariadicRuntimeCall("_glispMaxKey", n.Args)
+		case "max":
+			return e.emitVariadicRuntimeCall("_glispMax", n.Args)
+		case "min":
+			return e.emitVariadicRuntimeCall("_glispMin", n.Args)
+		case "max-by":
+			return e.emitRuntimeCall("_glispMaxBy", n.Args, 2)
+		case "min-by":
+			return e.emitRuntimeCall("_glispMinBy", n.Args, 2)
+		case "set":
+			e.needImport("_set")
+			return e.emitRuntimeCall("_glispToSet", n.Args, 1)
 		// map conveniences
 		case "map-vals":
 			e.needImport("data")
@@ -1206,6 +1218,8 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		// 2c: higher-order utilities
 		case "complement":
 			return e.emitRuntimeCall("_glispComplement", n.Args, 1)
+		case "fnil":
+			return e.emitRuntimeCall("_glispFnil", n.Args, 2)
 		case "identity":
 			if len(n.Args) != 1 {
 				return fmt.Errorf("identity requires exactly 1 argument")
@@ -1500,6 +1514,18 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 				return fmt.Errorf("ctx/with-value: expected 3 arguments (ctx key val), got %d", len(n.Args))
 			}
 			return e.emitRuntimeCall("_glispCtxWithValue", n.Args, 3)
+		case "ctx/done?":
+			e.needImport("_ctx")
+			if len(n.Args) != 1 {
+				return fmt.Errorf("ctx/done?: expected 1 argument, got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispCtxDone", n.Args, 1)
+		case "ctx/err":
+			e.needImport("_ctx")
+			if len(n.Args) != 1 {
+				return fmt.Errorf("ctx/err: expected 1 argument, got %d", len(n.Args))
+			}
+			return e.emitRuntimeCall("_glispCtxErr", n.Args, 1)
 		}
 	}
 
@@ -1952,7 +1978,9 @@ func (e *Emitter) emitStringConv(args []ast.Node) error {
 	if len(args) != 1 {
 		return fmt.Errorf("string requires 1 argument")
 	}
-	e.write("string(")
+	// _glispToString, not a raw Go string(...) conversion: the raw form is a
+	// compile error on any-typed values and the int→rune footgun on numbers.
+	e.write("_glispToString(")
 	if err := e.emitExpr(args[0]); err != nil {
 		return err
 	}
@@ -2086,6 +2114,11 @@ func (e *Emitter) emitDotimes(args []ast.Node) error {
 		return fmt.Errorf("dotimes binding name must be a symbol")
 	}
 	goName := identToGo(sym.Name)
+	// A `_` binding would emit illegal Go (`for _ := 0; _ < n`); substitute a
+	// synthetic counter — it's used by the loop header, so Go accepts it.
+	if goName == "_" {
+		goName = "_dotimesI"
+	}
 	e.write("func() {")
 	e.nl()
 	e.push()
@@ -2133,6 +2166,66 @@ func (e *Emitter) emitReturnExpr(n *ast.ReturnExpr) error {
 }
 
 // emitRuntimeCall emits a call to a runtime helper with a fixed arity check.
+// fnArgHelpers maps runtime helper names to the argument index that expects a
+// function value (-1 = every argument, for comp/juxt). A bare keyword at such
+// a position is lowered to a lookup closure, enabling the Clojure idiom
+// (map :title coll) / (group-by :status users) without a lambda.
+var fnArgHelpers = map[string]int{
+	"_glispMap": 0, "_glispFilter": 0, "_glispSome": 0, "_glispEvery": 0,
+	"_glispNotAny": 0, "_glispRemove": 0, "_glispKeep": 0, "_glispSortBy": 0,
+	"_glispGroupBy": 0, "_glispPartitionBy": 0, "_glispMapcat": 0,
+	"_glispTakeWhile": 0, "_glispDropWhile": 0, "_glispSplitWith": 0,
+	"_glispMinKey": 0, "_glispMaxKey": 0, "_glispMinBy": 0, "_glispMaxBy": 0,
+	"_glispMapVals": 0, "_glispMapKeys": 0,
+	"_glispComplement": 0, "_glispFnil": 0, "_glispPartial": 0, "_glispApply": 0,
+	"_glispComp": -1, "_glispJuxt": -1,
+}
+
+// emitRuntimeArg emits one argument of a runtime-helper call. In a function
+// position it (a) lowers a bare keyword to a _glispGet lookup closure and
+// (b) rejects user fns with typed signatures at transpile time — the runtime
+// helpers assert func(any) any, so a func(int) int would panic at runtime
+// with an opaque interface-conversion message.
+func (e *Emitter) emitRuntimeArg(fn string, idx int, arg ast.Node) error {
+	if fnPos, ok := fnArgHelpers[fn]; ok && (fnPos == -1 || fnPos == idx) {
+		if kw, ok := arg.(*ast.KeywordLit); ok {
+			e.writef("func(_kwM any) any { return _glispGet(_kwM, %q) }", kw.Value)
+			return nil
+		}
+		if sym, ok := arg.(*ast.Symbol); ok && !e.localVars[sym.Name] {
+			if sig, found := e.symbols[sym.Name]; found {
+				if reason := hofIncompatibleReason(sig); reason != "" {
+					return fmt.Errorf("%s has %s and cannot be passed as a function value (built-in higher-order forms require any-typed params and -> any); wrap it in a lambda like (fn [x] (%s x)) or declare it with any types (at %s)",
+						sym.Name, reason, sym.Name, sym.Pos())
+				}
+			}
+		}
+	}
+	return e.emitExpr(arg)
+}
+
+// hofIncompatibleReason returns a non-empty description when a user fn's
+// signature can't satisfy the func(any) any assertion in the runtime helpers.
+// Variadic fns are left to the runtime (apply handles func(...any) any).
+func hofIncompatibleReason(sig *fnSig) string {
+	if sig.variadic {
+		return ""
+	}
+	for _, pt := range sig.paramTypes {
+		if pt != "" && pt != "any" {
+			return fmt.Sprintf("a typed param (%s)", pt)
+		}
+	}
+	switch sig.retType {
+	case "any":
+		return ""
+	case "":
+		return "no declared return type (it emits a void Go func)"
+	default:
+		return fmt.Sprintf("return type %s", sig.retType)
+	}
+}
+
 func (e *Emitter) emitRuntimeCall(fn string, args []ast.Node, arity int) error {
 	if len(args) != arity {
 		return fmt.Errorf("%s requires %d argument(s), got %d", fn, arity, len(args))
@@ -2142,7 +2235,7 @@ func (e *Emitter) emitRuntimeCall(fn string, args []ast.Node, arity int) error {
 		if i > 0 {
 			e.write(", ")
 		}
-		if err := e.emitExpr(arg); err != nil {
+		if err := e.emitRuntimeArg(fn, i, arg); err != nil {
 			return err
 		}
 	}
@@ -2157,7 +2250,7 @@ func (e *Emitter) emitVariadicRuntimeCall(fn string, args []ast.Node) error {
 		if i > 0 {
 			e.write(", ")
 		}
-		if err := e.emitExpr(arg); err != nil {
+		if err := e.emitRuntimeArg(fn, i, arg); err != nil {
 			return err
 		}
 	}

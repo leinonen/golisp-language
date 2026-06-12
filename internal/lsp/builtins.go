@@ -54,6 +54,10 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"sort":         {Sig: "(sort coll)           →  []any", Doc: "Sort coll in natural order (int/float64/string)."},
 	"min-key":      {Sig: "(min-key f x y & more)  →  any", Doc: "Return the element with the smallest (f elem) value."},
 	"max-key":      {Sig: "(max-key f x y & more)  →  any", Doc: "Return the element with the largest (f elem) value."},
+	"min":          {Sig: "(min x y & more)      →  any", Doc: "Return the smallest of the numeric arguments."},
+	"max":          {Sig: "(max x y & more)      →  any", Doc: "Return the largest of the numeric arguments."},
+	"min-by":       {Sig: "(min-by f coll)       →  any", Doc: "Return the element of coll with the smallest (f elem) key (f may be a keyword); nil for empty coll."},
+	"max-by":       {Sig: "(max-by f coll)       →  any", Doc: "Return the element of coll with the largest (f elem) key (f may be a keyword); nil for empty coll."},
 	"flatten":      {Sig: "(flatten coll)        →  []any", Doc: "Recursively flatten nested slices into a single slice."},
 	"range":        {Sig: "(range n) or (range start end)  →  []int", Doc: "Integer slice from 0 to n (exclusive), or from start to end."},
 	"take":         {Sig: "(take n coll)         →  []any", Doc: "Return the first n elements of coll."},
@@ -90,6 +94,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"reduce-kv":    {Sig: "(reduce-kv f init m)       →  any", Doc: "Reduce map m with a 3-arg fn (fn acc k v)."},
 
 	// Sets
+	"set":          {Sig: "(set coll)                 →  set", Doc: "Build a set from the elements of coll, dropping duplicates. Sets enumerate in sorted order in map/doseq/join."},
 	"union":        {Sig: "(union s1 s2)              →  set", Doc: "Return a set containing all elements of s1 and s2."},
 	"intersection": {Sig: "(intersection s1 s2)       →  set", Doc: "Return a set containing only elements in both s1 and s2."},
 	"difference":   {Sig: "(difference s1 s2)         →  set", Doc: "Return a set of elements in s1 that are not in s2."},
@@ -102,10 +107,11 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"juxt":       {Sig: "(juxt f g h ...)           →  fn", Doc: "Return a function that applies each fn to its arg, returning a slice of results."},
 	"apply":      {Sig: "(apply f args-coll)         →  any", Doc: "Call f with elements of args-coll as arguments. Supports arities 0–6. Works with fn/defn functions, not built-in operators."},
 	"partial":    {Sig: "(partial f fixed-args ...)  →  fn", Doc: "Partial application: returns a unary fn with fixed-args pre-applied. Works with fn/defn functions, not built-in operators."},
+	"fnil":       {Sig: "(fnil f default)            →  fn", Doc: "Return a fn that calls f, substituting default when the argument is nil. Pairs with update for possibly-missing keys."},
 
 	// Strings
 	"str":          {Sig: "(str & args)              →  string", Doc: "Concatenate all args as strings."},
-	"string":       {Sig: "(string x)                →  string", Doc: "Convert x to its string representation."},
+	"string":       {Sig: "(string x)                →  string", Doc: "Convert x to a string: strings pass through, numbers/bools render decimally, anything else becomes \"\"."},
 	"upper-case":   {Sig: "(upper-case s)            →  string", Doc: "Return s with all letters uppercased."},
 	"lower-case":   {Sig: "(lower-case s)            →  string", Doc: "Return s with all letters lowercased."},
 	"trim":         {Sig: "(trim s)                  →  string", Doc: "Remove leading and trailing whitespace from s."},
@@ -343,6 +349,17 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"re/find-all": {Sig: "(re/find-all pattern s)        →  []any", Doc: "Return all non-overlapping matches of pattern in s."},
 	"re/replace":  {Sig: "(re/replace pattern s repl)    →  string", Doc: "Replace all matches of pattern in s with repl."},
 	"re/split":    {Sig: "(re/split pattern s)           →  []any", Doc: "Split s into substrings separated by matches of pattern."},
+
+	// Context propagation
+	"ctx/background":   {Sig: "(ctx/background)              →  ctx", Doc: "Return context.Background() — the root context for explicit propagation."},
+	"ctx/todo":         {Sig: "(ctx/todo)                    →  ctx", Doc: "Return context.TODO() — a placeholder context."},
+	"ctx/with-cancel":  {Sig: "(ctx/with-cancel ctx)         →  [ctx cancel]", Doc: "Derive a cancellable context. Destructure: (let [[ctx cancel] (ctx/with-cancel parent)] ...)."},
+	"ctx/with-timeout": {Sig: "(ctx/with-timeout ctx ms)     →  [ctx cancel]", Doc: "Derive a context that expires after ms milliseconds."},
+	"ctx/cancel!":      {Sig: "(ctx/cancel! cancel)          →  nil", Doc: "Invoke a cancel function from ctx/with-cancel or ctx/with-timeout."},
+	"ctx/value":        {Sig: "(ctx/value ctx key)           →  any", Doc: "Read a request-scoped value from the context."},
+	"ctx/with-value":   {Sig: "(ctx/with-value ctx key val)  →  ctx", Doc: "Derive a context carrying a key-value pair."},
+	"ctx/done?":        {Sig: "(ctx/done? ctx)               →  bool", Doc: "True once the context was cancelled or its deadline passed."},
+	"ctx/err":          {Sig: "(ctx/err ctx)                 →  error", Doc: "The context's error: nil while live, context.Canceled or context.DeadlineExceeded after."},
 
 	// Structured logging (log/slog)
 	"log/info":  {Sig: "(log/info msg k v ...)  →  nil", Doc: "Log a message at INFO level with optional key-value pairs."},

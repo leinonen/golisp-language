@@ -37,6 +37,10 @@ truthy — so `(if (get m "k") ...)` works directly on `any`-typed values.
 
 ## Collections
 
+Wherever a built-in takes a function (`map`, `filter`, `sort-by`, `group-by`,
+`max-by`, …), a bare keyword works as a field accessor: `(map :title movies)`
+is shorthand for `(map (fn [m] (:title m)) movies)`.
+
 | Form | Returns | Description |
 |---|---|---|
 | `(map f coll)` | `[]any` | Apply f to each element |
@@ -71,6 +75,10 @@ truthy — so `(if (get m "k") ...)` works directly on `any`-typed values.
 | `(sort coll)` | `[]any` | Sort in natural order (int, float64, or string) |
 | `(min-key f x y & more)` | any | Element with the smallest `(f elem)` value |
 | `(max-key f x y & more)` | any | Element with the largest `(f elem)` value |
+| `(min x y & more)` | any | Smallest of the numeric arguments |
+| `(max x y & more)` | any | Largest of the numeric arguments |
+| `(min-by f coll)` | any | Element of coll with the smallest `(f elem)` key; nil for empty coll |
+| `(max-by f coll)` | any | Element of coll with the largest `(f elem)` key; nil for empty coll |
 
 ## Maps
 
@@ -88,11 +96,15 @@ truthy — so `(if (get m "k") ...)` works directly on `any`-typed values.
 
 ## Sets
 
-Sets are unordered collections of unique values. Literal syntax: `#{1 2 3}`. Backed by `map[any]struct{}` in Go.
+Sets are collections of unique values. Literal syntax: `#{1 2 3}`. Backed by
+`map[any]struct{}` in Go. Sets are also valid sequences: `map`, `filter`,
+`doseq`, `sort`, `join`, `into` and friends enumerate their elements in
+sorted order (so output is deterministic).
 
 | Form | Returns | Description |
 |---|---|---|
 | `#{x y z}` | set | Set literal |
+| `(set coll)` | set | Build a set from any sequence, dropping duplicates |
 | `(conj s x)` | set | New set with x added |
 | `(contains? s x)` | bool | O(1) membership test |
 | `(count s)` | int | Number of elements |
@@ -100,6 +112,7 @@ Sets are unordered collections of unique values. Literal syntax: `#{1 2 3}`. Bac
 | `(union s1 s2)` | set | Elements in s1 or s2 |
 | `(intersection s1 s2)` | set | Elements in both s1 and s2 |
 | `(difference s1 s2)` | set | Elements in s1 that are not in s2 |
+| `(into #{} coll)` | set | Collect a sequence into a set |
 
 ```clojure
 (let [a #{1 2 3}
@@ -108,7 +121,9 @@ Sets are unordered collections of unique values. Literal syntax: `#{1 2 3}`. Bac
   (conj a 4)             ; #{1 2 3 4}
   (union a b)            ; #{1 2 3 4}
   (intersection a b)     ; #{2 3}
-  (difference a b))      ; #{1}
+  (difference a b)       ; #{1}
+  (set [3 1 2 1])        ; #{1 2 3}
+  (join (set ["b" "a"]) ","))  ; "a,b" — sorted enumeration
 ```
 
 ## Strings
@@ -116,7 +131,7 @@ Sets are unordered collections of unique values. Literal syntax: `#{1 2 3}`. Bac
 | Form | Returns | Description |
 |---|---|---|
 | `(str & args)` | string | Concatenate all args as strings |
-| `(string x)` | string | Convert x to its string representation |
+| `(string x)` | string | Convert x to a string: strings pass through, numbers/bools render decimally (`(string 65)` → `"65"`), anything else becomes `""` |
 | `(upper-case s)` | string | Uppercase |
 | `(lower-case s)` | string | Lowercase |
 | `(trim s)` | string | Strip leading/trailing whitespace |
@@ -158,6 +173,12 @@ Sets are unordered collections of unique values. Literal syntax: `#{1 2 3}`. Bac
 | `(complement pred)` | fn | Logical negation of pred |
 | `(identity x)` | x | Return x unchanged |
 | `(constantly v)` | fn | Return a fn that always returns v |
+| `(fnil f default)` | fn | Wrap f so a nil argument becomes default — `(update m k (fnil (fn [n] (inc n)) 0))` |
+
+Functions passed to these (and to the collection HOFs) must be `any`-typed:
+a `defn` with concrete param or return types is rejected at transpile time
+with a hint to wrap it in a lambda, because the runtime dispatch asserts
+`func(any) any`.
 
 ## Iteration
 
@@ -351,6 +372,8 @@ Pass `context.Context` to Go APIs that support cancellation and deadlines. No im
 | `(ctx/cancel! cancel)` | nil | Call the cancel function returned by `with-cancel` / `with-timeout` |
 | `(ctx/value ctx key)` | any | Read a value stored in the context |
 | `(ctx/with-value ctx key val)` | context | Derive a child context with an added key-value pair |
+| `(ctx/done? ctx)` | bool | True once the context was cancelled or its deadline passed |
+| `(ctx/err ctx)` | error | nil while live; `context.Canceled` / `context.DeadlineExceeded` after |
 
 ```clojure
 ; Timeout example — always call cancel! to release resources

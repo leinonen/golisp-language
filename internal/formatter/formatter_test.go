@@ -28,6 +28,16 @@ func TestFormat(t *testing.T) {
 			want:  "42\n",
 		},
 		{
+			name:  "float literal keeps fraction",
+			input: "8.5",
+			want:  "8.5\n",
+		},
+		{
+			name:  "whole-number float keeps .0 suffix",
+			input: "8.0",
+			want:  "8.0\n",
+		},
+		{
 			name:  "string literal",
 			input: `"hello"`,
 			want:  "\"hello\"\n",

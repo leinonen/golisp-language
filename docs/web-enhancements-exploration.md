@@ -82,9 +82,15 @@ renderer matches the existing design rule: *all web functionality lives in
 
 ### 1.3 Friction found
 
-- A `defn` can't be passed bare to `map` — `(map todo-item todos)` panics at
-  runtime when `todo-item` has typed params (known Phase-11 item), so child
-  lists need `(map (fn [t] (todo-item t)) todos)`.
+- A `defn` can't be passed bare to `map` — `(map todo-item todos)` fails
+  when `todo-item` has typed params, so child lists need
+  `(map (fn [t] (todo-item t)) todos)`. *Update*: during this exploration
+  the failure was a runtime interface-conversion panic; PR #31 (now merged)
+  turned it into a position-tagged transpile error naming the lambda fix.
+  The lambda is still required — only the failure mode improved.
+- *Mitigation since PR #31*: keywords as functions —
+  `(map :title todos)` — make pure-projection child lists lambda-free
+  (verified against the merged tree, including inside a hiccup tree).
 - Naming: `web/html-response` (takes a *string*) already exists;
   the node-tree variant is `web/render-response` to avoid a breaking change.
 
@@ -120,8 +126,9 @@ htmx enabler; nothing else is required.
 
 `(swap! counter inc)` fails — built-ins like `inc` are not first-class
 values (`undefined: inc`). The workaround is `(fn [n] (+ (int n) 1))`.
-Same family as the Phase-11 typed-fn-as-HOF item; worth a position-tagged
-diagnostic at minimum.
+Re-verified after PR #31: the new HOF gate diagnoses typed *`defn`s* at
+transpile time, but a bare built-in still falls through to the raw Go
+`undefined: inc` error; worth a position-tagged diagnostic of its own.
 
 ## 3. Server-sent events (`web/sse.go`)
 
@@ -284,9 +291,15 @@ invalid Go with a raw Go error (line-mapped, but Go-worded):
    position — "close(ch) (no value) used as value". Same ADR-011 family as
    item 1. Workaround: `(do (close! ch) nil)`.
 
-Also re-confirmed (already on the roadmap): built-ins are not values
-(`(swap! a inc)` → `undefined: inc`), and typed `defn`s passed to HOFs panic
-at runtime.
+Also surfaced, since fixed on `main` (PR #31): typed `defn`s passed to HOFs
+— a runtime panic during this exploration, now a position-tagged transpile
+error. Still open: built-ins are not values (`(swap! a inc)` →
+`undefined: inc`).
+
+> **Status update (post-merge of PR #31)**: items 1–4 above were re-run
+> against `main` after the keyword-fns/HOF-gate/dotimes fixes landed — all
+> four still reproduce verbatim. They remain the gating work for promoting
+> the SSE/websocket prototypes (P1 in §7).
 
 ## 6. What deliberately stays the same
 

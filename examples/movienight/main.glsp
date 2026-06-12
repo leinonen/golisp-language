@@ -1,13 +1,15 @@
 ;;; Movie Night Planner
 ;;; Picks tonight's film for a group of friends. Exercises the parts of the
 ;;; language the other examples don't:
-;;;   sets        — #{...} literals, conj, contains?, union, intersection, difference
+;;;   sets        — #{...} literals, (set coll), conj, contains?, union,
+;;;                 intersection, difference; sets enumerate sorted in join/map
 ;;;   threading   — -> (thread-first) and ->> (thread-last) pipelines
-;;;   HOFs        — partial, complement, comp, juxt, apply, keep, constantly
+;;;   HOFs        — partial, complement, comp, juxt, apply, keep, constantly,
+;;;                 fnil, and keywords as functions ((map :title coll))
 ;;;   map utils   — reduce-kv, map-vals, vals, dissoc, zipmap
-;;;   predicates  — every?, not-any?, some, min-key, max-key
+;;;   predicates  — every?, not-any?, some, max-by, min-by
 ;;;   bindings    — if-let, when-let, let-or, annotated destructuring (:- T)
-;;;   misc        — dotimes, interleave, ctx/* (deadline + request-scoped values)
+;;;   misc        — dotimes, interleave, ctx/* (deadline, ctx/done?, values)
 (ns main)
 
 ; ── catalog ──────────────────────────────────────────────────────────────────
@@ -45,7 +47,7 @@
 ;;; Catalog titles that belong to the given set, in stable catalog order
 ;;; (sets are unordered, so we filter the catalog for display).
 (defn titles-in [s any] -> []any
-  (->> catalog (map (fn [m] (:title m))) (filter (fn [t] (contains? s t)))))
+  (->> catalog (map :title) (filter (fn [t] (contains? s t)))))
 
 ; ── candidate selection ──────────────────────────────────────────────────────
 ;;; True when the movie runs shorter than limit minutes. Made for partial:
@@ -80,17 +82,13 @@
       (merge {"snacks" "popcorn"}))))
 
 ; ── streaming availability with a context deadline ───────────────────────────
-;;; True once the context's deadline has passed or it was cancelled.
-(defn expired? [c any] -> bool
-  (let [typed (as context/Context c)] (not (nil? (.Err typed)))))
-
 ;;; Simulates one availability lookup. The service "responds" after delay;
-;;; if the shared deadline expired first, the reply is dropped instead of sent.
+;;; if the shared deadline expired first (ctx/done?), the reply is dropped.
 (defn check-service [ctx any service string delay time/Duration ch (chan any)] -> void
   (go
     (do
       (time/sleep delay)
-      (if (expired? ctx)
+      (if (ctx/done? ctx)
         (println "    " service "→ dropped (deadline passed)")
         (send! ch (format "%s: available (request %v)" service (ctx/value ctx "request-id")))))))
 
@@ -109,6 +107,10 @@
              (len (get seen "bob"))))
   ; map-vals: member → number of titles seen
   (println "  titles per member:" (map-vals (fn [s] (len s)) seen))
+  ; sets are sequences: join enumerates members in sorted order, and
+  ; (set coll) builds one from any sequence, dropping duplicates
+  (println "  a-z catalog of seen:" (join (seen-by-anyone) ", "))
+  (println "  genres on offer:    " (join (set (map :genre catalog)) ", "))
   ; --- ranked candidates ---
   (println "\n--- candidates (nobody has seen these) ---")
   (let [picks (ranked-picks)]
@@ -120,36 +122,31 @@
              (not-any? (fn [m] (contains? (seen-by-anyone) (:title m))) picks))
     (when-let [old (some (fn [m] (if (< (int (:year m)) 1990) m nil)) picks)]
       (println "  retro option:      " (:title old)))
-    ; partial fixes the limit; complement flips the predicate
+    ; partial fixes the limit; complement flips the predicate; a bare
+    ; keyword works as a function wherever a HOF expects one
     (let [short? (partial shorter-than? 130)]
-      (println "  short night picks: "
-               (map (fn [m] (:title m)) (filter short? picks)))
+      (println "  short night picks: " (map :title (filter short? picks)))
       (println "  epic night picks:  "
-               (map (fn [m] (:title m)) (filter (complement short?) picks))))
+               (map :title (filter (complement short?) picks))))
     ; comp pipes title extraction into upper-case; juxt fans one movie out
-    ; to several views at once
+    ; to several views at once — keywords compose like any other fn
     (println "  marquee:           "
-      (map
-        (comp (fn [t] (upper-case (str t))) (fn [m] (:title m)))
-        (take 2 picks)))
-    (println "  title+year pairs:  "
-             (map (juxt (fn [m] (:title m)) (fn [m] (:year m))) (take 2 picks)))
-    ; min-key / max-key pick a finalist by a numeric key
-    (let [[a b] picks
-          best (max-key (fn [m] (float64 (:rating m))) a b)
-          quick (min-key (fn [m] (int (:minutes m))) a b)]
-      (println "  higher rated:      " (:title best))
-      (println "  shorter runtime:   " (:title quick))))
+             (map (comp (fn [t] (upper-case (str t))) :title) (take 2 picks)))
+    (println "  title+year pairs:  " (map (juxt :title :year) (take 2 picks)))
+    ; max-by / min-by rank the whole candidate list by a key fn
+    (println "  highest rated:     " (:title (max-by :rating picks)))
+    (println "  shortest runtime:  " (:title (min-by :minutes picks))))
   ; --- voting: zipmap ballots, reduce-kv tally ---
   (println "\n--- the vote ---")
+  ; fnil supplies the missing-key default: first vote for a title starts at 0
   (let [ballots (zipmap members ["Parasite" "The Thing" "Parasite"])
-        tally (reduce-kv (fn [acc voter choice] (update acc (str choice) (fn [n] (if n (+ (int n) 1) 1)))) {} ballots)]
+        tally (reduce-kv (fn [acc voter choice] (update acc (str choice) (fnil (fn [n] (+ (int n) 1)) 0))) {} ballots)]
     (println "  ballots:" ballots)
     (println "  tally:  " tally)
     ; keep drops nil results: bogus write-ins simply vanish
     (let [wishes ["Parasite" "Tenet" "Heat" "Clue"]
           valid (keep (fn [t] (find-movie (str t))) wishes)]
-      (println "  valid write-ins:" (map (fn [m] (:title m)) valid)))
+      (println "  valid write-ins:" (map :title valid)))
     ; constantly + interleave: one ✔ per member, woven name ✔ name ✔ …
     (println "  rsvp:"
              (join (interleave members (map (constantly "✔") members)) " ")))
@@ -183,7 +180,7 @@
         (:timeout 250
           (println "     no more replies — deadline exceeded"))))
     (ctx/cancel! cancel)
-    (println "  deadline passed?" (expired? rctx)))
+    (println "  deadline passed?" (ctx/done? rctx) "| reason:" (ctx/err rctx)))
   ; --- countdown: dotimes ---
   (println "\n--- showtime ---")
   (dotimes [i 3] (println " " (- 3 i) "..."))

@@ -70,13 +70,13 @@
 ### 3f. Graceful shutdown
 - [x] `serve-graceful` — drains in-flight requests on SIGINT/SIGTERM
 
-### 3g. Hypermedia & streaming (prototypes — see `docs/web-enhancements-exploration.md`)
-Validated prototypes live in `web/html.go`, `web/sse.go`, `web/ws.go`. The §5 transpiler bug cluster (Phase 11 below) is fixed — natural-style SSE/websocket producer code now compiles; promotion (P2–P6) is unblocked.
+### 3g. Hypermedia & streaming (see `docs/web-enhancements-exploration.md`)
+Hiccup (`web/html.go`) is promoted; SSE (`web/sse.go`) and websockets (`web/ws.go`) remain validated prototypes. The §5 transpiler bug cluster (Phase 11 below) is fixed — natural-style SSE/websocket producer code compiles.
 
-- [ ] Hiccup rendering — `(web/html [:div {:class "x"} ...])`, `web/html-page`, `web/render-response`, `web/raw`; escaped by default, `#id.class` tag shorthand, `map`-output splicing
+- [x] Hiccup rendering — `(web/html [:div {:class "x"} ...])`, `web/html-page`, `web/render-response`, `web/raw`; escaped by default, `#id.class` tag shorthand, `map`-output splicing. Promoted; reference app `examples/todos` (hiccup + htmx)
 - [ ] SSE — `(web/sse-response ch)` streams a `chan any` as `text/event-stream`; `req["done"]` closes on client disconnect for `select!`-based producers
 - [ ] Websockets — `(web/websocket (fn [req in out] ...))`; dependency-free RFC 6455 (text, ping/pong, fragmentation, close); in/out are `chan any`, reads via `for-chan`
-- [ ] htmx helpers — `hx-request?`, `HX-*` response-header setters, optional embedded `htmx.min.js` (htmx itself already works: attributes + fragment responses)
+- [ ] htmx helpers — `hx-request?`, `HX-*` response-header setters, optional embedded `htmx.min.js` (htmx itself already works: attributes + fragment responses — see `examples/todos`)
 
 ---
 

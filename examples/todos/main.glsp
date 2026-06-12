@@ -1,0 +1,90 @@
+;;; Server-rendered todos — hiccup + htmx
+;;; A complete hypermedia app in one file: hiccup vectors render the HTML
+;;; (escaped by default), htmx attributes drive the interactions, and every
+;;; handler returns either a full page or a fragment of it.
+;;;   hiccup    — [:tag {:attrs ...} children...]; keywords are plain data,
+;;;               (map ...) output splices as children, #id.class shorthand
+;;;   htmx      — hx-post/hx-delete/hx-target/hx-swap attributes; fragment
+;;;               responses; HX-Request header detection
+;;;   state     — an atom guards the in-memory todo list
+;;; Run it, then open http://localhost:8080
+(ns main (:import [golisp/web]))
+
+(def todos
+  (atom
+    [{:id "1" :title "Try glisp" :done true}
+     {:id "2" :title "Render <em>safely</em> & escape" :done false}
+     {:id "3" :title "Ship the todo app" :done false}]))
+
+(def next-id (atom 3))
+
+;;; Claims the next numeric id as a string (swap! returns the new value).
+(defn claim-id [] -> string
+  (str (swap! next-id (fn [n] (+ (int n) 1)))))
+
+; ── views ──────────────────────────────────────────────────────────
+(defn todo-item [todo any] -> any
+  (let [id (str (:id todo))]
+    [:li.todo
+     {:id (format "todo-%s" id)}
+     [:input {:type "checkbox" :checked (= (:done todo) true) :hx-post (format "/todos/%s/toggle" id) :hx-target "closest li" :hx-swap "outerHTML"}]
+     [:span (if (= (:done todo) true) {:class "done"} {}) (:title todo)]
+     [:button.delete {:hx-delete (format "/todos/%s" id) :hx-target "closest li" :hx-swap "delete" :hx-confirm "Delete this todo?"} "x"]]))
+
+(defn todo-list [items any] -> any
+  [:div#todo-list
+   [:ul.todos (map (fn [t] (todo-item t)) items)]
+   [:p.summary (format "%d of %d done" (len (filter :done items)) (len items))]])
+
+(def css
+  "\n  body { max-width: 40rem; margin: 2rem auto; font-family: sans-serif; }\n  ul.todos { list-style: none; padding: 0; }\n  li.todo { display: flex; gap: .5rem; padding: .3rem 0; align-items: center; }\n  li.todo span { flex: 1; }\n  span.done { text-decoration: line-through; color: #888; }\n  button.delete { border: none; background: none; color: #c00; cursor: pointer; }\n  p.summary { color: #666; }\n")
+
+(defn page [items any] -> string
+  (web/html-page
+    [:html
+     [:head [:meta {:charset "utf-8"}] [:title "todos"] [:script {:src "https://unpkg.com/htmx.org@2.0.4"}] [:style (web/raw css)]]
+     [:body [:h1 "todos"] [:form {:hx-post "/todos" :hx-target "#todo-list" :hx-swap "outerHTML" "hx-on::after-request" "this.reset()"} [:input {:type "text" :name "title" :placeholder "What needs doing?" :autofocus true :required true}] [:button "add"]] (todo-list items)]]))
+
+; ── handlers ───────────────────────────────────────────────────────
+(defn home [req web/Request] -> web/Response
+  (web/html-response 200 (page (deref todos))))
+
+;;; Adds a todo from the form body and returns the refreshed list fragment.
+(defn add-todo [req web/Request] -> web/Response
+  (let [title (trim (web/form-param req "title"))]
+    (if (blank? title)
+      (web/bad-request "title must not be blank")
+      (do
+        (swap! todos
+               (fn [ts] (conj ts {:id (claim-id) :title title :done false})))
+        (web/render-response 200 (todo-list (deref todos)))))))
+
+;;; Flips one todo's done flag and returns just that item's fragment.
+(defn toggle-todo [req web/Request] -> web/Response
+  (let [id (web/path-param req "id")]
+    (do
+      (swap! todos
+        (fn [ts]
+          (map
+            (fn [t]
+              (if (= (str (:id t)) id)
+                (assoc t :done (not (= (:done t) true)))
+                t))
+            ts)))
+      (if-let [todo (some (fn [t] (if (= (str (:id t)) id) t nil)) (deref todos))]
+        (web/render-response 200 (todo-item todo))
+        (web/not-found (format "no todo %s" id))))))
+
+;;; Deletes a todo; hx-swap "delete" removes the element client-side.
+(defn delete-todo [req web/Request] -> web/Response
+  (let [id (web/path-param req "id")]
+    (do
+      (swap! todos (fn [ts] (remove (fn [t] (= (str (:id t)) id)) ts)))
+      {:status 200
+       :body   ""})))
+
+(defn main [] -> void
+  (let [handler (web/routes (web/get "/" home) (web/post "/todos" add-todo) (web/post "/todos/:id/toggle" toggle-todo) (web/delete "/todos/:id" delete-todo))]
+    (log/info "todos listening" "addr" ":8080")
+    (web/serve-graceful ":8080"
+                        (web/wrap handler web/wrap-logging web/wrap-recover))))

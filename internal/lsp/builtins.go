@@ -321,7 +321,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"web/serve":          {Sig: "(web/serve addr handler)                  →  error", Doc: "Start an HTTP server on addr with handler. Blocks until an error occurs."},
 	"web/serve-graceful": {Sig: "(web/serve-graceful addr handler)", Doc: "Start an HTTP server on addr; blocks and shuts down gracefully on SIGINT/SIGTERM."},
 
-	// web/html.go, web/sse.go, web/ws.go (golisp/web) — exploration prototypes
+	// web/html.go (stable); web/sse.go, web/ws.go (golisp/web) — exploration prototypes
 	"web/html":            {Sig: "(web/html node)                            →  string", Doc: "Render a hiccup-style node tree ([:tag attrs? children...]) to an HTML string. Text is escaped; use web/raw for trusted markup. Tags support the \"div#id.class\" shorthand."},
 	"web/html-page":       {Sig: "(web/html-page node)                       →  string", Doc: "Render a hiccup-style node tree with a leading <!DOCTYPE html>."},
 	"web/raw":             {Sig: "(web/raw s)                                →  RawHtml", Doc: "Mark s as pre-rendered markup so web/html emits it without escaping. Only use with trusted content."},

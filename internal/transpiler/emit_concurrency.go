@@ -248,9 +248,10 @@ func (e *Emitter) emitSelectStmt(n *ast.SelectStmt) error {
 			e.pop()
 		} else {
 			e.writeIndent()
-			if sc.Binding != "" {
+			if sc.Binding != "" && sc.Binding != "_" {
 				e.writef("case %s := <-", sc.Binding)
 			} else {
+				// No binding (or `_`): `case _ := <-ch` is illegal Go.
 				e.write("case <-")
 			}
 			if err := e.emitExpr(sc.ChanExpr); err != nil {

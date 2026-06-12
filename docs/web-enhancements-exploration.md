@@ -148,7 +148,7 @@ real `http.ResponseWriter`/`*http.Request` — streams from the channel:
           (if (< n 5)
             (do (send! events {:event "tick" :id n :data {:n n}})
                 (recur (+ n 1)))
-            (do (close! events) nil))))
+            (close! events))))
     (web/sse-response events)))
 ```
 
@@ -178,10 +178,9 @@ closes when `r.Context()` is cancelled. A producer races it with `select!`:
 (let [done (as (chan any) (get req "done"))]
   (go (loop [n 0]
         (select!
-          ([sig done] (log/info "client gone"))
+          ([_ done] (log/info "client gone"))
           ([(send! events (format "beat %d" n))]
-            (do ... (recur (+ n 1)))))
-        nil)))
+            (do ... (recur (+ n 1))))))))
 ```
 
 Verified: killing curl mid-stream fired the `done` case and the producer
@@ -298,8 +297,18 @@ error. Still open: built-ins are not values (`(swap! a inc)` →
 
 > **Status update (post-merge of PR #31)**: items 1–4 above were re-run
 > against `main` after the keyword-fns/HOF-gate/dotimes fixes landed — all
-> four still reproduce verbatim. They remain the gating work for promoting
-> the SSE/websocket prototypes (P1 in §7).
+> four still reproduced at that point.
+>
+> **Status update 2 — all four fixed (P1 done)**: statement-only forms in a
+> loop tail (incl. as `if`/`cond` branches) now emit the statement plus
+> `break`/`return nil`, matching the fn-tail rule (`emitLoopTailNode`,
+> `emit_loop.go`); a `_` recv binding emits `case <-ch:`
+> (`emitSelectStmt`, `emit_concurrency.go`); bare scalar literals in
+> statement position are skipped (`emitStmtNode`, `transpiler.go`). The
+> §3.1/§3.2 producer code now compiles **as originally written** — no
+> trailing `nil`, no named dummy bindings — verified end-to-end with curl
+> (stream + disconnect). Regression coverage: snippet tests +
+> `testdata/select_loop.glsp` golden (vetted by `TestGoldenCompiles`).
 
 ## 6. What deliberately stays the same
 
@@ -317,7 +326,7 @@ error. Still open: built-ins are not values (`(swap! a inc)` →
 
 | Step | Scope | Risk | Notes |
 |---|---|---|---|
-| P1 Fix the §5 bug cluster (select!/loop-tail emission) | transpiler, isolated | low | hits exactly the code style SSE/WS demand; do first |
+| P1 Fix the §5 bug cluster (select!/loop-tail emission) | transpiler, isolated | low | ✅ done — hits exactly the code style SSE/WS demand |
 | P2 Hiccup: promote prototype (CLAUDE.md web-API entry, example app) | docs + examples | low | API already tested; LSP builtin entries added on this branch |
 | P3 SSE: decide `req["done"]` vs lazy `(web/done req)`; document the leak/panic caveats | `web/` | low | semantics validated |
 | P4 Websockets: harden (UTF-8 validation, close-code pass-through, write deadlines, max-frame config) or swap internals for `coder/websocket` | `web/ws.go` | medium | glisp API stable either way |

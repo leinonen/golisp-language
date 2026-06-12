@@ -321,12 +321,14 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"web/serve":          {Sig: "(web/serve addr handler)                  →  error", Doc: "Start an HTTP server on addr with handler. Blocks until an error occurs."},
 	"web/serve-graceful": {Sig: "(web/serve-graceful addr handler)", Doc: "Start an HTTP server on addr; blocks and shuts down gracefully on SIGINT/SIGTERM."},
 
-	// web/html.go (stable); web/sse.go, web/ws.go (golisp/web) — exploration prototypes
+	// web/html.go, web/sse.go (stable); web/ws.go (golisp/web) — exploration prototype
 	"web/html":            {Sig: "(web/html node)                            →  string", Doc: "Render a hiccup-style node tree ([:tag attrs? children...]) to an HTML string. Text is escaped; use web/raw for trusted markup. Tags support the \"div#id.class\" shorthand."},
 	"web/html-page":       {Sig: "(web/html-page node)                       →  string", Doc: "Render a hiccup-style node tree with a leading <!DOCTYPE html>."},
 	"web/raw":             {Sig: "(web/raw s)                                →  RawHtml", Doc: "Mark s as pre-rendered markup so web/html emits it without escaping. Only use with trusted content."},
 	"web/render-response": {Sig: "(web/render-response status node)          →  Response", Doc: "Render a hiccup-style node tree as a text/html response with the given status."},
-	"web/sse-response":    {Sig: "(web/sse-response ch)                      →  Response", Doc: "Stream server-sent events from ch ((chan any)) until it closes or the client disconnects. A string becomes a data line; a map may carry \"event\", \"data\", \"id\", \"retry\" keys. req[\"done\"] is a chan any that closes on client disconnect."},
+	"web/sse-response":    {Sig: "(web/sse-response ch)                      →  Response", Doc: "Stream server-sent events from ch ((chan any)) until it closes or the client disconnects. A string becomes a data line; a map may carry \"event\", \"data\", \"id\", \"retry\" keys. Idle streams emit a keepalive comment every 15s (override with a \"keepalive\" seconds key, 0 disables). Pair the producer with (web/done req) and (web/go-recover ...)."},
+	"web/done":            {Sig: "(web/done req)                             →  (chan any)", Doc: "Channel that closes when the client disconnects. Created lazily on first call (cached in the request map); race it in select! to stop an SSE/websocket producer when the client goes away."},
+	"web/go-recover":      {Sig: "(web/go-recover (fn [] ...))", Doc: "Run a fn in a goroutine, recovering and logging any panic — the goroutine analog of wrap-recover. Use for SSE/websocket producers; pair with (defer (close! ch)) so the stream ends even on panic."},
 	"web/websocket":       {Sig: "(web/websocket handler)                    →  Handler", Doc: "Upgrade the request to a websocket. handler is (fn [req web/Request in (chan any) out (chan any)] -> any ...): text messages arrive on in (closed on disconnect), values sent on out are written as text frames; returning closes the connection."},
 
 	// Declarations

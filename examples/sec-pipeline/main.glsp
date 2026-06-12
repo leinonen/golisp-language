@@ -22,14 +22,20 @@
    {"src" "fw" "type" "drop" "ip" "192.0.2.55" "msg" "Telnet probe dropped"}])
 
 (def ids-log []any
-  [{"src" "ids" "type" "alert" "ip" "203.0.113.42" "msg" "SQL injection attempt"}
+  [{"src"  "ids"
+    "type" "alert"
+    "ip"   "203.0.113.42"
+    "msg"  "SQL injection attempt"}
    {"src" "ids" "type" "info" "ip" "198.51.100.8" "msg" "Port scan detected"}
    {"src" "ids" "type" "alert" "ip" "203.0.113.15" "msg" "Reflected XSS"}
    {"src" "ids" "type" "alert" "ip" "203.0.113.42" "msg" "Path traversal"}])
 
 (def auth-log []any
   [{"src" "auth" "type" "login" "ip" "10.0.0.1" "msg" "Admin login (internal)"}
-   {"src" "auth" "type" "login" "ip" "203.0.113.42" "msg" "DB service login from external"}
+   {"src"  "auth"
+    "type" "login"
+    "ip"   "203.0.113.42"
+    "msg"  "DB service login from external"}
    {"src" "auth" "type" "access" "ip" "10.0.0.1" "msg" "Config file read"}
    {"src" "auth" "type" "login" "ip" "203.0.113.55" "msg" "Root login attempt"}])
 

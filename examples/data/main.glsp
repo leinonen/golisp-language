@@ -6,13 +6,48 @@
 (ns main)
 
 (def products []any
-  [{:id 1 :name "Widget A" :category "hardware" :price 999 :stock 50 :supplier {:name "AcmeCo" :tier 1}}
-   {:id 2 :name "Widget B" :category "hardware" :price 2499 :stock 12 :supplier {:name "BetaInc" :tier 2}}
-   {:id 3 :name "Gadget X" :category "electronics" :price 4999 :stock 8 :supplier {:name "AcmeCo" :tier 1}}
-   {:id 4 :name "Gadget Y" :category "electronics" :price 8999 :stock 3 :supplier {:name "GammaLtd" :tier 3}}
-   {:id 5 :name "Bolt Pack" :category "hardware" :price 399 :stock 200 :supplier {:name "BetaInc" :tier 2}}
-   {:id 6 :name "LED Strip" :category "electronics" :price 1499 :stock 25 :supplier {:name "GammaLtd" :tier 3}}
-   {:id 7 :name "Wrench Set" :category "hardware" :price 3999 :stock 0 :supplier {:name "AcmeCo" :tier 1}}])
+  [{:id       1
+    :name     "Widget A"
+    :category "hardware"
+    :price    999
+    :stock    50
+    :supplier {:name "AcmeCo" :tier 1}}
+   {:id       2
+    :name     "Widget B"
+    :category "hardware"
+    :price    2499
+    :stock    12
+    :supplier {:name "BetaInc" :tier 2}}
+   {:id       3
+    :name     "Gadget X"
+    :category "electronics"
+    :price    4999
+    :stock    8
+    :supplier {:name "AcmeCo" :tier 1}}
+   {:id       4
+    :name     "Gadget Y"
+    :category "electronics"
+    :price    8999
+    :stock    3
+    :supplier {:name "GammaLtd" :tier 3}}
+   {:id       5
+    :name     "Bolt Pack"
+    :category "hardware"
+    :price    399
+    :stock    200
+    :supplier {:name "BetaInc" :tier 2}}
+   {:id       6
+    :name     "LED Strip"
+    :category "electronics"
+    :price    1499
+    :stock    25
+    :supplier {:name "GammaLtd" :tier 3}}
+   {:id       7
+    :name     "Wrench Set"
+    :category "hardware"
+    :price    3999
+    :stock    0
+    :supplier {:name "AcmeCo" :tier 1}}])
 
 (defn main [] -> void
   ; --- second / last ---

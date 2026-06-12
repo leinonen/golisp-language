@@ -33,11 +33,20 @@
 ; ── views ──────────────────────────────────────────────────────────
 (defn todo-item [todo any] -> any
   (let [id (str (:id todo))]
-    [:li.todo
-     {:id (format "todo-%s" id)}
-     [:input {:type "checkbox" :checked (= (:done todo) true) :hx-post (format "/todos/%s/toggle" id) :hx-target "closest li" :hx-swap "outerHTML"}]
+    [:li.todo {:id (format "todo-%s" id)}
+     [:input
+      {:type      "checkbox"
+       :checked   (= (:done todo) true)
+       :hx-post   (format "/todos/%s/toggle" id)
+       :hx-target "closest li"
+       :hx-swap   "outerHTML"}]
      [:span (if (= (:done todo) true) {:class "done"} {}) (:title todo)]
-     [:button.delete {:hx-delete (format "/todos/%s" id) :hx-target "closest li" :hx-swap "delete" :hx-confirm "Delete this todo?"} "x"]]))
+     [:button.delete
+      {:hx-delete  (format "/todos/%s" id)
+       :hx-target  "closest li"
+       :hx-swap    "delete"
+       :hx-confirm "Delete this todo?"}
+      "x"]]))
 
 (defn todo-list [items any] -> any
   [:div#todo-list
@@ -55,8 +64,35 @@
 (defn page [items any] -> string
   (web/html-page
     [:html
-     [:head [:meta {:charset "utf-8"}] [:title "todos"] [:script {:src "/htmx.js"}] [:link {:rel "stylesheet" :href "/static/app.css"}]]
-     [:body [:h1 "todos"] [:form {:hx-post "/todos" :hx-target "#todo-list" :hx-swap "outerHTML" "hx-on::after-request" "this.reset()"} [:input {:type "text" :name "title" :placeholder "What needs doing?" :autofocus true :required true}] [:button "add"]] (todo-list items) [:section.chat [:h2 "chat"] [:ul#chat-log] [:form#chat-form [:input#chat-input {:type "text" :placeholder "Say something" :autocomplete "off"}] [:button "send"]]] [:p#live-stats.summary "connecting..."] [:script {:src "/static/app.js" :defer true}]]]))
+     [:head
+      [:meta {:charset "utf-8"}]
+      [:title "todos"]
+      [:script {:src "/htmx.js"}]
+      [:link {:rel "stylesheet" :href "/static/app.css"}]]
+     [:body
+      [:h1 "todos"]
+      [:form
+       {:hx-post               "/todos"
+        :hx-target             "#todo-list"
+        :hx-swap               "outerHTML"
+        "hx-on::after-request" "this.reset()"}
+       [:input
+        {:type        "text"
+         :name        "title"
+         :placeholder "What needs doing?"
+         :autofocus   true
+         :required    true}]
+       [:button "add"]]
+      (todo-list items)
+      [:section.chat
+       [:h2 "chat"]
+       [:ul#chat-log]
+       [:form#chat-form
+        [:input#chat-input
+         {:type "text" :placeholder "Say something" :autocomplete "off"}]
+        [:button "send"]]]
+      [:p#live-stats.summary "connecting..."]
+      [:script {:src "/static/app.js" :defer true}]]]))
 
 ; ── todo handlers ──────────────────────────────────────────────────
 (defn home [req web/Request] -> web/Response

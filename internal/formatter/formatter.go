@@ -486,7 +486,13 @@ func inline(n ast.Node) string {
 	case *ast.IntLit:
 		return fmt.Sprintf("%d", v.Value)
 	case *ast.FloatLit:
-		return strconv.FormatFloat(v.Value, 'f', -1, 64)
+		s := strconv.FormatFloat(v.Value, 'f', -1, 64)
+		// A whole-number float must keep its ".0" suffix, or the round-trip
+		// turns the literal into an int (changing the emitted Go type).
+		if !strings.ContainsAny(s, ".eE") {
+			s += ".0"
+		}
+		return s
 	case *ast.StringLit:
 		return fmt.Sprintf("%q", v.Value)
 	case *ast.KeywordLit:

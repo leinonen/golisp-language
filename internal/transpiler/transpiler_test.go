@@ -674,6 +674,33 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "ctx-cancel", src: `(defn f [cancel] (ctx/cancel! cancel))`, wantSub: "_glispCtxCancel("},
 		{name: "ctx-value", src: `(defn f [ctx] (ctx/value ctx "key"))`, wantSub: "_glispCtxValue("},
 		{name: "ctx-with-value", src: `(defn f [ctx] (ctx/with-value ctx "key" "val"))`, wantSub: "_glispCtxWithValue("},
+		{name: "ctx-done?", src: `(defn f [ctx] -> bool (ctx/done? ctx))`, wantSub: "_glispCtxDone("},
+		{name: "ctx-done? skips truthy wrapper", src: `(defn f [ctx] (if (ctx/done? ctx) 1 2))`, wantSub: "if _glispCtxDone(ctx)"},
+		{name: "ctx-err", src: `(defn f [ctx] (ctx/err ctx))`, wantSub: "_glispCtxErr("},
+
+		// numeric min/max + collection variants
+		{name: "max", src: `(defn f [] (max 1 2 3))`, wantSub: "_glispMax(1, 2, 3)"},
+		{name: "min", src: `(defn f [] (min 1 2))`, wantSub: "_glispMin(1, 2)"},
+		{name: "max-by", src: `(defn f [xs []any] (max-by (fn [x] x) xs))`, wantSub: "_glispMaxBy("},
+		{name: "min-by", src: `(defn f [xs []any] (min-by (fn [x] x) xs))`, wantSub: "_glispMinBy("},
+
+		// set constructor
+		{name: "set constructor", src: `(defn f [xs []any] (set xs))`, wantSub: "_glispToSet("},
+
+		// fnil
+		{name: "fnil", src: `(defn f [m] (update m "k" (fnil (fn [n] n) 0)))`, wantSub: "_glispFnil("},
+
+		// (string x) routes through the smart converter, not a Go conversion
+		{name: "string conversion is smart", src: `(defn f [x] (string x))`, wantSub: "_glispToString(x)"},
+
+		// dotimes with _ binding gets a synthetic counter
+		{name: "dotimes underscore", src: `(defn f [] -> void (dotimes [_ 3] (println "hi")))`, wantSub: "for _dotimesI := 0; _dotimesI < 3; _dotimesI++"},
+
+		// keywords as functions in HOF positions
+		{name: "keyword fn in map", src: `(defn f [xs []any] (map :title xs))`, wantSub: `_glispMap(func(_kwM any) any { return _glispGet(_kwM, "title") }`},
+		{name: "keyword fn in group-by", src: `(defn f [xs []any] (group-by :status xs))`, wantSub: `_glispGroupBy(func(_kwM any) any { return _glispGet(_kwM, "status") }`},
+		{name: "keyword fn in sort-by", src: `(defn f [xs []any] (sort-by :rating xs))`, wantSub: `_glispSortBy(func(_kwM any) any { return _glispGet(_kwM, "rating") }`},
+		{name: "keyword stays a value in non-fn position", src: `(defn f [xs []any] (contains? xs :title))`, wantSub: `_glispContains(xs, "title")`},
 
 		{
 			name:    "typed keyword access on struct param",
@@ -960,6 +987,70 @@ func TestArityChecking(t *testing.T) {
 			name:    "exact arity ok",
 			src:     `(defn add [a int b int] -> int (+ a b)) (defn main [] (add 1 2))`,
 			wantErr: "", // correct arity — no error
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Transpile(tt.src)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error %q\ngot: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+// TestHOFTypedFnDiagnostic verifies that passing a typed user fn where a
+// runtime helper expects func(any) any is rejected at transpile time instead
+// of panicking at runtime with an interface-conversion error.
+func TestHOFTypedFnDiagnostic(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantErr string // "" = must transpile cleanly
+	}{
+		{
+			name:    "typed param rejected",
+			src:     `(defn double-it [x int] -> int (* x 2)) (defn f [xs []any] (map double-it xs))`,
+			wantErr: "double-it has a typed param (int)",
+		},
+		{
+			name:    "typed return rejected",
+			src:     `(defn flag [x any] -> bool (nil? x)) (defn f [xs []any] (filter flag xs))`,
+			wantErr: "flag has return type bool",
+		},
+		{
+			name:    "void fn rejected",
+			src:     `(defn show [x any] -> void (println x)) (defn f [xs []any] (map show xs))`,
+			wantErr: "show has return type void",
+		},
+		{
+			name:    "any fn accepted",
+			src:     `(defn keep-it [x any] -> any x) (defn f [xs []any] (map keep-it xs))`,
+			wantErr: "",
+		},
+		{
+			name:    "untyped param with any return accepted",
+			src:     `(defn keep-it [x] -> any x) (defn f [xs []any] (map keep-it xs))`,
+			wantErr: "",
+		},
+		{
+			name:    "local binding shadowing a typed defn is not flagged",
+			src:     `(defn g [x int] -> int x) (defn f [g xs []any] (map g xs))`,
+			wantErr: "",
+		},
+		{
+			name:    "lambda always accepted",
+			src:     `(defn f [xs []any] (map (fn [x] x) xs))`,
+			wantErr: "",
 		},
 	}
 	for _, tt := range tests {

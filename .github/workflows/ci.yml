@@ -36,4 +36,5 @@ jobs:
                examples-httpclient \
                examples-data \
                examples-concurrency \
-               examples-logparser
+               examples-logparser \
+               examples-movienight

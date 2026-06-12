@@ -80,6 +80,7 @@
 - [x] `make fmt-glsp` Makefile target
 - [x] Pretty-print over existing AST: consistent indentation, aligned map pairs
 - [x] Comment preservation — `;` and `;;` leading comments survive `glisp fmt`
+- [ ] Preserve float literals — `8.0` currently reformats to `8`, silently changing the literal from `float64` to `int64` (observable in map literals like `{:rating 8.0}` where no annotation forces the type back)
 
 ### 4b. REPL
 - [x] `glisp repl` — read form, transpile, run via `go run`, print result
@@ -168,6 +169,8 @@ internal/lsp/
 - [x] `when-let` / `if-let` — `(when-let [user (find-user id)] ...)` — nil-guarded binding; extremely common pattern. Branch taken when bound value is non-nil (`!= nil`); binding supports destructuring
 - [ ] `doto` — `(doto obj (.SetHeader "Content-Type" "application/json") (.Write body))` — fluent/builder-style Go APIs
 - [ ] `with-open` — `(with-open [f (os/Open path)] body)` — emits `defer f.Close()`; resource cleanup
+- [ ] Keywords as functions — `(map :title coll)` / `(filter :active users)` — lower a bare keyword in function position of a HOF call to `(fn [m] (:k m))`. Today every projection needs a lambda (`(map (fn [m] (:title m)) coll)`), the single most repeated boilerplate in map-heavy code (see `examples/movienight`)
+- [ ] `fnil` — `(update tally k (fnil inc 0))` — wrap a fn so a nil argument becomes a default. Needed because `or` deliberately returns Go `bool` (ADR-011), so the Clojure `(or n 0)` default idiom is unavailable; today an `update` over a possibly-missing key reads `(fn [n] (if n (+ (int n) 1) 1))`
 
 ---
 
@@ -207,6 +210,8 @@ Core ops needed in every real server — transforming API payloads, shaping DB r
 - [x] `parse-float` — `(parse-float s)` → `[float64 error]` — wraps `strconv.ParseFloat`
 - [x] `repeat` — `(repeat n val)` → slice of n copies of val
 - [x] `interpose` — `(interpose sep coll)` → new seq with sep between each element
+- [ ] `max` / `min` — plain numeric variadic forms; today the only option is `max-key`/`min-key` with an identity fn
+- [ ] `max-by` / `min-by` — `(max-by f coll)` — collection variants of `max-key`/`min-key`, which take variadic arguments and so can't rank a runtime-built list without `apply` gymnastics
 
 ### 7d. Set support
 The AST node `SetLit` exists; needs transpiler wiring and runtime helpers.
@@ -215,6 +220,8 @@ The AST node `SetLit` exists; needs transpiler wiring and runtime helpers.
 - [x] `conj` on sets — add element
 - [x] `contains?` on sets — O(1) membership test
 - [x] `union` / `intersection` / `difference` — set algebra
+- [ ] `(set coll)` constructor — build a set from any sequence; today the only route is `(reduce (fn [s x] (conj s x)) #{} coll)` (`into #{}` doesn't work either — `_glispInto` only targets maps and vectors)
+- [ ] Sets as sequences — teach `_glispToSlice` to enumerate `map[any]struct{}` (sorted, for determinism) so `map`/`filter`/`doseq`/`sort`/`join`/`into` work on sets. Today a set's *contents* are unreachable without filtering some other collection through `contains?` (see `titles-in` in `examples/movienight`)
 
 ---
 
@@ -309,6 +316,8 @@ Building blocks that close the gap between a toy language and one you'd stake pr
 - [x] `(ctx/cancel! cancel)` — call the cancel function; type-asserts to `context.CancelFunc`
 - [x] `(ctx/value ctx key)` — `ctx.Value(key)` — read a value from context
 - [x] `(ctx/with-value ctx key val)` — `context.WithValue` — add key-value to context
+- [ ] `(ctx/done? ctx)` → `bool` / `(ctx/err ctx)` → `error` — complete the family. Checking whether a deadline has passed currently requires interop: `(let [typed (as context/Context c)] (not (nil? (.Err typed))))` (see `expired?` in `examples/movienight`)
+- [ ] `ctx` in `select!` — a `(:done ctx body...)` case emitting `case <-ctx.Done():`, so workers can race a context against their channels without interop
 
 ---
 
@@ -353,3 +362,6 @@ either gets absorbed by emission or becomes a glisp-level diagnostic.
 - [x] Go-error → `.glsp` mapping audited — build errors and panic user-frames already mapped via //line; fixed: runtime-helper panic frames re-anchored to `glisp_runtime.go` (were misattributed to bogus `.glsp` lines in single-file builds), deftest assertion failures pinned to the exact assert line (were drifting)
 - [x] `glisp run file.glsp` — one-shot compile-and-run for a fast edit-run loop (also takes a dir; passes args, propagates exit code, leaves no artifacts)
 - [ ] `glisp run --watch` — re-run on save
+- [ ] Typed fn as HOF argument — `(map double-it coll)` where `double-it` is `(defn double-it [x int] -> int ...)` panics at *runtime* (`interface conversion: ... is func(int) int, not func(any) any`) because `_glispMap`/`partial`/`comp`/`apply` assert `func(any) any`. Either auto-wrap typed fns at emission when used as values, or reject at transpile time with a position-tagged error naming the fix (an `[x any] -> any` signature or a lambda)
+- [ ] `(string x)` on `any` — emits a Go conversion (`string(x)`), which is a compile error on interface values and silent garbage on ints (`string(65)` → `"A"`). Route through `_glispToString` like the `:- string` destructure annotation already does, or raise a transpile-time diagnostic suggesting `str`
+- [ ] `dotimes` with `_` binding — `(dotimes [_ 3] body)` emits illegal Go (`for _ := 0; _ < 3 ...`). Substitute a synthetic loop variable when the binding is `_`

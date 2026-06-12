@@ -1,0 +1,190 @@
+;;; Movie Night Planner
+;;; Picks tonight's film for a group of friends. Exercises the parts of the
+;;; language the other examples don't:
+;;;   sets        — #{...} literals, conj, contains?, union, intersection, difference
+;;;   threading   — -> (thread-first) and ->> (thread-last) pipelines
+;;;   HOFs        — partial, complement, comp, juxt, apply, keep, constantly
+;;;   map utils   — reduce-kv, map-vals, vals, dissoc, zipmap
+;;;   predicates  — every?, not-any?, some, min-key, max-key
+;;;   bindings    — if-let, when-let, let-or, annotated destructuring (:- T)
+;;;   misc        — dotimes, interleave, ctx/* (deadline + request-scoped values)
+(ns main)
+
+; ── catalog ──────────────────────────────────────────────────────────────────
+(def catalog []any
+  [{:title "Arrival" :genre "scifi" :year 2016 :rating 7.9 :minutes 116}
+   {:title "Dune" :genre "scifi" :year 2021 :rating 8 :minutes 155}
+   {:title "Heat" :genre "crime" :year 1995 :rating 8.3 :minutes 170}
+   {:title "Parasite" :genre "thriller" :year 2019 :rating 8.5 :minutes 132}
+   {:title "Spirited Away" :genre "animation" :year 2001 :rating 8.6 :minutes 125}
+   {:title "The Thing" :genre "horror" :year 1982 :rating 8.2 :minutes 109}
+   {:title "Amelie" :genre "comedy" :year 2001 :rating 8.3 :minutes 122}
+   {:title "Blade Runner" :genre "scifi" :year 1982 :rating 8.1 :minutes 117}])
+
+(def members []string ["ada" "bob" "carol"])
+
+; Each member's watched titles as a set literal — membership math, not lists.
+(def seen map[string]any
+  {"ada"   #{"Arrival" "Dune" "Blade Runner"}
+   "bob"   #{"Heat" "Dune"}
+   "carol" #{"Spirited Away" "Dune" "Arrival"}})
+
+; ── set algebra ──────────────────────────────────────────────────────────────
+;;; Union of every member's seen-set: titles at least one person has watched.
+(defn seen-by-anyone [] -> any
+  (reduce (fn [acc s] (union acc s)) #{} (vals seen)))
+
+;;; Intersection of every member's seen-set: titles the whole group has watched.
+(defn seen-by-everyone [] -> any
+  (reduce (fn [acc s] (intersection acc s)) (seen-by-anyone) (vals seen)))
+
+;;; Titles a has seen but b hasn't (set difference).
+(defn bragging-rights [a string b string] -> any
+  (difference (get seen a) (get seen b)))
+
+;;; Catalog titles that belong to the given set, in stable catalog order
+;;; (sets are unordered, so we filter the catalog for display).
+(defn titles-in [s any] -> []any
+  (->> catalog (map (fn [m] (:title m))) (filter (fn [t] (contains? s t)))))
+
+; ── candidate selection ──────────────────────────────────────────────────────
+;;; True when the movie runs shorter than limit minutes. Made for partial:
+;;; (partial shorter-than? 130) fixes the limit and leaves the movie open.
+(defn shorter-than? [limit any m any] -> any
+  (< (int (:minutes m)) (int limit)))
+
+;;; Unwatched movies ranked best-first: a thread-last pipeline.
+(defn ranked-picks [] -> []any
+  (let [watched (seen-by-anyone)]
+    (->> catalog
+         (filter (fn [m] (not (contains? watched (:title m)))))
+         (sort-by (fn [m] (- 0 (float64 (:rating m))))))))
+
+;;; Finds a catalog entry by exact title; some returns the match itself.
+(defn find-movie [title string] -> any
+  (some (fn [m] (if (= (:title m) title) m nil)) catalog))
+
+;;; Formats one catalog entry. The annotated destructure (:- string, :- int,
+;;; :- float64) types each field, so the body needs no casts.
+(defn movie-line [{title :title :- string year :year :- int rating :rating :- float64 minutes :minutes :- int}] -> string
+  (format "%-14s (%d)  %.1f★  %3d min" title year rating minutes))
+
+;;; Builds the final plan map. let-or short-circuits to the fallback as soon
+;;; as a binding comes up nil; thread-first then shapes the result map.
+(defn build-plan [title string host string] -> any
+  (let-or [m (find-movie title) {"error" (str title " is not in the catalog")}
+           hs (get seen host) {"error" (str "unknown host: " host)}]
+    (-> {}
+      (assoc "title" (:title m) "host" host "rating" (:rating m) "draft" true)
+      (dissoc "draft")
+      (merge {"snacks" "popcorn"}))))
+
+; ── streaming availability with a context deadline ───────────────────────────
+;;; True once the context's deadline has passed or it was cancelled.
+(defn expired? [c any] -> bool
+  (let [typed (as context/Context c)] (not (nil? (.Err typed)))))
+
+;;; Simulates one availability lookup. The service "responds" after delay;
+;;; if the shared deadline expired first, the reply is dropped instead of sent.
+(defn check-service [ctx any service string delay time/Duration ch (chan any)] -> void
+  (go
+    (do
+      (time/sleep delay)
+      (if (expired? ctx)
+        (println "    " service "→ dropped (deadline passed)")
+        (send! ch (format "%s: available (request %v)" service (ctx/value ctx "request-id")))))))
+
+(defn main [] -> void
+  (println "=== Movie Night Planner ===")
+  ; --- set algebra over who-has-seen-what ---
+  (println "\n--- group taste (sets) ---")
+  (println "  seen by anyone:  " (titles-in (seen-by-anyone)))
+  (println "  seen by everyone:" (titles-in (seen-by-everyone)))
+  (println "  ada has on bob:  " (titles-in (bragging-rights "ada" "bob")))
+  ; conj returns a new set; the original is untouched
+  (let [bob+ (conj (get seen "bob") "Amelie")]
+    (println "  bob after Amelie:"
+             (count bob+)
+             "titles, was"
+             (len (get seen "bob"))))
+  ; map-vals: member → number of titles seen
+  (println "  titles per member:" (map-vals (fn [s] (len s)) seen))
+  ; --- ranked candidates ---
+  (println "\n--- candidates (nobody has seen these) ---")
+  (let [picks (ranked-picks)]
+    (doseq [m picks] (println "   " (movie-line m)))
+    ; every? / not-any? / some over the candidate list
+    (println "  all rated 8.0+?    "
+             (every? (fn [m] (>= (float64 (:rating m)) 8)) picks))
+    (println "  none already seen? "
+             (not-any? (fn [m] (contains? (seen-by-anyone) (:title m))) picks))
+    (when-let [old (some (fn [m] (if (< (int (:year m)) 1990) m nil)) picks)]
+      (println "  retro option:      " (:title old)))
+    ; partial fixes the limit; complement flips the predicate
+    (let [short? (partial shorter-than? 130)]
+      (println "  short night picks: "
+               (map (fn [m] (:title m)) (filter short? picks)))
+      (println "  epic night picks:  "
+               (map (fn [m] (:title m)) (filter (complement short?) picks))))
+    ; comp pipes title extraction into upper-case; juxt fans one movie out
+    ; to several views at once
+    (println "  marquee:           "
+      (map
+        (comp (fn [t] (upper-case (str t))) (fn [m] (:title m)))
+        (take 2 picks)))
+    (println "  title+year pairs:  "
+             (map (juxt (fn [m] (:title m)) (fn [m] (:year m))) (take 2 picks)))
+    ; min-key / max-key pick a finalist by a numeric key
+    (let [[a b] picks
+          best (max-key (fn [m] (float64 (:rating m))) a b)
+          quick (min-key (fn [m] (int (:minutes m))) a b)]
+      (println "  higher rated:      " (:title best))
+      (println "  shorter runtime:   " (:title quick))))
+  ; --- voting: zipmap ballots, reduce-kv tally ---
+  (println "\n--- the vote ---")
+  (let [ballots (zipmap members ["Parasite" "The Thing" "Parasite"])
+        tally (reduce-kv (fn [acc voter choice] (update acc (str choice) (fn [n] (if n (+ (int n) 1) 1)))) {} ballots)]
+    (println "  ballots:" ballots)
+    (println "  tally:  " tally)
+    ; keep drops nil results: bogus write-ins simply vanish
+    (let [wishes ["Parasite" "Tenet" "Heat" "Clue"]
+          valid (keep (fn [t] (find-movie (str t))) wishes)]
+      (println "  valid write-ins:" (map (fn [m] (:title m)) valid)))
+    ; constantly + interleave: one ✔ per member, woven name ✔ name ✔ …
+    (println "  rsvp:"
+             (join (interleave members (map (constantly "✔") members)) " ")))
+  ; --- the plan: let-or validation + thread-first assembly ---
+  (println "\n--- the plan ---")
+  (println "  plan:    " (build-plan "Parasite" "carol"))
+  (println "  bad film:" (build-plan "Tenet" "carol"))
+  (println "  bad host:" (build-plan "Parasite" "dave"))
+  ; if-let on a lookup that can miss
+  (if-let [m (find-movie "Parasite")]
+    (println "  showing: " (movie-line m))
+    (println "  nothing to show"))
+  ; apply spreads a vector over a 3-arg lambda
+  (println "  shopping:"
+    (apply (fn [a any b any c any] -> any (format "%v, %v and %v" a b c))
+           ["popcorn" "nachos" "soda"]))
+  ; --- availability check under an 80ms context deadline ---
+  (println "\n--- streaming check (80ms deadline) ---")
+  (let [[ctx cancel] (ctx/with-timeout (ctx/background) 80)
+        rctx (ctx/with-value ctx "request-id" "night-0042")
+        ch (chan any 3)]
+    (check-service rctx "StreamCo" (* 20 time/Millisecond) ch)
+    (check-service rctx "FlixHub" (* 40 time/Millisecond) ch)
+    (check-service rctx "SlowVid" (* 150 time/Millisecond) ch)
+    ; three workers, but the slow one misses the deadline — the third
+    ; select! round falls through to its timeout case
+    (dotimes [i 3]
+      (select!
+        ([reply ch]
+          (println "    " reply))
+        (:timeout 250
+          (println "     no more replies — deadline exceeded"))))
+    (ctx/cancel! cancel)
+    (println "  deadline passed?" (expired? rctx)))
+  ; --- countdown: dotimes ---
+  (println "\n--- showtime ---")
+  (dotimes [i 3] (println " " (- 3 i) "..."))
+  (println "  🎬 enjoy the movie!"))

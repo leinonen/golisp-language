@@ -3,73 +3,66 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 )
 
-func startTask(x int) chan any {
-	return func() chan any {
-		_ch := make(chan any, 1)
-		go func() {
-			_ch <- func() any {
-				return (x * x)
-			}()
-		}()
-		return _ch
-	}()
-}
+func pump(events chan any, done chan any) any {
+	n := 0
+	for {
+		select {
+		case <-done:
+			fmt.Println("done at", n)
+		case events <- n:
+			select {
+			case <-done:
+			case <-time.After(100 * time.Millisecond):
+			}
+			_r0 := (n + 1)
+			n = _r0
+			continue
 
-func runParallel() {
-	{
-		var _wg sync.WaitGroup
-		_wg.Add(3)
-		go func() {
-			defer _wg.Done()
-			fmt.Println("task a")
-		}()
-		go func() {
-			defer _wg.Done()
-			fmt.Println("task b")
-		}()
-		go func() {
-			defer _wg.Done()
-			fmt.Println("task c")
-		}()
-		_wg.Wait()
-	}
-}
-
-func drain(ch chan string) {
-	for msg := range ch {
-		fmt.Println(msg)
-	}
-}
-
-func tryRecv(ch chan int) {
-	_v1 := func() []any { _v, _ok := <-ch; return []any{_v, _ok} }()
-	val := _glispGet(_v1, int64(0))
-	ok := _glispGet(_v1, int64(1))
-	if _glispTruthy(ok) {
-		val
-	} else {
-	}
-}
-
-func safeInc(mu *sync.Mutex, counter *int) {
-	func() any {
-		mu.Lock()
-		defer mu.Unlock()
-		fmt.Println("locked")
+		}
 		return nil
-	}()
+	}
 }
 
-func withTimeout(ch chan string) {
-	select {
-	case msg := <-ch:
-		msg
-	case <-time.After(5000 * time.Millisecond):
+func fill(ch chan any) any {
+	n := 0
+	for {
+		if n < 3 {
+			ch <- n
+			_r0 := (n + 1)
+			n = _r0
+			continue
+		} else {
+			close(ch)
+			return nil
+		}
 	}
+}
+
+func drainOne(in chan any, out chan any) {
+	v := func() any {
+		x := <-in
+		var _loop1 any
+		for {
+			out <- x
+			break
+		}
+		return _loop1
+	}()
+	fmt.Println(v)
+}
+
+func main() {
+	events := make(chan any, 4)
+	done := make(chan any, 1)
+	go func() {
+		pump(events, done)
+	}()
+	fmt.Println(<-events)
+	done <- true
+	fill(events)
 }
 
 // --- glisp runtime helpers (generated) ---

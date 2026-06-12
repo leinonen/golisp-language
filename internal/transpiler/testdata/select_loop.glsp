@@ -1,0 +1,30 @@
+; select!/loop-tail emission: statement-only tails, _ bindings, nil bodies.
+; Surfaced by SSE/websocket producer code — see
+; docs/web-enhancements-exploration.md §5.
+(ns main)
+
+; select! as the loop tail: recur in the send case continues the loop,
+; the done case falls through to break.
+(defn pump [events (chan any) done (chan any)] -> any
+  (loop [n 0]
+    (select!
+      ([_ done]
+        (fmt/println "done at" n))
+      ([(send! events n)]
+        (do (select! ([_ done] nil) (:timeout 100 nil)) (recur (+ n 1)))))))
+
+; close! as an if branch in a loop tail.
+(defn fill [ch (chan any)] -> any
+  (loop [n 0] (if (< n 3) (do (send! ch n) (recur (+ n 1))) (close! ch))))
+
+; send! as the loop tail in expression position.
+(defn drain-one [in (chan any) out (chan any)] -> void
+  (let [v (loop [x (recv! in)] (send! out x))] (fmt/println v)))
+
+(defn main [] -> void
+  (let [events (chan any 4)
+        done (chan any 1)]
+    (go (pump events done))
+    (fmt/println (recv! events))
+    (send! done true)
+    (fill events)))

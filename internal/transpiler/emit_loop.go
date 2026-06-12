@@ -35,6 +35,7 @@ func (e *Emitter) emitLoopExpr(n *ast.LoopExpr, inReturn bool) error {
 //  1. Declare bindings as mutable variables
 //  2. Optionally declare result variable _loopN (when retVar != "")
 //  3. Emit `for { if-recur/break block }`
+//
 // inReturn: when true, base cases emit `return value` directly instead of assigning retVar.
 func (e *Emitter) emitLoopBlock(n *ast.LoopExpr, retVar string, inReturn bool) error {
 	// Collect binding names for recur to update
@@ -134,6 +135,21 @@ func (e *Emitter) emitLoopTailNode(n ast.Node, retVar string) error {
 		return e.emitCondLoopTail(v, retVar)
 	case *ast.DoExpr:
 		return e.emitLoopBody(v.Body, retVar)
+	case *ast.SelectStmt, *ast.GoStmt, *ast.ParStmt, *ast.ForChanStmt,
+		*ast.FanOutStmt, *ast.DeferStmt, *ast.SendStmt, *ast.CloseStmt:
+		// Statement-only tail (ADR-011): these have no value, so emit the
+		// statement and end the loop with nil — the same auto-return rule
+		// fn tails already follow. A recur inside a select! case emits
+		// `continue` and skips the break/return below.
+		if err := e.emitStmtNode(n); err != nil {
+			return err
+		}
+		if e.loopInReturn {
+			e.line("return nil")
+		} else {
+			e.line("break")
+		}
+		return nil
 	case *ast.LetExpr:
 		if err := e.emitLetBindings(v.Bindings); err != nil {
 			return err

@@ -70,6 +70,7 @@ func TestTranspileSnippets(t *testing.T) {
 		name    string
 		src     string
 		wantSub string // substring that must appear in output
+		wantNot string // substring that must NOT appear ("" = skip)
 	}{
 		{
 			name:    "defn basic",
@@ -130,6 +131,29 @@ func TestTranspileSnippets(t *testing.T) {
 			name:    "select timeout",
 			src:     `(defn wait [ch (chan int)] (select! ([v ch] v) (:timeout 1000 nil)))`,
 			wantSub: "time.After(",
+		},
+		{
+			name:    "select underscore binding",
+			src:     `(defn wait [done (chan any)] (select! ([_ done] (fmt/println "go"))))`,
+			wantSub: "case <-done:",
+		},
+		{
+			name:    "select in loop tail breaks",
+			src:     `(defn pump [ch (chan any) done (chan any)] (let [x (loop [n 0] (select! ([_ done] nil) ([(send! ch n)] (recur (+ n 1)))))] x))`,
+			wantSub: "break",
+			wantNot: "= select",
+		},
+		{
+			name:    "close in loop-tail if branch",
+			src:     `(defn fill [ch (chan any)] -> any (loop [n 0] (if (< n 3) (do (send! ch n) (recur (+ n 1))) (close! ch))))`,
+			wantSub: "close(ch)\n\t\t\treturn nil",
+			wantNot: "= close(",
+		},
+		{
+			name:    "bare nil select case body emits no statement",
+			src:     `(defn wait [done (chan any)] (select! ([_ done] nil) (:timeout 50 nil)))`,
+			wantSub: "case <-done:",
+			wantNot: "\tnil",
 		},
 		{
 			name:    "pipeline",
@@ -777,6 +801,9 @@ func TestTranspileSnippets(t *testing.T) {
 			}
 			if !strings.Contains(got, tt.wantSub) {
 				t.Errorf("expected output to contain %q\nfull output:\n%s", tt.wantSub, got)
+			}
+			if tt.wantNot != "" && strings.Contains(got, tt.wantNot) {
+				t.Errorf("expected output NOT to contain %q\nfull output:\n%s", tt.wantNot, got)
 			}
 		})
 	}

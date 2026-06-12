@@ -658,6 +658,13 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 // let/if/cond/do/when are emitted as Go blocks; loops/goroutines as-is.
 // This avoids the need to wrap them in IIFEs when their value is discarded.
 func (e *Emitter) emitStmtNode(n ast.Node) error {
+	switch n.(type) {
+	case *ast.NilLit, *ast.BoolLit, *ast.IntLit, *ast.FloatLit,
+		*ast.StringLit, *ast.KeywordLit:
+		// A bare scalar literal in statement position is a no-op, and an
+		// expression statement like `nil` is illegal Go ("nil is not used").
+		return nil
+	}
 	e.lineDir(n.Pos())
 	switch v := n.(type) {
 	case *ast.LetExpr:

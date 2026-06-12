@@ -327,7 +327,7 @@ error. Still open: built-ins are not values (`(swap! a inc)` →
 | Step | Scope | Risk | Notes |
 |---|---|---|---|
 | P1 Fix the §5 bug cluster (select!/loop-tail emission) | transpiler, isolated | low | ✅ done — hits exactly the code style SSE/WS demand |
-| P2 Hiccup: promote prototype (CLAUDE.md web-API entry, example app) | docs + examples | low | API already tested; LSP builtin entries added on this branch |
+| P2 Hiccup: promote prototype (CLAUDE.md web-API entry, example app) | docs + examples | low | ✅ done — promoted in CLAUDE.md; reference app `examples/todos` (hiccup + htmx) |
 | P3 SSE: decide `req["done"]` vs lazy `(web/done req)`; document the leak/panic caveats | `web/` | low | semantics validated |
 | P4 Websockets: harden (UTF-8 validation, close-code pass-through, write deadlines, max-frame config) or swap internals for `coder/websocket` | `web/ws.go` | medium | glisp API stable either way |
 | P5 htmx sugar (`hx-request?`, `HX-*` setters, embedded htmx.js) | `web/` | low | optional; decide after a real example app |

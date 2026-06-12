@@ -1,7 +1,6 @@
 package web
 
-// PROTOTYPE for the web-enhancements exploration — hiccup-style HTML rendering.
-// A node is one of:
+// Hiccup-style HTML rendering. A node is one of:
 //   string          → escaped text
 //   RawHtml         → unescaped markup
 //   nil             → nothing
@@ -10,6 +9,16 @@ package web
 //                     []any{"div", map[string]any{"class": "x"}, child...}
 //                     otherwise a sequence of nodes spliced in place
 // Tag strings support the hiccup id/class shorthand: "div#main.card.wide".
+//
+// In glisp, keywords in collection literals emit as plain strings, so a
+// hiccup tree is ordinary data:
+//
+//	(web/render-response 200
+//	  [:ul.list {:id "todos"}
+//	   (map (fn [t] [:li (:title t)]) todos)])
+//
+// Text and attribute values are escaped by default; web/raw is the single
+// explicit opt-out for trusted, pre-rendered markup.
 
 import (
 	"fmt"

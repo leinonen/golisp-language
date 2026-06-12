@@ -12,6 +12,8 @@
 ;;;               web/go-recover, (defer (close! ch)), select! on (web/done req)
 ;;;   websocket — (web/websocket (fn [req in out] ...)) chat with an
 ;;;               atom-guarded broadcast hub; for-chan reads, send! writes
+;;;   static    — app.css/app.js served from static/ via web/serve-files
+;;;               (wildcard route), resolved relative to the binary
 ;;;   state     — atoms guard the todo list and the chat client registry
 ;;; Run it, then open http://localhost:8080 (two tabs for the chat).
 (ns main (:import [golisp/web]))
@@ -42,19 +44,19 @@
    [:ul.todos (map (fn [t] (todo-item t)) items)]
    [:p.summary (format "%d of %d done" (len (filter :done items)) (len items))]])
 
-(def css
-  "\n  body { max-width: 40rem; margin: 2rem auto; font-family: sans-serif; }\n  ul.todos { list-style: none; padding: 0; }\n  li.todo { display: flex; gap: .5rem; padding: .3rem 0; align-items: center; }\n  li.todo span { flex: 1; }\n  span.done { text-decoration: line-through; color: #888; }\n  button.delete { border: none; background: none; color: #c00; cursor: pointer; }\n  p.summary { color: #666; }\n  ul#chat-log { list-style: none; padding: .5rem; margin: 0 0 .5rem; height: 8rem;\n                overflow-y: auto; border: 1px solid #ddd; font-size: .9rem; }\n  p#live-stats { font-size: .8rem; }\n")
-
-;;; Client-side glue: an EventSource for the live stats line and a plain
-;;; WebSocket for the chat. textContent (never innerHTML) keeps chat XSS-safe.
-(def app-js
-  "\n  new EventSource('/events').addEventListener('stats', function (e) {\n    document.getElementById('live-stats').textContent = e.data;\n  });\n  var ws = new WebSocket('ws://' + location.host + '/chat');\n  ws.onmessage = function (e) {\n    var li = document.createElement('li');\n    li.textContent = e.data;\n    var log = document.getElementById('chat-log');\n    log.appendChild(li);\n    log.scrollTop = log.scrollHeight;\n  };\n  document.getElementById('chat-form').addEventListener('submit', function (e) {\n    e.preventDefault();\n    var input = document.getElementById('chat-input');\n    if (input.value) { ws.send(input.value); input.value = ''; }\n  });\n")
+;;; The css/js live in static/, served by web/serve-files. Prefer the
+;;; directory next to the binary (works from any cwd); fall back to a
+;;; cwd-relative static/ for `glisp run`, whose binary lives in a temp dir.
+(def static-dir
+  (str
+    (let [bin-rel (filepath/join (filepath/dir (str (nth os/args 0))) "static")]
+      (if (file-exists? bin-rel) bin-rel "static"))))
 
 (defn page [items any] -> string
   (web/html-page
     [:html
-     [:head [:meta {:charset "utf-8"}] [:title "todos"] [:script {:src "/htmx.js"}] [:style (web/raw css)]]
-     [:body [:h1 "todos"] [:form {:hx-post "/todos" :hx-target "#todo-list" :hx-swap "outerHTML" "hx-on::after-request" "this.reset()"} [:input {:type "text" :name "title" :placeholder "What needs doing?" :autofocus true :required true}] [:button "add"]] (todo-list items) [:section.chat [:h2 "chat"] [:ul#chat-log] [:form#chat-form [:input#chat-input {:type "text" :placeholder "Say something" :autocomplete "off"}] [:button "send"]]] [:p#live-stats.summary "connecting..."] [:script (web/raw app-js)]]]))
+     [:head [:meta {:charset "utf-8"}] [:title "todos"] [:script {:src "/htmx.js"}] [:link {:rel "stylesheet" :href "/static/app.css"}]]
+     [:body [:h1 "todos"] [:form {:hx-post "/todos" :hx-target "#todo-list" :hx-swap "outerHTML" "hx-on::after-request" "this.reset()"} [:input {:type "text" :name "title" :placeholder "What needs doing?" :autofocus true :required true}] [:button "add"]] (todo-list items) [:section.chat [:h2 "chat"] [:ul#chat-log] [:form#chat-form [:input#chat-input {:type "text" :placeholder "Say something" :autocomplete "off"}] [:button "send"]]] [:p#live-stats.summary "connecting..."] [:script {:src "/static/app.js" :defer true}]]]))
 
 ; ── todo handlers ──────────────────────────────────────────────────
 (defn home [req web/Request] -> web/Response
@@ -144,7 +146,7 @@
     (web/sse-response events)))
 
 (defn main [] -> void
-  (let [handler (web/routes (web/get "/" home) (web/get "/htmx.js" web/htmx-js) (web/get "/events" handle-events) (web/get "/chat" (web/websocket chat)) (web/post "/todos" add-todo) (web/post "/todos/:id/toggle" toggle-todo) (web/delete "/todos/:id" delete-todo))]
+  (let [handler (web/routes (web/get "/" home) (web/get "/htmx.js" web/htmx-js) (web/get "/static/*path" (web/serve-files "/static/" static-dir)) (web/get "/events" handle-events) (web/get "/chat" (web/websocket chat)) (web/post "/todos" add-todo) (web/post "/todos/:id/toggle" toggle-todo) (web/delete "/todos/:id" delete-todo))]
     (log/info "todos listening" "addr" ":8080")
     (web/serve-graceful ":8080"
                         (web/wrap handler web/wrap-logging web/wrap-recover))))

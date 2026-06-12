@@ -3,6 +3,8 @@ glisp-lsp
 dist/
 examples/*/*
 !examples/**/*.glsp
+!examples/*/static/
+!examples/*/static/*
 !examples/**/*.mod
 !examples/**/Makefile
 !examples/**/Dockerfile

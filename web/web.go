@@ -40,7 +40,17 @@ type Middleware func(Handler) Handler
 func RingToHTTP(h Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req := buildRequest(r)
+		// PROTOTYPE (exploration): req["done"] closes on client disconnect.
+		done := make(chan any)
+		go func() { <-r.Context().Done(); close(done) }()
+		req["done"] = done
 		resp := h(req)
+		if streamSse(w, r, resp) {
+			return
+		}
+		if upgradeWs(w, r, req, resp) {
+			return
+		}
 		writeResponse(w, resp)
 	})
 }

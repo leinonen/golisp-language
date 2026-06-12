@@ -70,6 +70,14 @@
 ### 3f. Graceful shutdown
 - [x] `serve-graceful` — drains in-flight requests on SIGINT/SIGTERM
 
+### 3g. Hypermedia & streaming (prototypes — see `docs/web-enhancements-exploration.md`)
+Validated prototypes live in `web/html.go`, `web/sse.go`, `web/ws.go`; promote after the §5 transpiler bug cluster (Phase 11 below) is fixed.
+
+- [ ] Hiccup rendering — `(web/html [:div {:class "x"} ...])`, `web/html-page`, `web/render-response`, `web/raw`; escaped by default, `#id.class` tag shorthand, `map`-output splicing
+- [ ] SSE — `(web/sse-response ch)` streams a `chan any` as `text/event-stream`; `req["done"]` closes on client disconnect for `select!`-based producers
+- [ ] Websockets — `(web/websocket (fn [req in out] ...))`; dependency-free RFC 6455 (text, ping/pong, fragmentation, close); in/out are `chan any`, reads via `for-chan`
+- [ ] htmx helpers — `hx-request?`, `HX-*` response-header setters, optional embedded `htmx.min.js` (htmx itself already works: attributes + fragment responses)
+
 ---
 
 ## Phase 4 — Developer Experience
@@ -365,3 +373,7 @@ either gets absorbed by emission or becomes a glisp-level diagnostic.
 - [x] Typed fn as HOF argument — passing a `defn` with concrete param/return types where a runtime helper asserts `func(any) any` is now a position-tagged transpile error naming the fix (wrap in a lambda or declare `any` types), instead of a runtime interface-conversion panic. Local bindings shadowing a defn name are not flagged; variadic fns are left to the runtime (`apply` handles `func(...any) any`)
 - [x] `(string x)` on `any` — now routes through `_glispToString` (was a raw Go conversion: compile error on interface values, int→rune footgun on numbers). `_glispToString` smart-converts: strings pass through, `[]byte`/numbers/bools stringify, anything else → `""`
 - [x] `dotimes` with `_` binding — substitutes a synthetic loop counter (was illegal Go `for _ := 0; _ < 3`)
+- [ ] `select!` in `loop` tail position — emits `_loopN = select { … }` (invalid Go; `select` is a statement). The statement-only-tails rule covers fn tails but not loop tails (surfaced by SSE/websocket producer code, see `docs/web-enhancements-exploration.md` §5)
+- [ ] `_` binding in a `select!` recv case — `([_ ch] body)` emits `case _ := <-ch:` ("no new variables on left side of :="); should emit `case <-ch:`
+- [ ] bare `nil` as a `select!` case body — emits a `nil` statement ("nil is not used")
+- [ ] statement-only forms (`close!`, `send!`, …) as `if` branches in a loop tail — `(if c (do ... (recur ...)) (close! ch))` emits `close(ch)` in value position ("used as value")

@@ -321,6 +321,14 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"web/serve":          {Sig: "(web/serve addr handler)                  →  error", Doc: "Start an HTTP server on addr with handler. Blocks until an error occurs."},
 	"web/serve-graceful": {Sig: "(web/serve-graceful addr handler)", Doc: "Start an HTTP server on addr; blocks and shuts down gracefully on SIGINT/SIGTERM."},
 
+	// web/html.go, web/sse.go, web/ws.go (golisp/web) — exploration prototypes
+	"web/html":            {Sig: "(web/html node)                            →  string", Doc: "Render a hiccup-style node tree ([:tag attrs? children...]) to an HTML string. Text is escaped; use web/raw for trusted markup. Tags support the \"div#id.class\" shorthand."},
+	"web/html-page":       {Sig: "(web/html-page node)                       →  string", Doc: "Render a hiccup-style node tree with a leading <!DOCTYPE html>."},
+	"web/raw":             {Sig: "(web/raw s)                                →  RawHtml", Doc: "Mark s as pre-rendered markup so web/html emits it without escaping. Only use with trusted content."},
+	"web/render-response": {Sig: "(web/render-response status node)          →  Response", Doc: "Render a hiccup-style node tree as a text/html response with the given status."},
+	"web/sse-response":    {Sig: "(web/sse-response ch)                      →  Response", Doc: "Stream server-sent events from ch ((chan any)) until it closes or the client disconnects. A string becomes a data line; a map may carry \"event\", \"data\", \"id\", \"retry\" keys. req[\"done\"] is a chan any that closes on client disconnect."},
+	"web/websocket":       {Sig: "(web/websocket handler)                    →  Handler", Doc: "Upgrade the request to a websocket. handler is (fn [req web/Request in (chan any) out (chan any)] -> any ...): text messages arrive on in (closed on disconnect), values sent on out are written as text frames; returning closes the connection."},
+
 	// Declarations
 	"ns":           {Sig: "(ns name (:import [...]))", Doc: "Declare the namespace and list Go package imports."},
 	"defstruct":    {Sig: "(defstruct Name field1 T1 ...)", Doc: "Define a Go struct type with typed fields (field name then type)."},

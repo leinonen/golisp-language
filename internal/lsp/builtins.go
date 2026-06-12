@@ -321,7 +321,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"web/serve":          {Sig: "(web/serve addr handler)                  →  error", Doc: "Start an HTTP server on addr with handler. Blocks until an error occurs."},
 	"web/serve-graceful": {Sig: "(web/serve-graceful addr handler)", Doc: "Start an HTTP server on addr; blocks and shuts down gracefully on SIGINT/SIGTERM."},
 
-	// web/html.go, web/sse.go (stable); web/ws.go (golisp/web) — exploration prototype
+	// web/html.go, web/sse.go, web/ws.go (golisp/web)
 	"web/html":            {Sig: "(web/html node)                            →  string", Doc: "Render a hiccup-style node tree ([:tag attrs? children...]) to an HTML string. Text is escaped; use web/raw for trusted markup. Tags support the \"div#id.class\" shorthand."},
 	"web/html-page":       {Sig: "(web/html-page node)                       →  string", Doc: "Render a hiccup-style node tree with a leading <!DOCTYPE html>."},
 	"web/raw":             {Sig: "(web/raw s)                                →  RawHtml", Doc: "Mark s as pre-rendered markup so web/html emits it without escaping. Only use with trusted content."},
@@ -329,7 +329,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"web/sse-response":    {Sig: "(web/sse-response ch)                      →  Response", Doc: "Stream server-sent events from ch ((chan any)) until it closes or the client disconnects. A string becomes a data line; a map may carry \"event\", \"data\", \"id\", \"retry\" keys. Idle streams emit a keepalive comment every 15s (override with a \"keepalive\" seconds key, 0 disables). Pair the producer with (web/done req) and (web/go-recover ...)."},
 	"web/done":            {Sig: "(web/done req)                             →  (chan any)", Doc: "Channel that closes when the client disconnects. Created lazily on first call (cached in the request map); race it in select! to stop an SSE/websocket producer when the client goes away."},
 	"web/go-recover":      {Sig: "(web/go-recover (fn [] ...))", Doc: "Run a fn in a goroutine, recovering and logging any panic — the goroutine analog of wrap-recover. Use for SSE/websocket producers; pair with (defer (close! ch)) so the stream ends even on panic."},
-	"web/websocket":       {Sig: "(web/websocket handler)                    →  Handler", Doc: "Upgrade the request to a websocket. handler is (fn [req web/Request in (chan any) out (chan any)] -> any ...): text messages arrive on in (closed on disconnect), values sent on out are written as text frames; returning closes the connection."},
+	"web/websocket":       {Sig: "(web/websocket handler)                    →  Handler", Doc: "Upgrade the request to a websocket. handler is (fn [req web/Request in (chan any) out (chan any)] -> any ...): text messages arrive on in as strings, binary as []byte (closed on disconnect); values sent on out are written as text frames ([]byte as binary); returning closes the connection. Messages over 1 MiB close 1009 (override with a \"max-message\" key on a raw {\"websocket\" h} response)."},
 
 	// Declarations
 	"ns":           {Sig: "(ns name (:import [...]))", Doc: "Declare the namespace and list Go package imports."},

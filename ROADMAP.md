@@ -71,11 +71,11 @@
 - [x] `serve-graceful` — drains in-flight requests on SIGINT/SIGTERM
 
 ### 3g. Hypermedia & streaming (see `docs/web-enhancements-exploration.md`)
-Hiccup (`web/html.go`) and SSE (`web/sse.go`) are promoted; websockets (`web/ws.go`) remain a validated prototype. The §5 transpiler bug cluster (Phase 11 below) is fixed — natural-style SSE/websocket producer code compiles.
+Hiccup (`web/html.go`), SSE (`web/sse.go`), and websockets (`web/ws.go`) are promoted. The §5 transpiler bug cluster (Phase 11 below) is fixed — natural-style SSE/websocket producer code compiles.
 
 - [x] Hiccup rendering — `(web/html [:div {:class "x"} ...])`, `web/html-page`, `web/render-response`, `web/raw`; escaped by default, `#id.class` tag shorthand, `map`-output splicing. Promoted; reference app `examples/todos` (hiccup + htmx)
 - [x] SSE — `(web/sse-response ch)` streams a `chan any` as `text/event-stream` with idle keepalive comments; `(web/done req)` (lazy, cached) closes on client disconnect for `select!`-based producers; `(web/go-recover (fn [] …))` contains producer panics
-- [ ] Websockets — `(web/websocket (fn [req in out] ...))`; dependency-free RFC 6455 (text, ping/pong, fragmentation, close); in/out are `chan any`, reads via `for-chan`
+- [x] Websockets — `(web/websocket (fn [req in out] ...))`; dependency-free RFC 6455 (text + binary, ping/pong + idle server ping, fragmentation, close-code negotiation, UTF-8/protocol validation, message cap, write deadlines); in/out are `chan any`, reads via `for-chan`. Validated against `coder/websocket`
 - [ ] htmx helpers — `hx-request?`, `HX-*` response-header setters, optional embedded `htmx.min.js` (htmx itself already works: attributes + fragment responses — see `examples/todos`)
 
 ---

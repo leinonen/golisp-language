@@ -1,10 +1,10 @@
 # Exploration: web enhancements — hiccup, htmx, SSE, websockets
 
-**Status**: Exploration, with working prototypes committed on this branch
-(`web/html.go`, `web/sse.go`, `web/ws.go`, plus a small hook in
-`RingToHTTP`). Everything below was validated hands-on against a freshly
-built `glisp`: the htmx flow with curl, SSE with curl (including client
-disconnect), websockets against an independent client implementation
+**Status**: Complete — P1–P4 shipped (the §7 table tracks each step).
+Hiccup, SSE, and websockets are stable parts of the web API; htmx needs no
+support beyond hiccup (§2). Everything below was validated hands-on against
+a freshly built `glisp`: the htmx flow with curl, SSE with curl (including
+client disconnect), websockets against an independent client implementation
 (`coder/websocket`), and the renderer/stream/frame logic with Go unit tests
 (`web/html_test.go`, `web/sse_test.go`, `web/ws_test.go`).
 **Date**: 2026-06-12
@@ -245,6 +245,18 @@ The prototype takes the dependency-free path, consistent with the rest of
 swapping the internals for `coder/websocket` later does not change the glisp
 API.
 
+**Promotion (P4)** hardened the in-tree implementation: UTF-8 validation
+(close 1007), protocol-violation closes (1002 — RSV bits, reserved
+opcodes, fragmented/oversized control frames, orphan continuations),
+1 MiB message cap (1009; `"max-message"` bytes key on a raw
+`{"websocket" h}` response overrides), per-frame write deadlines, a 30 s
+idle server ping, client close-code echo, binary message delivery
+(`[]byte` in/out), and a writer redesign (mutex-serialized `wsConn`
+replacing the frames channel) that fixed a goroutine leak / send-on-closed
+panic when a handler returned without closing `out` — queued messages now
+flush before the close frame. Still out of scope: `permessage-deflate`,
+subprotocol negotiation.
+
 ### 4.2 The glisp API: channels in, channels out
 
 ```clojure
@@ -347,6 +359,6 @@ error. Still open: built-ins are not values (`(swap! a inc)` →
 | P1 Fix the §5 bug cluster (select!/loop-tail emission) | transpiler, isolated | low | ✅ done — hits exactly the code style SSE/WS demand |
 | P2 Hiccup: promote prototype (CLAUDE.md web-API entry, example app) | docs + examples | low | ✅ done — promoted in CLAUDE.md; reference app `examples/todos` (hiccup + htmx) |
 | P3 SSE: decide `req["done"]` vs lazy `(web/done req)`; document the leak/panic caveats | `web/` | low | ✅ done — lazy `(web/done req)` (no cast needed), `web/go-recover` for producer panics, idle keepalive comments; promoted in CLAUDE.md |
-| P4 Websockets: harden (UTF-8 validation, close-code pass-through, write deadlines, max-frame config) or swap internals for `coder/websocket` | `web/ws.go` | medium | glisp API stable either way |
+| P4 Websockets: harden (UTF-8 validation, close-code pass-through, write deadlines, max-frame config) or swap internals for `coder/websocket` | `web/ws.go` | medium | ✅ done — hardened in-tree (see §4.1); re-validated against `coder/websocket` |
 | P5 htmx sugar (`hx-request?`, `HX-*` setters, embedded htmx.js) | `web/` | low | optional; decide after a real example app |
 | P6 Example app (`examples/todos`: hiccup + htmx + SSE ticker + WS chat) | examples | low | doubles as regression surface for P1 |

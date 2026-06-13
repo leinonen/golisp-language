@@ -38,9 +38,6 @@ examples-httpclient:
 examples-data:
 	./$(BIN) build -o examples/data/data examples/data/main.glsp
 
-examples-notes-api:
-	./$(BIN) build -o examples/notes-api/notes-api examples/notes-api/
-
 examples-concurrency:
 	./$(BIN) build -o examples/concurrency/concurrency examples/concurrency/main.glsp
 

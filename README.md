@@ -1,4 +1,4 @@
-# golisp (glisp)
+# golisp
 
 Clojure-style S-expression language that transpiles to Go.
 

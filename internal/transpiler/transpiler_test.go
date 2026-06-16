@@ -599,6 +599,11 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "go in tail returns nil", src: `(defn f [ch] -> any (go (send! ch 1)))`, wantSub: "}()\n\treturn nil"},
 		{name: "send! in fn tail returns nil", src: `(def f (fn [ch] (send! ch 1)))`, wantSub: "ch <- 1\n\treturn nil"},
 
+		// Void-returning calls in tail position emit `<call>; return nil`
+		// (return os.Exit(0) is invalid Go).
+		{name: "os/exit in when tail returns nil", src: `(defn f [n int] -> any (when (> n 5) (os/exit 0)))`, wantSub: "os.Exit(0)\n\t\t\treturn nil"},
+		{name: "void defn in if tail returns nil", src: `(defn quit [] -> void (println "bye")) (defn f [n int] -> any (if (> n 5) (quit) "stay"))`, wantSub: "quit()\n\t\treturn nil"},
+
 		// errors/new — pkg-prefixed, goes through fnToGo
 		{name: "errors/new", src: `(defn f [msg string] (errors/new msg))`, wantSub: "errors.New("},
 

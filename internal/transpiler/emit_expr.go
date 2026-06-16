@@ -474,6 +474,36 @@ var boolBuiltins = map[string]bool{
 	"ctx/done?": true,
 }
 
+// voidReturnBuiltins is the set of built-in / stdlib-qualified call forms whose
+// Go emission returns nothing. Used as a return value (e.g. the tail of a
+// value-returning fn's when/do/if branch) they need a `<call>; return nil`
+// split — `return os.Exit(0)` is invalid Go. fmt/print* and log/* are handled
+// separately (they have dedicated emitters), so they're not listed here.
+var voidReturnBuiltins = map[string]bool{
+	"os/exit": true,
+}
+
+// isVoidCall reports whether n emits a Go call that returns no value: a known
+// void built-in, or a user defn / method statically declared `-> void`.
+func (e *Emitter) isVoidCall(n *ast.CallExpr) bool {
+	sym, ok := n.Head.(*ast.Symbol)
+	if !ok {
+		return false
+	}
+	if voidReturnBuiltins[sym.Name] {
+		return true
+	}
+	if !e.localVars[sym.Name] {
+		if sig, ok := e.symbols[sym.Name]; ok {
+			return sig.retType == "void"
+		}
+	}
+	if info, ok := e.resolveMethodCall(n); ok {
+		return info.sig.retType == "void"
+	}
+	return false
+}
+
 // isBoolExpr reports whether n is statically known to emit a Go bool.
 // User-defined functions count when their declared return type is bool.
 func (e *Emitter) isBoolExpr(n ast.Node) bool {

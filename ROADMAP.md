@@ -17,6 +17,7 @@
 - [x] `sort-by` — sort slice by key fn
 - [x] `flatten`
 - [x] `range` — `(range n)` or `(range start end)`
+- [ ] `map-indexed` — `(map-indexed f coll)` → calls `(f index item)` for each element; eliminates the `(map (fn [i] (nth coll i)) (range (count coll)))` workaround
 
 ### 2b. String operations
 - [x] `subs` — `(subs s start end?)`
@@ -179,6 +180,7 @@ internal/lsp/
 - [ ] `with-open` — `(with-open [f (os/Open path)] body)` — emits `defer f.Close()`; resource cleanup
 - [x] Keywords as functions — `(map :title coll)` / `(filter :active users)` — a bare keyword in the function position of any HOF built-in lowers to a `_glispGet` closure (central lowering in `emitRuntimeArg`, `emit_expr.go`)
 - [x] `fnil` — `(update tally k (fnil (fn [n] (inc n)) 0))` — wrap a fn so a nil argument becomes a default. Needed because `or` deliberately returns Go `bool` (ADR-011), so the Clojure `(or n 0)` default idiom is unavailable
+- [ ] `for` comprehension — `(for [x coll y coll2 :when pred] expr)` — Clojure-style sequence comprehension with optional `:when` guard; currently requires nested `map`+`flatten` which is verbose and error-prone
 
 ---
 
@@ -354,6 +356,8 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 17 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |
 | 18 | ~~**10a–d: File I/O, slog, regex, error wrapping**~~ ✓ | Essential for any real-world program |
 | 19 | **10e–g: `atom`, `with-open`, context propagation** | Ergonomics for shared state and resource safety |
+| 20 | **2a: `map-indexed`** / **6c: `for` comprehension** | Eliminated workarounds forced by their absence in FPS game dev |
+| 21 | **11: Numeric auto-coercion + IIFE type propagation + void tail** | Eliminates need for Go bridge code in any project using arithmetic or conditionals with typed results |
 
 ---
 
@@ -378,3 +382,6 @@ either gets absorbed by emission or becomes a glisp-level diagnostic.
 - [x] bare `nil` as a `select!` case body — bare scalar literals in statement position are skipped (a `nil` expression statement is illegal Go)
 - [x] statement-only forms (`close!`, `send!`, …) as `if` branches in a loop tail — handled by the same loop-tail statement-only rule (was `close(ch)` in value position, "used as value")
 - [x] `panic` in tail position of a value-returning fn (incl. `do`/loop tails) — emits a bare `panic(...)` statement (was `return panic(...)`, invalid Go; a bare panic satisfies Go's termination analysis)
+- [ ] **Numeric auto-coercion in arithmetic context** — `any`-typed values used with `+` `-` `*` `/` should auto-cast to `float64` (or the widest numeric type present), the same as dynamic languages do; currently `any * float64` is a Go compile error, forcing all arithmetic into typed Go bridge functions
+- [ ] **IIFE type propagation for `if`/`when`/`do`** — when both branches of an `if` return the same concrete type (e.g. `[]any`), the IIFE should be emitted with that return type instead of `any`; currently forces wrapper functions like `maybeShoot` any time a conditional produces a typed value that is stored in a typed binding
+- [ ] **Void-returning Go calls in `when`/`do` tail position** — `(when cond (os/exit 0))` generates an IIFE whose last expression is `os.Exit(0)` (void); Go rejects void in return position, requiring users to add a trailing `nil`; the transpiler should detect void-returning calls in tail position and auto-emit `return nil` after them, mirroring the existing statement-only form rule

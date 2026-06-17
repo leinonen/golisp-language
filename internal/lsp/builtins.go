@@ -44,6 +44,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"vals":         {Sig: "(vals m)              →  []any", Doc: "All values of map m."},
 	"merge":        {Sig: "(merge m1 m2)         →  map", Doc: "Merge two maps; keys in m2 overwrite m1."},
 	"map":          {Sig: "(map f coll)          →  []any", Doc: "Apply f to each element of coll and return the results as a slice."},
+	"map-indexed":  {Sig: "(map-indexed f coll)  →  []any", Doc: "Apply f to the index and value of each element of coll. f takes two args: (f index item); the index is an int starting at 0."},
 	"filter":       {Sig: "(filter pred coll)    →  []any", Doc: "Return elements of coll for which pred returns true."},
 	"reduce":       {Sig: "(reduce f init coll)  →  any", Doc: "Reduce coll to a single value by applying f with accumulator starting at init."},
 	"reverse":      {Sig: "(reverse coll)        →  []any", Doc: "Return coll in reverse order."},

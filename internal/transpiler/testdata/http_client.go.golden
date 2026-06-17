@@ -421,6 +421,16 @@ func _glispMap(f any, coll any) []any {
 	return result
 }
 
+func _glispMapIndexed(f any, coll any) []any {
+	fn := f.(func(any, any) any)
+	s := _glispToSlice(coll)
+	result := make([]any, len(s))
+	for i, v := range s {
+		result[i] = fn(int64(i), v)
+	}
+	return result
+}
+
 func _glispFilter(f any, coll any) []any {
 	fn := f.(func(any) any)
 	s := _glispToSlice(coll)

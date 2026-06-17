@@ -69,13 +69,14 @@ func (e *Emitter) structHint(goType string) (name string, ptr bool, ok bool) {
 type typeScope struct {
 	types map[string]string
 	vars  map[string]bool
+	anys  map[string]bool
 }
 
 // pushTypeScope shallow-copies the current local type and binding environments
 // so that registrations inside a function/let body do not leak to sibling
 // scopes. The returned value is passed back to popTypeScope on exit.
 func (e *Emitter) pushTypeScope() typeScope {
-	saved := typeScope{types: e.localTypes, vars: e.localVars}
+	saved := typeScope{types: e.localTypes, vars: e.localVars, anys: e.localAny}
 	nt := make(map[string]string, len(saved.types))
 	for k, v := range saved.types {
 		nt[k] = v
@@ -84,8 +85,13 @@ func (e *Emitter) pushTypeScope() typeScope {
 	for k, v := range saved.vars {
 		nv[k] = v
 	}
+	na := make(map[string]bool, len(saved.anys))
+	for k, v := range saved.anys {
+		na[k] = v
+	}
 	e.localTypes = nt
 	e.localVars = nv
+	e.localAny = na
 	return saved
 }
 
@@ -93,6 +99,26 @@ func (e *Emitter) pushTypeScope() typeScope {
 func (e *Emitter) popTypeScope(saved typeScope) {
 	e.localTypes = saved.types
 	e.localVars = saved.vars
+	e.localAny = saved.anys
+}
+
+// registerAnyVar records glispName as an in-scope binding statically known to
+// hold Go `any`, so arithmetic/comparison on it routes through the numeric
+// coercion helpers. Also registers it as a plain local var.
+func (e *Emitter) registerAnyVar(glispName string) {
+	e.registerLocalVar(glispName)
+	if e.localAny == nil || glispName == "" || glispName == "_" {
+		return
+	}
+	e.localAny[glispName] = true
+}
+
+// clearAnyVar marks glispName as NOT `any` in the current scope (a rebinding to
+// a concrete-typed value shadows an outer any-binding of the same name).
+func (e *Emitter) clearAnyVar(glispName string) {
+	if e.localAny != nil {
+		delete(e.localAny, glispName)
+	}
 }
 
 // registerLocalVar records glispName as an in-scope value binding so it
@@ -126,8 +152,14 @@ func (e *Emitter) registerParamTypes(params []ast.Param) {
 		if p.Pattern != nil {
 			continue
 		}
-		e.registerLocalVar(p.Name)
-		if p.IsRest || p.TypeAnnot == nil {
+		if p.IsRest {
+			e.registerLocalVar(p.Name)
+			continue
+		}
+		if p.TypeAnnot == nil {
+			// Untyped scalar param emits as `any` — mark it so arithmetic on it
+			// coerces numerically instead of producing invalid `any + int` Go.
+			e.registerAnyVar(p.Name)
 			continue
 		}
 		e.registerVarType(p.Name, typeExprToGo(p.TypeAnnot.Text))

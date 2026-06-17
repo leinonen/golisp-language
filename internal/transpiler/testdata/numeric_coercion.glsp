@@ -1,0 +1,29 @@
+; Numeric auto-coercion: arithmetic and comparison on `any`-typed values
+; (map lookups, untyped params, range loop vars) route through coercion
+; helpers; typed numeric code stays native.
+
+; Untyped params emit as `any` — arithmetic coerces.
+(defn add-any [a b]
+  (+ a b))
+
+; Typed params stay native (no helper).
+(defn add-int [a int b int] -> int
+  (+ a b))
+
+; Map lookups are `any`; the typed return coerces the helper result.
+(defn total [m] -> int
+  (+ (get m "a") (get m "b")))
+
+; Comparison on a range loop var, plus arithmetic in the body.
+(defn squares-of-big [xs]
+  (for [n xs :when (> n 2)]
+    (* n n)))
+
+; Mixed int/float through the helper.
+(defn scale [m]
+  (* (get m "v") 1.5))
+
+; Typed let binding from an `any` value coerces.
+(defn read-count [m] -> void
+  (let [c int (get m "count")]
+    (println c)))

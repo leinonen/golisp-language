@@ -1033,6 +1033,20 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 				return nil
 			}
 		}
+		// A void-returning call (os/exit, a user `-> void` fn/method) can't be a
+		// return value: emit the bare statement, then `return nil` — mirroring the
+		// statement-only-form rule above. Fixes `(when c (os/exit 0))` in tail
+		// position emitting an invalid `return os.Exit(0)`.
+		if e.isVoidCall(v) {
+			e.writeIndent()
+			if err := e.emitCallExpr(v); err != nil {
+				return err
+			}
+			e.nl()
+			e.writeIndent()
+			e.write("return nil\n")
+			return nil
+		}
 		// `return f()` from a multi-return fn is legal Go; everywhere else a
 		// known multi-return call can't be a single return value — diagnose.
 		if !strings.Contains(e.currentRetType, ",") {

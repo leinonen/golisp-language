@@ -299,6 +299,11 @@ func TestTranspileSnippets(t *testing.T) {
 			wantSub: "_glispMap(",
 		},
 		{
+			name:    "map-indexed",
+			src:     `(defn f [coll] (map-indexed (fn [i x] (format "%d:%v" i x)) coll))`,
+			wantSub: "_glispMapIndexed(",
+		},
+		{
 			name:    "filter",
 			src:     `(defn f [coll] (filter (fn [x] x) coll))`,
 			wantSub: "_glispFilter(",

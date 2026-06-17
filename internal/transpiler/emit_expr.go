@@ -1113,6 +1113,8 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		// 2a: collection operations
 		case "map":
 			return e.emitRuntimeCall("_glispMap", n.Args, 2)
+		case "map-indexed":
+			return e.emitRuntimeCall("_glispMapIndexed", n.Args, 2)
 		case "filter":
 			return e.emitRuntimeCall("_glispFilter", n.Args, 2)
 		case "reduce":

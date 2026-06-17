@@ -17,7 +17,7 @@
 - [x] `sort-by` — sort slice by key fn
 - [x] `flatten`
 - [x] `range` — `(range n)` or `(range start end)`
-- [ ] `map-indexed` — `(map-indexed f coll)` → calls `(f index item)` for each element; eliminates the `(map (fn [i] (nth coll i)) (range (count coll)))` workaround
+- [x] `map-indexed` — `(map-indexed f coll)` → calls `(f index item)` for each element (index is an int64 starting at 0); `_glispMapIndexed` runtime helper asserts `func(any, any) any`. Eliminates the `(map (fn [i] (nth coll i)) (range (count coll)))` workaround
 
 ### 2b. String operations
 - [x] `subs` — `(subs s start end?)`

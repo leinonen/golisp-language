@@ -180,7 +180,7 @@ internal/lsp/
 - [ ] `with-open` — `(with-open [f (os/Open path)] body)` — emits `defer f.Close()`; resource cleanup
 - [x] Keywords as functions — `(map :title coll)` / `(filter :active users)` — a bare keyword in the function position of any HOF built-in lowers to a `_glispGet` closure (central lowering in `emitRuntimeArg`, `emit_expr.go`)
 - [x] `fnil` — `(update tally k (fnil (fn [n] (inc n)) 0))` — wrap a fn so a nil argument becomes a default. Needed because `or` deliberately returns Go `bool` (ADR-011), so the Clojure `(or n 0)` default idiom is unavailable
-- [ ] `for` comprehension — `(for [x coll y coll2 :when pred] expr)` — Clojure-style sequence comprehension with optional `:when` guard; currently requires nested `map`+`flatten` which is verbose and error-prone
+- [x] `for` comprehension — `(for [x coll y coll2 :when pred] expr)` — Clojure-style sequence comprehension with optional `:when` guard. Multiple `[name coll]` bindings nest as a cartesian product; emits an IIFE building a `[]any`. Replaces the nested `map`+`flatten` workaround (`emitFor` in `emit_expr.go`)
 
 ---
 

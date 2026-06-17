@@ -304,6 +304,16 @@ func TestTranspileSnippets(t *testing.T) {
 			wantSub: "_glispMapIndexed(",
 		},
 		{
+			name:    "for comprehension :when",
+			src:     `(defn f [xs ys] (for [x xs y ys :when (even? x)] (str x y)))`,
+			wantSub: "_forResult = append(_forResult, ",
+		},
+		{
+			name:    "for comprehension nested ranges",
+			src:     `(defn f [xs ys] (for [x xs y ys] (str x y)))`,
+			wantSub: "for _, y := range _glispToSlice(ys)",
+		},
+		{
 			name:    "filter",
 			src:     `(defn f [coll] (filter (fn [x] x) coll))`,
 			wantSub: "_glispFilter(",

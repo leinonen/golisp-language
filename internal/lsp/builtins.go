@@ -146,6 +146,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"as":    {Sig: "(as T x)      →  T  (type assertion)", Doc: "Assert that x is of type T. Panics if the assertion fails."},
 
 	// Iteration
+	"for":      {Sig: "(for [x coll y coll2 :when pred] body)  →  []any", Doc: "List comprehension. Iterates each [name collection] binding (multiple bindings nest as a cartesian product) and collects the body value into a slice. An optional :when pred guards which iterations contribute. Returns []any."},
 	"doseq":    {Sig: "(doseq [x coll] body...)", Doc: "Evaluate body for each element x in coll. Returns nil."},
 	"dotimes":  {Sig: "(dotimes [i n] body...)", Doc: "Evaluate body n times with i bound to 0, 1, ..., n-1. Returns nil."},
 	"for-chan": {Sig: "(for-chan [x ch] body...)", Doc: "Range over channel ch until it is closed, binding each received value to x."},

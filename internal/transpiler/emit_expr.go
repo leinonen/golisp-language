@@ -1113,6 +1113,8 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		// 2a: collection operations
 		case "map":
 			return e.emitRuntimeCall("_glispMap", n.Args, 2)
+		case "for":
+			return e.emitFor(n.Args)
 		case "map-indexed":
 			return e.emitRuntimeCall("_glispMapIndexed", n.Args, 2)
 		case "filter":
@@ -2086,6 +2088,102 @@ func (e *Emitter) emitThreadLast(args []ast.Node) error {
 		}
 	}
 	return e.emitExpr(node)
+}
+
+// emitFor: (for [x coll y coll2 :when pred] body...) → a []any list
+// comprehension. Multiple [name coll] bindings nest (cartesian product); a
+// :when pred guards everything inside it. Emits an IIFE that builds and returns
+// the result slice. The last body expr is the value collected per iteration;
+// any earlier exprs run as side-effecting statements.
+func (e *Emitter) emitFor(args []ast.Node) error {
+	if len(args) < 2 {
+		return fmt.Errorf("for requires a binding vector + body")
+	}
+	bv, ok := args[0].(*ast.VectorLit)
+	if !ok || len(bv.Elements) < 2 {
+		return fmt.Errorf("for binding must be [name collection ...]")
+	}
+	saved := e.pushTypeScope()
+	defer e.popTypeScope(saved)
+
+	e.write("func() []any {")
+	e.nl()
+	e.push()
+	e.line("var _forResult []any")
+
+	// Walk the binding vector, opening a range loop per [name coll] pair and an
+	// if-guard per :when pred. Track the open-brace depth to close them after
+	// the body in reverse.
+	depth := 0
+	els := bv.Elements
+	for i := 0; i < len(els); {
+		if kw, ok := els[i].(*ast.KeywordLit); ok {
+			if kw.Value != "when" {
+				return fmt.Errorf("for: unsupported modifier :%s (only :when is supported) (at %s)", kw.Value, kw.Pos())
+			}
+			if i+1 >= len(els) {
+				return fmt.Errorf("for: :when requires a predicate (at %s)", kw.Pos())
+			}
+			e.writeIndent()
+			e.write("if ")
+			if err := e.emitCondition(els[i+1]); err != nil {
+				return err
+			}
+			e.write(" {")
+			e.nl()
+			e.push()
+			depth++
+			i += 2
+			continue
+		}
+		sym, ok := els[i].(*ast.Symbol)
+		if !ok {
+			return fmt.Errorf("for binding name must be a symbol (at %s)", els[i].Pos())
+		}
+		if i+1 >= len(els) {
+			return fmt.Errorf("for: binding %s has no collection (at %s)", sym.Name, sym.Pos())
+		}
+		goName := identToGo(sym.Name)
+		e.registerLocalVar(sym.Name)
+		e.writeIndent()
+		if goName == "_" {
+			e.write("for range _glispToSlice(")
+		} else {
+			e.writef("for _, %s := range _glispToSlice(", goName)
+		}
+		if err := e.emitExpr(els[i+1]); err != nil {
+			return err
+		}
+		e.write(") {")
+		e.nl()
+		e.push()
+		depth++
+		i += 2
+	}
+
+	body := args[1:]
+	for _, stmt := range body[:len(body)-1] {
+		if err := e.emitStmtNode(stmt); err != nil {
+			return err
+		}
+	}
+	e.writeIndent()
+	e.write("_forResult = append(_forResult, ")
+	if err := e.emitExpr(body[len(body)-1]); err != nil {
+		return err
+	}
+	e.write(")")
+	e.nl()
+
+	for ; depth > 0; depth-- {
+		e.pop()
+		e.line("}")
+	}
+	e.line("return _forResult")
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
 }
 
 // emitDoseq: (doseq [item coll] body...) → for _, item := range coll { body }

@@ -38,7 +38,7 @@ var builtinArity = map[string][2]int{
 	// collection / sequence operations
 	"map": {2, 2}, "map-indexed": {2, 2}, "filter": {2, 2}, "reduce": {3, 3}, "reverse": {1, 1},
 	"contains?": {2, 2}, "some": {2, 2}, "every?": {2, 2}, "sort-by": {2, 2},
-	"flatten": {1, 1}, "take": {2, 2}, "drop": {2, 2}, "for": {2, -1},
+	"flatten": {1, 1}, "take": {2, 2}, "drop": {2, 2}, "for": {2, -1}, "mod": {2, 2},
 	"second": {1, 1}, "last": {1, 1}, "empty?": {1, 1}, "not-empty": {1, 1},
 	"get-in": {2, 2}, "assoc-in": {3, 3}, "update-in": {3, 3}, "update": {3, 3},
 	"select-keys": {2, 2}, "rename-keys": {2, 2}, "group-by": {2, 2},

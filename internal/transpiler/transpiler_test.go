@@ -313,6 +313,39 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [xs ys] (for [x xs y ys] (str x y)))`,
 			wantSub: "for _, y := range _glispToSlice(ys)",
 		},
+		// Numeric auto-coercion: any-typed operands route through helpers.
+		{
+			name:    "arith on map lookup coerces",
+			src:     `(defn f [m] (+ (get m "a") (get m "b")))`,
+			wantSub: "_glispAdd(_glispGet(m, \"a\"), _glispGet(m, \"b\"))",
+		},
+		{
+			name:    "arith on untyped param coerces",
+			src:     `(defn f [x] (* x 2))`,
+			wantSub: "_glispMul(x, 2)",
+		},
+		{
+			name:    "typed arith stays native",
+			src:     `(defn f [a int b int] -> int (+ a b))`,
+			wantSub: "return (a + b)",
+			wantNot: "_glispAdd",
+		},
+		{
+			name:    "comparison on any coerces",
+			src:     `(defn f [x] (> x 3))`,
+			wantSub: "_glispGt(x, 3)",
+		},
+		{
+			name:    "typed comparison stays native",
+			src:     `(defn f [a int] -> bool (> a 3))`,
+			wantSub: "(a > 3)",
+			wantNot: "_glispGt",
+		},
+		{
+			name:    "typed return coerces any-arith result",
+			src:     `(defn f [m] -> int (+ (get m "a") 1))`,
+			wantSub: "return _glispToInt(_glispAdd(_glispGet(m, \"a\"), 1))",
+		},
 		{
 			name:    "filter",
 			src:     `(defn f [coll] (filter (fn [x] x) coll))`,

@@ -77,7 +77,34 @@ func (e *Emitter) emitExprWithHint(n ast.Node, hint string) error {
 			return e.emitMapLitTyped(v, hint)
 		}
 	}
+	// Numeric coercion: an `any` value (e.g. any-arithmetic result or map lookup)
+	// in a concrete numeric position (typed let binding or `-> int`/`-> float64`
+	// return) is smart-converted instead of producing an invalid Go assignment.
+	if pre, post, ok := numericCoercion(hint); ok && e.exprIsAny(n) {
+		e.write(pre)
+		if err := e.emitExpr(n); err != nil {
+			return err
+		}
+		e.write(post)
+		return nil
+	}
 	return e.emitExpr(n)
+}
+
+// numericCoercion returns the wrapper text (prefix, suffix) that smart-converts
+// an `any` value to the given concrete numeric Go type, and whether hint is one.
+func numericCoercion(hint string) (string, string, bool) {
+	switch hint {
+	case "int":
+		return "_glispToInt(", ")", true
+	case "int64":
+		return "int64(_glispToInt(", "))", true
+	case "float64":
+		return "_glispToFloat64(", ")", true
+	case "float32":
+		return "float32(_glispToFloat64(", "))", true
+	}
+	return "", "", false
 }
 
 // emitStructLitFromMap emits a struct literal from a plain map literal when the
@@ -316,7 +343,7 @@ func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
 			if sym.Name == "_" {
 				continue // discard: emitting `_ := ...` is illegal Go
 			}
-			e.registerLocalVar(sym.Name)
+			e.registerAnyVar(sym.Name) // _glispGet returns any
 			e.writeIndent()
 			e.writef("%s := _glispGet(%s, int64(%d))\n", identToGo(sym.Name), src, i)
 		}
@@ -348,7 +375,7 @@ func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
 			if ent.typ != "" {
 				e.registerVarType(ent.bind, ent.typ)
 			} else {
-				e.registerLocalVar(ent.bind)
+				e.registerAnyVar(ent.bind) // untyped _glispGet returns any
 			}
 		}
 	default:
@@ -416,12 +443,21 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 					return err
 				}
 				e.registerVarType(pat.Name, typeStr)
+				e.clearAnyVar(pat.Name) // explicit concrete type
 			} else {
+				// Evaluate any-ness of the RHS before the binding shadows an
+				// outer same-named var in localAny.
+				valueIsAny := e.exprIsAny(b.Value)
 				e.writef("%s := ", goName)
 				if err := e.emitExpr(b.Value); err != nil {
 					return err
 				}
-				e.registerLocalVar(pat.Name)
+				if valueIsAny {
+					e.registerAnyVar(pat.Name) // Go infers `any` from the RHS
+				} else {
+					e.registerLocalVar(pat.Name)
+					e.clearAnyVar(pat.Name)
+				}
 				// Infer struct type from the value (struct literal or known fn return)
 				// so keyword access on the binding resolves to field access.
 				if name := e.inferValueStructType(b.Value); name != "" && e.localTypes != nil {
@@ -500,6 +536,66 @@ func (e *Emitter) isVoidCall(n *ast.CallExpr) bool {
 	}
 	if info, ok := e.resolveMethodCall(n); ok {
 		return info.sig.retType == "void"
+	}
+	return false
+}
+
+// anyReturningBuiltins are built-in forms whose Go emission is always typed
+// `any` (interface), regardless of operand types — primarily map/slice lookups.
+// An arithmetic/comparison operand drawn from one of these must be coerced
+// numerically rather than fed to a native Go operator.
+var anyReturningBuiltins = map[string]bool{
+	"get": true, "get-in": true, "nth": true, "first": true, "second": true,
+	"last": true, "peek": true, "rand-nth": true, "find": true, "deref": true,
+	"reduce": true, "apply": true,
+}
+
+// exprIsAny reports whether n is statically known to emit a Go `any` value.
+// Conservative: it only returns true for values it can prove are `any` (so that
+// arithmetic/comparison on them routes through the numeric coercion helpers);
+// anything else is treated as native to avoid changing the static type of
+// currently-compiling typed code.
+func (e *Emitter) exprIsAny(n ast.Node) bool {
+	switch v := n.(type) {
+	case *ast.Symbol:
+		return e.localAny[v.Name]
+	case *ast.CallExpr:
+		sym, ok := v.Head.(*ast.Symbol)
+		if !ok {
+			// Keyword access (:kw x): `any` only when the target is itself `any`
+			// (untyped map lookup → _glispGet). Typed struct fields keep their
+			// real Go type, so they are not `any`.
+			if _, isKw := v.Head.(*ast.KeywordLit); isKw && len(v.Args) == 1 {
+				return e.exprIsAny(v.Args[0])
+			}
+			return false
+		}
+		switch sym.Name {
+		case "+", "-", "*", "/", "mod":
+			// Arithmetic over any `any` operand routes through a helper → `any`.
+			return e.anyOperand(v.Args)
+		}
+		if anyReturningBuiltins[sym.Name] {
+			return true
+		}
+		if !e.localVars[sym.Name] {
+			if sig, found := e.symbols[sym.Name]; found {
+				return sig.retType == "any"
+			}
+		}
+		if info, ok := e.resolveMethodCall(v); ok {
+			return info.sig.retType == "any"
+		}
+	}
+	return false
+}
+
+// anyOperand reports whether any of args is statically Go `any`.
+func (e *Emitter) anyOperand(args []ast.Node) bool {
+	for _, a := range args {
+		if e.exprIsAny(a) {
+			return true
+		}
 	}
 	return false
 }
@@ -1656,7 +1752,39 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 	return nil
 }
 
+var arithHelpers = map[string]string{
+	"+": "_glispAdd", "-": "_glispSub", "*": "_glispMul", "/": "_glispDiv", "mod": "_glispMod",
+}
+
 func (e *Emitter) emitArith(op string, args []ast.Node) error {
+	// Numeric auto-coercion: when any operand is statically Go `any` (map/slice
+	// lookups, untyped params, range loop vars), native Go arithmetic won't
+	// type-check (`any + int`). Route through a runtime helper that coerces each
+	// operand to int64/float64 (preserving integer-ness when no float is present).
+	if e.anyOperand(args) {
+		e.needImport("_num")
+		helper := arithHelpers[op]
+		if op == "-" && len(args) == 1 {
+			// unary minus → 0 - x
+			e.writef("%s(int64(0), ", helper)
+			if err := e.emitExpr(args[0]); err != nil {
+				return err
+			}
+			e.write(")")
+			return nil
+		}
+		e.writef("%s(", helper)
+		for i, arg := range args {
+			if i > 0 {
+				e.write(", ")
+			}
+			if err := e.emitExpr(arg); err != nil {
+				return err
+			}
+		}
+		e.write(")")
+		return nil
+	}
 	if op == "mod" {
 		op = "%"
 	}
@@ -1682,9 +1810,30 @@ func (e *Emitter) emitArith(op string, args []ast.Node) error {
 	return nil
 }
 
+// cmpHelpers maps a numeric comparison operator to its coercing runtime helper.
+var cmpHelpers = map[string]string{
+	"<": "_glispLt", ">": "_glispGt", "<=": "_glispLe", ">=": "_glispGe",
+}
+
 func (e *Emitter) emitBinOp(op string, args []ast.Node) error {
 	if len(args) != 2 {
 		return fmt.Errorf("%s requires exactly 2 arguments", op)
+	}
+	// Numeric auto-coercion for ordering comparisons: native `any < int` is a Go
+	// compile error, so route through a helper that coerces both sides to float64.
+	// `==`/`!=` are left native — interface comparison compiles as-is.
+	if helper, ok := cmpHelpers[op]; ok && e.anyOperand(args) {
+		e.needImport("_num")
+		e.writef("%s(", helper)
+		if err := e.emitExpr(args[0]); err != nil {
+			return err
+		}
+		e.write(", ")
+		if err := e.emitExpr(args[1]); err != nil {
+			return err
+		}
+		e.write(")")
+		return nil
 	}
 	e.write("(")
 	if err := e.emitExpr(args[0]); err != nil {
@@ -2144,7 +2293,7 @@ func (e *Emitter) emitFor(args []ast.Node) error {
 			return fmt.Errorf("for: binding %s has no collection (at %s)", sym.Name, sym.Pos())
 		}
 		goName := identToGo(sym.Name)
-		e.registerLocalVar(sym.Name)
+		e.registerAnyVar(sym.Name) // range over _glispToSlice yields any
 		e.writeIndent()
 		if goName == "_" {
 			e.write("for range _glispToSlice(")
@@ -2200,6 +2349,9 @@ func (e *Emitter) emitDoseq(args []ast.Node) error {
 		return fmt.Errorf("doseq binding name must be a symbol")
 	}
 	goName := identToGo(sym.Name)
+	saved := e.pushTypeScope()
+	defer e.popTypeScope(saved)
+	e.registerAnyVar(sym.Name) // range over _glispToSlice yields any
 	e.writef("func() {")
 	e.nl()
 	e.push()

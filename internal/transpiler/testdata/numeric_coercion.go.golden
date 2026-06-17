@@ -5,34 +5,37 @@ import (
 	"strconv"
 )
 
-func firstTwo(v any) {
-	_v1 := v
-	a := _glispGet(_v1, int64(0))
-	b := _glispGet(_v1, int64(1))
-	(fmt.Sprintf("%v", a) + fmt.Sprintf("%v", b))
+func addAny(a any, b any) {
+	_glispAdd(a, b)
 }
 
-func getName(_p2 any) {
-	name := _glispGet(_p2, "name")
-	name
+func addInt(a int, b int) int {
+	return (a + b)
 }
 
-func applyFn(v any) {
-	f := func(_p3 any) any {
-		x := _glispGet(_p3, int64(0))
-		y := _glispGet(_p3, int64(1))
-		return _glispAdd(x, y)
-	}
-	f
+func total(m any) int {
+	return _glispToInt(_glispAdd(_glispGet(m, "a"), _glispGet(m, "b")))
 }
 
-func multiDestruct(m any, v any) {
-	_m4 := m
-	k := _glispGet(_m4, "key")
-	_v5 := v
-	a := _glispGet(_v5, int64(0))
-	b := _glispGet(_v5, int64(1))
-	(fmt.Sprintf("%v", k) + fmt.Sprintf("%v", a) + fmt.Sprintf("%v", b))
+func squaresOfBig(xs any) {
+	func() []any {
+		var _forResult []any
+		for _, n := range _glispToSlice(xs) {
+			if _glispGt(n, 2) {
+				_forResult = append(_forResult, _glispMul(n, n))
+			}
+		}
+		return _forResult
+	}()
+}
+
+func scale(m any) {
+	_glispMul(_glispGet(m, "v"), 1.5)
+}
+
+func readCount(m any) {
+	var c int = _glispToInt(_glispGet(m, "count"))
+	fmt.Println(c)
 }
 
 // --- glisp runtime helpers (generated) ---

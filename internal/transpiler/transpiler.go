@@ -146,6 +146,12 @@ type Emitter struct {
 	// method dispatch — (area s) with a local `area` stays a plain call. Scoped
 	// together with localTypes.
 	localVars map[string]bool
+	// localAny: in-scope bindings statically known to hold Go `any` (untyped
+	// params, range loop vars, map/index lookups). Drives numeric auto-coercion:
+	// arithmetic/comparison on these routes through the _glisp{Add,Lt,…} helpers
+	// instead of native Go operators (which don't type-check on `any`). Scoped
+	// together with localTypes/localVars.
+	localAny map[string]bool
 	// ifaces: definterface method tables by interface name (populated by pre-pass).
 	ifaces map[string]methodSet
 	// methods: defmethod method tables by bare receiver struct name (pre-pass).
@@ -417,6 +423,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 		if e.builtinImports["data"] {
 			e.write(glispDataRuntime)
+		}
+		if e.builtinImports["_num"] {
+			e.write(glispNumRuntime)
 		}
 		if e.builtinImports["_set"] {
 			e.write(glispSetRuntime)
@@ -1056,7 +1065,11 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 		}
 		e.writeIndent()
 		e.write("return ")
-		if err := e.emitExpr(v); err != nil {
+		if e.currentRetType != "" {
+			if err := e.emitExprWithHint(v, e.currentRetType); err != nil {
+				return err
+			}
+		} else if err := e.emitExpr(v); err != nil {
 			return err
 		}
 		e.nl()

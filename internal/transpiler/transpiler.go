@@ -425,6 +425,10 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		// _glispToInt/_glispToFloat64 (always in glispRuntime) parse numeric
 		// strings via strconv, so the runtime always needs it.
 		e.needImport("strconv")
+		// _glispToSlice/_glispLen (always in glispRuntime) fall back to reflection
+		// for user-typed slices, so the runtime always needs reflect. (fmt already
+		// links reflect, so this adds no real binary weight.)
+		e.needImport("reflect")
 		if e.builtinImports["data"] {
 			e.needImport("fmt")
 		}
@@ -536,7 +540,7 @@ func (e *Emitter) emitImports() error {
 	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
 	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
 	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true, "regexp": true}
-	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context"} {
+	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
 				continue

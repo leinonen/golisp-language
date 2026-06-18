@@ -1351,6 +1351,97 @@ func TestCrossFileTypeResolution(t *testing.T) {
 	})
 }
 
+// TestTypedMapAndIIFE covers Phase 11's two `any`-seam closures: a typed `map`
+// loop that satisfies a `[]T` position, and concrete-type propagation into the
+// return type of an if/when/do/cond/switch IIFE in expression position.
+func TestTypedMapAndIIFE(t *testing.T) {
+	const decls = `(defstruct Book id string title string)`
+	tests := []struct {
+		name    string
+		src     string
+		wantSub string
+		wantNot string
+	}{
+		// --- typed map ---
+		{
+			name:    "typed map asserts element type for untyped lambda",
+			src:     decls + `(defn f [xs []any] -> []Book (map (fn [v] (as Book v)) xs))`,
+			wantSub: "func() []Book {",
+		},
+		{
+			name:    "typed map appends with element assertion",
+			src:     decls + `(defn f [xs []any] -> []Book (map (fn [v] (as Book v)) xs))`,
+			wantSub: ").(Book))",
+		},
+		{
+			name:    "typed map skips assertion when lambda is annotated",
+			src:     decls + `(defn f [xs []any] -> []Book (map (fn [v] -> Book (as Book v)) xs))`,
+			wantSub: "func() []Book {",
+			wantNot: ").(Book))",
+		},
+		{
+			name:    "map with []any hint stays _glispMap",
+			src:     decls + `(defn f [xs []any] -> []any (map (fn [v] v) xs))`,
+			wantSub: "_glispMap",
+		},
+		{
+			name:    "map with keyword fn stays _glispMap",
+			src:     decls + `(defn f [xs []any] -> []string (map :title xs))`,
+			wantSub: "_glispMap",
+		},
+		{
+			name:    "map with typed param falls back to runtime path",
+			src:     decls + `(defn f [xs []any] -> []any (map (fn [v Book] -> string (:title v)) xs))`,
+			wantSub: "_glispMap",
+		},
+		// --- IIFE type propagation (expression / non-tail position) ---
+		{
+			name:    "if into typed slice binding propagates return type",
+			src:     `(defn f [c bool] -> any (let [xs []any (if c ["a"] ["b"])] xs))`,
+			wantSub: "var xs []any = func() []any {",
+		},
+		{
+			name:    "when into nilable binding propagates",
+			src:     `(defn f [c bool] -> any (let [xs []any (when c ["a"])] xs))`,
+			wantSub: "func() []any {",
+		},
+		{
+			name:    "when into non-nilable binding does NOT propagate",
+			src:     `(defn f [c bool] -> any (let [n int (when c 1)] n))`,
+			wantNot: "func() int {",
+		},
+		{
+			name:    "do into typed slice binding propagates",
+			src:     `(defn f [] -> any (let [xs []any (do (println "x") ["a"])] xs))`,
+			wantSub: "func() []any {",
+		},
+		{
+			name:    "cond with default into typed binding propagates",
+			src:     `(defn f [c bool] -> any (let [s string (cond c "y" :else "n")] s))`,
+			wantSub: "func() string {",
+		},
+		{
+			name:    "struct-typed if branch emits struct literals",
+			src:     decls + `(defn f [c bool] -> any (let [b Book (if c {:id "1" :title "a"} {:id "2" :title "b"})] b))`,
+			wantSub: "var b Book = func() Book {",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Transpile(tt.src)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantSub != "" && !strings.Contains(got, tt.wantSub) {
+				t.Errorf("output missing %q\n--- got ---\n%s", tt.wantSub, got)
+			}
+			if tt.wantNot != "" && strings.Contains(got, tt.wantNot) {
+				t.Errorf("output unexpectedly contains %q\n--- got ---\n%s", tt.wantNot, got)
+			}
+		})
+	}
+}
+
 // TestBuiltinArity verifies that built-in call forms are checked against the
 // central arity table and report a position-tagged error rather than panicking
 // on a downstream slice index.

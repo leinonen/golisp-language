@@ -17,6 +17,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	// _glispToInt/_glispToFloat64 in glispRuntime (always emitted) parse numeric
 	// strings via strconv.
 	addImport("strconv")
+	// _glispToSlice/_glispLen in glispRuntime fall back to reflection for
+	// user-typed slices.
+	addImport("reflect")
 	if builtins["sort"] {
 		addImport("sort")
 	}
@@ -271,6 +274,15 @@ func _glispToSlice(v any) []any {
 		}
 		return result
 	}
+	// Fallback: any other slice/array kind (e.g. []Book produced by a typed
+	// map) via reflection, so collection helpers work on user-typed slices too.
+	if rv := reflect.ValueOf(v); rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
+		result := make([]any, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			result[i] = rv.Index(i).Interface()
+		}
+		return result
+	}
 	return nil
 }
 
@@ -314,6 +326,11 @@ func _glispLen(v any) int {
 		return len(c)
 	case string:
 		return len(c)
+	}
+	// Fallback for user-typed slices/arrays/maps via reflection.
+	switch rv := reflect.ValueOf(v); rv.Kind() {
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.String:
+		return rv.Len()
 	}
 	return 0
 }

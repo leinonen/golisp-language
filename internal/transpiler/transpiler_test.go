@@ -1277,6 +1277,80 @@ func TestMethodDispatch(t *testing.T) {
 	}
 }
 
+// TestCrossFileTypeResolution verifies that declarations from sibling files
+// (passed via a DeclSet) populate the emitter's type tables, so struct field
+// access and method dispatch resolve against types declared in another file of
+// the same package — the multi-file build path (Phase 2e).
+func TestCrossFileTypeResolution(t *testing.T) {
+	// File A declares the types; file B (transpiled below) uses them.
+	const fileA = `(ns main)
+(defstruct Book id string title string)
+(defmethod Book Slug [b] -> string (lower-case (:title b)))
+(definterface Repo
+  (Find [id string] -> any))`
+
+	tests := []struct {
+		name    string
+		fileB   string
+		wantSub string // substring that must appear in file B's output
+	}{
+		{
+			name:    "struct field access across files",
+			fileB:   `(ns main)` + "\n" + `(defn book-title [b Book] -> string (:title b))`,
+			wantSub: "return b.Title",
+		},
+		{
+			name:    "method dispatch across files",
+			fileB:   `(ns main)` + "\n" + `(defn book-slug [b Book] -> string (slug b))`,
+			wantSub: "return b.Slug()",
+		},
+		{
+			name:    "interface method dispatch across files",
+			fileB:   `(ns main)` + "\n" + `(defn lookup [r Repo id string] -> any (find r id))`,
+			wantSub: "return r.Find(id)",
+		},
+		{
+			name:    "typed map literal across files",
+			fileB:   `(ns main)` + "\n" + `(defn make [] -> Book {:id "1" :title "Go"})`,
+			wantSub: "Book{Id: \"1\", Title: \"Go\"}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Collect declarations from BOTH files, as compileDir does.
+			ds, err := CollectDecls(nil, fileA, "a.glsp")
+			if err != nil {
+				t.Fatalf("collect fileA: %v", err)
+			}
+			ds, err = CollectDecls(ds, tt.fileB, "b.glsp")
+			if err != nil {
+				t.Fatalf("collect fileB: %v", err)
+			}
+			got, _, err := TranspileNoRuntimeFileExt(tt.fileB, "b.glsp", ds, false)
+			if err != nil {
+				t.Fatalf("transpile fileB: %v", err)
+			}
+			if !strings.Contains(got, tt.wantSub) {
+				t.Errorf("output missing %q\n--- got ---\n%s", tt.wantSub, got)
+			}
+		})
+	}
+
+	// Without the DeclSet, the same access falls back to _glispGet (the old
+	// behavior this feature fixes) — guards against a silent regression.
+	t.Run("no decls falls back to runtime lookup", func(t *testing.T) {
+		fileB := `(ns main)` + "\n" + `(defn book-title [b Book] -> string (:title b))`
+		got, _, err := TranspileNoRuntimeFile(fileB, "b.glsp")
+		if err != nil {
+			t.Fatalf("transpile: %v", err)
+		}
+		if !strings.Contains(got, "_glispGet(b,") {
+			t.Errorf("expected _glispGet fallback without sibling decls\n--- got ---\n%s", got)
+		}
+	})
+}
+
 // TestBuiltinArity verifies that built-in call forms are checked against the
 // central arity table and report a position-tagged error rather than panicking
 // on a downstream slice index.

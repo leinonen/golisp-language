@@ -339,19 +339,41 @@ func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 	results := make([]fileResult, 0, len(globs))
 	mergedBuiltins := map[string]bool{}
 
+	// Pre-pass: read every file and collect its top-level declarations into a
+	// single DeclSet, so each file (transpiled independently below) sees the
+	// whole package's struct/interface/method/fn types — enabling cross-file
+	// struct field access and method dispatch.
+	type srcFile struct {
+		srcPath, absSrcPath, src string
+	}
+	srcFiles := make([]srcFile, 0, len(globs))
+	var decls *transpiler.DeclSet
 	for _, srcPath := range globs {
 		src, err := os.ReadFile(srcPath)
 		if err != nil {
 			return fmt.Errorf("read %s: %w", srcPath, err)
 		}
-
 		absSrcPath, _ := filepath.Abs(srcPath)
+		decls, err = transpiler.CollectDecls(decls, string(src), absSrcPath)
+		if err != nil {
+			var pe *transpiler.ParseError
+			if errors.As(err, &pe) {
+				return fmt.Errorf("%s: parse error: %w", srcPath, pe.Err)
+			}
+			return fmt.Errorf("%s: %w", srcPath, err)
+		}
+		srcFiles = append(srcFiles, srcFile{srcPath: srcPath, absSrcPath: absSrcPath, src: string(src)})
+	}
+
+	for _, sf := range srcFiles {
+		srcPath, absSrcPath, src := sf.srcPath, sf.absSrcPath, sf.src
 		var goSrc string
 		var builtins map[string]bool
+		var err error
 		if opts.Strict {
-			goSrc, builtins, err = transpiler.TranspileNoRuntimeFileStrict(string(src), absSrcPath)
+			goSrc, builtins, err = transpiler.TranspileNoRuntimeFileExt(src, absSrcPath, decls, true)
 		} else {
-			goSrc, builtins, err = transpiler.TranspileNoRuntimeFile(string(src), absSrcPath)
+			goSrc, builtins, err = transpiler.TranspileNoRuntimeFileExt(src, absSrcPath, decls, false)
 		}
 		if err != nil {
 			var pe *transpiler.ParseError

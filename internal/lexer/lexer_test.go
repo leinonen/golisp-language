@@ -34,6 +34,8 @@ func TestTokenizeBasic(t *testing.T) {
 		{"fmt/Println", TokenSymbol, "fmt/Println"},
 		{"nil?", TokenSymbol, "nil?"},
 		{"send!", TokenSymbol, "send!"},
+		{"$", TokenSymbol, "$"},
+		{"$acc", TokenSymbol, "$acc"},
 	}
 
 	for _, tt := range tests {

@@ -26,6 +26,10 @@ var builtinArity = map[string][2]int{
 
 	// threading
 	"->": {2, -1}, "->>": {2, -1},
+	"as->": {2, -1}, "tap->": {2, -1}, "tap->>": {2, -1},
+
+	// debugging helpers
+	"pp": {1, 1}, "time-it": {1, 1},
 
 	// core collection access
 	"get": {2, 3}, "assoc": {3, -1}, "dissoc": {2, -1}, "conj": {2, -1},

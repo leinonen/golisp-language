@@ -791,6 +791,16 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "keyword fn in sort-by", src: `(defn f [xs []any] (sort-by :rating xs))`, wantSub: `_glispSortBy(func(_kwM any) any { return _glispGet(_kwM, "rating") }`},
 		{name: "keyword stays a value in non-fn position", src: `(defn f [xs []any] (contains? xs :title))`, wantSub: `_glispContains(xs, "title")`},
 
+		// as-> / tap-> / pp / time-it
+		{name: "as-> rebinds named placeholder", src: `(defn f [m] (as-> m $ (assoc $ "k" 1) (dissoc $ "old")))`, wantSub: "_dollar = _glispAssoc(_dollar,"},
+		{name: "as-> initial value declared any", src: `(defn f [m] (as-> m $ (assoc $ "k" 1)))`, wantSub: "var _dollar any = m"},
+		{name: "tap-> wraps stages in pp", src: `(defn f [] (tap-> 5 (+ 3)))`, wantSub: "_glispAdd(_glispPP(5), 3)"},
+		{name: "tap->> threads value last", src: `(defn f [xs []any] (tap->> xs (map (fn [x] x))))`, wantSub: "_glispPP(_glispMap("},
+		{name: "pp returns value", src: `(defn f [m] (pp m))`, wantSub: "_glispPP(m)"},
+		{name: "pp runtime helper emitted", src: `(defn f [m] (pp m))`, wantSub: "func _glispPP("},
+		{name: "time-it wraps in timer IIFE", src: `(defn f [] (time-it (+ 1 2)))`, wantSub: "time.Now()"},
+		{name: "time-it imports time", src: `(defn f [] (time-it (+ 1 2)))`, wantSub: "\"time\""},
+
 		{
 			name:    "typed keyword access on struct param",
 			src:     `(defstruct P name string) (defn f [p P] -> string (:name p))`,

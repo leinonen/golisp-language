@@ -1,0 +1,21 @@
+(ns main)
+
+(defn shape [m any] -> any
+  (as-> m $
+    (assoc $ "k" 1)
+    (dissoc $ "old")))
+
+(defn pipe [xs []any] -> any
+  (tap->> xs
+    (map (fn [x any] x))))
+
+(defn first-pipe [n any] -> any
+  (tap-> n
+    (+ 3)
+    (* 2)))
+
+(defn inspect [m any] -> any
+  (pp m))
+
+(defn timed [] -> any
+  (time-it (+ 1 2)))

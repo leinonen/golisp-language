@@ -177,7 +177,7 @@ internal/lsp/
 ### 6c. Missing Go interop forms
 - [x] `panic` / `recover` — call `panic()` and use `recover()` inside `defer`; essential for middleware and wrapping third-party code
 - [x] `switch` / `case` — value switch and type switch; eliminates awkward `cond` workarounds for Go interop
-- [ ] `as->` — `(as-> x $ (assoc $ :k v) (dissoc $ :old))` — threading with named binding; useful when thread position varies
+- [x] `as->` — `(as-> x $ (assoc $ :k v) (dissoc $ :old))` — threading with named binding; useful when thread position varies. Emits an IIFE that rebinds the named placeholder (`var $ any = x; $ = ...`) step by step; `$` is now a valid symbol char (`identToGo` maps it to `_dollar`). AST-level form in `emitAsThread` (`emit_expr.go`)
 - [x] `when-let` / `if-let` — `(when-let [user (find-user id)] ...)` — nil-guarded binding; extremely common pattern. Branch taken when bound value is non-nil (`!= nil`); binding supports destructuring
 - [ ] `doto` — `(doto obj (.SetHeader "Content-Type" "application/json") (.Write body))` — fluent/builder-style Go APIs
 - [ ] `with-open` — `(with-open [f (os/Open path)] body)` — emits `defer f.Close()`; resource cleanup
@@ -277,9 +277,9 @@ Higher-level concurrency primitives so common Go patterns don't require verbose 
 
 Features that make the language enjoyable to use, not just functional.
 
-- [ ] `time-it` — `(time-it expr)` — prints elapsed time, returns value; great for debugging hot paths
-- [ ] `pp` — `(pp val)` — pretty-print any value with indentation; better than `println` for maps/slices
-- [ ] `tap->` / `tap->>` — like `->` / `->>` but `pp` each intermediate value; debug pipelines without restructuring code
+- [x] `time-it` — `(time-it expr)` — evaluates expr, prints elapsed time tagged with the expression source, returns the value. Inline timer IIFE (`time.Now()`/`time.Since`); `emitTimeIt` in `emit_expr.go`
+- [x] `pp` — `(pp val)` — pretty-print any value with indentation (maps with sorted keys, nested slices) and return it unchanged; better than `println` for maps/slices. Runtime helper `_glispPP`/`_glispPPString` gated on the `_pp` pseudo-key (imports `fmt`; `strconv` is always present)
+- [x] `tap->` / `tap->>` — like `->` / `->>` but `pp` each intermediate value (incl. the initial one); debug pipelines without restructuring code. AST rewrite wrapping every thread stage in `(pp …)` (`emitTapFirst`/`emitTapLast`)
 - [ ] Named `fn` — `(fn self [n] (if (= n 0) 1 (* n (self (- n 1)))))` — self-reference in anonymous functions without `defn`
 - [x] `assert` — `(assert cond)` / `(assert cond msg)` — runtime invariant guard; panics if falsy, auto-generating the message from the condition source when none given
 - [x] `case` — `(case x :a "alpha" :b "beta" "other")` — Clojure-style value dispatch (trailing default), a surface alias compiled to a Go switch
@@ -352,12 +352,12 @@ Items 1–9 are v1 blockers: a stranger can't write a real program or install gl
 | 8 | **7b: `concat` / `into` / `mapcat` / `take-while` / `drop-while`** | Data pipeline ops for transforms and aggregations |
 | 9 | **4b: REPL readline / history** | First thing new users try; bare REPL with no editing is painful |
 | 10 | ~~**7d: Set support (`#{}`)** ✓~~ | AST node already exists; wire it up |
-| 11 | **6d: `as->` / `doto` / `with-open`** | Ergonomics and Go builder-API interop |
+| 11 | ~~**6d: `as->`**~~ ✓ / **`doto` / `with-open`** | Ergonomics and Go builder-API interop |
 | 12 | **7b: `group-by` / `zipmap` / `partition` / `frequencies` / `rename-keys`** | Fill remaining collection gaps |
 | 13 | **4c: Source maps** | Debug Go panics in `.glsp` terms |
 | 14 | ~~**8: Database (postgres)**~~ | Out of language scope — opt-in via packages (ADR-014) |
 | 15 | ~~**8.5: Concurrency ergonomics**~~ ✓ | `go-val`, `par`, `for-chan`, `recv-ok!`, `with-lock`, `:timeout` in `select!` |
-| 16 | **9: Fun features** (`tap->`, `time-it`, `pp`, named `fn`, ~~`assert`~~ ✓, ~~`case`~~ ✓) | Joy and debugging power |
+| 16 | **9: Fun features** (~~`tap->`~~ ✓, ~~`time-it`~~ ✓, ~~`pp`~~ ✓, named `fn`, ~~`assert`~~ ✓, ~~`case`~~ ✓) | Joy and debugging power |
 | 17 | ~~**5f: LSP rename**~~ ✓ / **5g–5h: find-refs / code actions** | IDE completeness — nice to have |
 | 18 | ~~**10a–d: File I/O, slog, regex, error wrapping**~~ ✓ | Essential for any real-world program |
 | 19 | **10e–g: `atom`, `with-open`, context propagation** | Ergonomics for shared state and resource safety |

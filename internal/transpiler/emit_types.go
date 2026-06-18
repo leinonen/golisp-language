@@ -37,6 +37,11 @@ func identToGo(s string) string {
 	// ! suffix → strip (send! → send, reset! → reset)
 	s = strings.TrimSuffix(s, "!")
 
+	// $ is conventional for the as-> placeholder; it is not a legal Go ident char
+	// and cleanIdentPart would otherwise strip it to nothing. Map it to a distinct
+	// readable token ($ → _dollar, $acc → _dollaracc).
+	s = strings.ReplaceAll(s, "$", "_dollar")
+
 	// Replace -> with -To- so ring->handler → ring-To-handler → ringToHandler
 	s = strings.ReplaceAll(s, "->", "-To-")
 	// Replace => with -Arrow- as fallback

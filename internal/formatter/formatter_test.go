@@ -481,6 +481,10 @@ func TestIdempotent(t *testing.T) {
 		"; section header\n(def x 1)\n\n;; another note\n(def y 2)\n",
 		"(combine-results first-result\n                 second-result\n                 third-result\n                 fourth-result\n                 fifth-result)\n",
 		"(assoc config\n       :host \"localhost\"\n       :port 8080\n       :verbose enabled)\n",
+		"(as-> m $ (assoc $ :k 1) (dissoc $ :old))\n",
+		"(tap-> 5 (+ 3) (* 2))\n",
+		"(pp {:a 1})\n",
+		"(time-it (compute))\n",
 	}
 	for _, src := range inputs {
 		once, err := formatter.Format(src)

@@ -190,6 +190,11 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"values": {Sig: "(values a b)  →  multi-return", Doc: "Return multiple values from a function (Go multi-return)."},
 	"->":     {Sig: "(-> x f1 f2 ...)   thread-first", Doc: "Thread x as the first argument through each function call."},
 	"->>":    {Sig: "(->> x f1 f2 ...)  thread-last", Doc: "Thread x as the last argument through each function call."},
+	"as->":   {Sig: "(as-> x name form1 form2 ...)", Doc: "Thread x through each form, rebinding name to the running result so the thread position can vary per form. Returns the last form's value."},
+	"tap->":  {Sig: "(tap-> x f1 f2 ...)", Doc: "Like -> but pretty-prints (pp) each intermediate value, including the initial one. Returns the final value. For debugging pipelines without restructuring code."},
+	"tap->>": {Sig: "(tap->> x f1 f2 ...)", Doc: "Like ->> but pretty-prints (pp) each intermediate value. Returns the final value."},
+	"pp":     {Sig: "(pp val)  →  val", Doc: "Pretty-print val with indentation (maps with sorted keys, nested slices) and return it unchanged. Better than println for inspecting maps and slices."},
+	"time-it": {Sig: "(time-it expr)  →  value of expr", Doc: "Evaluate expr, print the elapsed time tagged with the expression source, and return the value unchanged. For timing hot paths."},
 
 	// Go interop
 	"go":       {Sig: "(go body...)        goroutine", Doc: "Spawn a goroutine to evaluate body concurrently."},

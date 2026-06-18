@@ -354,6 +354,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["data"] {
 			e.needImport("fmt")
 		}
+		if e.builtinImports["_pp"] {
+			e.needImport("fmt")
+		}
 		if e.builtinImports["_file"] {
 			e.needImport("fmt")
 			e.needImport("os")
@@ -423,6 +426,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 		if e.builtinImports["data"] {
 			e.write(glispDataRuntime)
+		}
+		if e.builtinImports["_pp"] {
+			e.write(glispPPRuntime)
 		}
 		if e.builtinImports["_num"] {
 			e.write(glispNumRuntime)

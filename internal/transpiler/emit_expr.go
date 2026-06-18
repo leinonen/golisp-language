@@ -548,6 +548,8 @@ var anyReturningBuiltins = map[string]bool{
 	"get": true, "get-in": true, "nth": true, "first": true, "second": true,
 	"last": true, "peek": true, "rand-nth": true, "find": true, "deref": true,
 	"reduce": true, "apply": true,
+	// debugging / threading helpers that pass a value through as `any`
+	"pp": true, "time-it": true, "as->": true, "tap->": true, "tap->>": true,
 }
 
 // exprIsAny reports whether n is statically known to emit a Go `any` value.
@@ -1202,6 +1204,17 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return e.emitThreadFirst(n.Args)
 		case "->>":
 			return e.emitThreadLast(n.Args)
+		case "as->":
+			return e.emitAsThread(n.Args)
+		case "tap->":
+			return e.emitTapFirst(n.Args)
+		case "tap->>":
+			return e.emitTapLast(n.Args)
+		case "pp":
+			e.needImport("_pp")
+			return e.emitRuntimeCall("_glispPP", n.Args, 1)
+		case "time-it":
+			return e.emitTimeIt(n.Args)
 		case "doseq":
 			return e.emitDoseq(n.Args)
 		case "dotimes":
@@ -2237,6 +2250,121 @@ func (e *Emitter) emitThreadLast(args []ast.Node) error {
 		}
 	}
 	return e.emitExpr(node)
+}
+
+// emitAsThread: (as-> x $ form1 form2 ...) threads x through each form with the
+// previous result rebound to the named binding $. Emitted as an IIFE that
+// assigns the binding step by step, so the thread position can vary per form.
+func (e *Emitter) emitAsThread(args []ast.Node) error {
+	if len(args) < 2 {
+		return fmt.Errorf("as-> requires an initial value and a binding name (at %s)", args[0].Pos())
+	}
+	name, ok := args[1].(*ast.Symbol)
+	if !ok {
+		return fmt.Errorf("as-> binding must be a symbol, got %T (at %s)", args[1], args[1].Pos())
+	}
+	if err := e.checkMultiReturnValue(args[0]); err != nil {
+		return err
+	}
+	saved := e.pushTypeScope()
+	defer e.popTypeScope(saved)
+	goName := identToGo(name.Name)
+	e.registerAnyVar(name.Name) // binding holds an `any`-typed running value
+	e.write("func() any {")
+	e.nl()
+	e.push()
+	e.writeIndent()
+	e.writef("var %s any = ", goName)
+	if err := e.emitExpr(args[0]); err != nil {
+		return err
+	}
+	e.nl()
+	for _, form := range args[2:] {
+		e.writeIndent()
+		e.writef("%s = ", goName)
+		if err := e.emitExpr(form); err != nil {
+			return err
+		}
+		e.nl()
+	}
+	e.writeIndent()
+	e.writef("return %s\n", goName)
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// ppWrap wraps a node in a (pp node) call so tap->/tap->> pretty-print each
+// intermediate value while threading the value itself through unchanged.
+func ppWrap(n ast.Node) ast.Node {
+	return ast.NewCallExpr(n.Pos(), ast.NewSymbol(n.Pos(), "pp"), []ast.Node{n})
+}
+
+// emitTapFirst: (tap-> x f1 f2 ...) is -> with each stage (incl. the initial
+// value) wrapped in pp, so every intermediate value is pretty-printed. The final
+// value is still returned.
+func (e *Emitter) emitTapFirst(args []ast.Node) error {
+	if len(args) < 2 {
+		return fmt.Errorf("tap-> requires at least 2 forms")
+	}
+	node := ppWrap(args[0])
+	for _, form := range args[1:] {
+		switch f := form.(type) {
+		case *ast.Symbol:
+			node = ast.NewCallExpr(f.Pos_, f, []ast.Node{node})
+		case *ast.CallExpr:
+			newArgs := append([]ast.Node{node}, f.Args...)
+			node = ast.NewCallExpr(f.Pos_, f.Head, newArgs)
+		default:
+			return fmt.Errorf("tap-> form must be a symbol or call, got %T", form)
+		}
+		node = ppWrap(node)
+	}
+	return e.emitExpr(node)
+}
+
+// emitTapLast: (tap->> x f1 f2 ...) is ->> with each stage wrapped in pp.
+func (e *Emitter) emitTapLast(args []ast.Node) error {
+	if len(args) < 2 {
+		return fmt.Errorf("tap->> requires at least 2 forms")
+	}
+	node := ppWrap(args[0])
+	for _, form := range args[1:] {
+		switch f := form.(type) {
+		case *ast.Symbol:
+			node = ast.NewCallExpr(f.Pos_, f, []ast.Node{node})
+		case *ast.CallExpr:
+			newArgs := append(append([]ast.Node{}, f.Args...), node)
+			node = ast.NewCallExpr(f.Pos_, f.Head, newArgs)
+		default:
+			return fmt.Errorf("tap->> form must be a symbol or call, got %T", form)
+		}
+		node = ppWrap(node)
+	}
+	return e.emitExpr(node)
+}
+
+// emitTimeIt: (time-it expr) evaluates expr, prints how long it took (tagged
+// with the expression's source text), and returns the value unchanged.
+func (e *Emitter) emitTimeIt(args []ast.Node) error {
+	if len(args) != 1 {
+		return fmt.Errorf("time-it requires 1 argument, got %d", len(args))
+	}
+	if err := e.checkMultiReturnValue(args[0]); err != nil {
+		return err
+	}
+	e.needImport("time")
+	e.needImport("fmt")
+	start := e.fresh("start")
+	val := e.fresh("v")
+	src := formatter.FormatNode(args[0])
+	e.writef("func() any { %s := time.Now(); %s := ", start, val)
+	if err := e.emitExpr(args[0]); err != nil {
+		return err
+	}
+	e.writef("; fmt.Printf(\"%%s => %%v\\n\", %q, time.Since(%s)); return %s }()", src, start, val)
+	return nil
 }
 
 // emitFor: (for [x coll y coll2 :when pred] body...) → a []any list

@@ -23,8 +23,56 @@ type TranspileError struct{ Err error }
 func (e *TranspileError) Error() string { return "transpile error: " + e.Err.Error() }
 func (e *TranspileError) Unwrap() error { return e.Err }
 
+// DeclSet holds top-level declarations parsed from one or more sibling files of
+// a package. It seeds cross-file type resolution — struct field access
+// (`(:field x)`) and interface/struct method dispatch — when each file in a
+// directory build is transpiled independently. The contained nodes are used
+// only to populate the emitter's type tables in the pre-pass; they are never
+// emitted.
+type DeclSet struct {
+	nodes []ast.Node
+}
+
+// CollectDecls parses src and appends its top-level declarations to ds (creating
+// a new set when ds is nil), returning the updated set. filename supplies error
+// positions only. A lexer/parser failure is returned as a *ParseError.
+func CollectDecls(ds *DeclSet, src, filename string) (*DeclSet, error) {
+	tokens, err := lexer.Tokenize(src)
+	if err != nil {
+		return ds, &ParseError{Err: err}
+	}
+	var nodes []ast.Node
+	var parseErr error
+	if filename != "" {
+		nodes, parseErr = parser.ParseSourceFile(tokens, src, filename)
+	} else {
+		nodes, parseErr = parser.ParseSource(tokens, src)
+	}
+	if parseErr != nil {
+		return ds, &ParseError{Err: parseErr}
+	}
+	if ds == nil {
+		ds = &DeclSet{}
+	}
+	ds.nodes = append(ds.nodes, nodes...)
+	return ds, nil
+}
+
+// transpileConfig bundles the knobs of a single transpile pass.
+type transpileConfig struct {
+	filename string
+	runtime  bool
+	strict   bool
+	external *DeclSet // sibling-file declarations for cross-file type resolution
+}
+
 // transpileInternal is the unified internal entry point for all transpile variants.
 func transpileInternal(src, filename string, runtime, strict bool) (out string, imports map[string]bool, err error) {
+	return transpileWith(src, transpileConfig{filename: filename, runtime: runtime, strict: strict})
+}
+
+// transpileWith runs one transpile pass with the given configuration.
+func transpileWith(src string, cfg transpileConfig) (out string, imports map[string]bool, err error) {
 	// Defensive boundary: a malformed program should never crash the host
 	// process (the CLI prints a stack trace; the LSP server dies outright).
 	// Any panic escaping the lexer/parser/emitter is converted into a normal
@@ -43,8 +91,8 @@ func transpileInternal(src, filename string, runtime, strict bool) (out string, 
 	}
 	var nodes []ast.Node
 	var parseErr error
-	if filename != "" {
-		nodes, parseErr = parser.ParseSourceFile(tokens, src, filename)
+	if cfg.filename != "" {
+		nodes, parseErr = parser.ParseSourceFile(tokens, src, cfg.filename)
 	} else {
 		nodes, parseErr = parser.ParseSource(tokens, src)
 	}
@@ -52,8 +100,11 @@ func transpileInternal(src, filename string, runtime, strict bool) (out string, 
 		return "", nil, &ParseError{Err: parseErr}
 	}
 	e := newEmitter()
-	e.emitRuntime = runtime
-	e.strict = strict
+	e.emitRuntime = cfg.runtime
+	e.strict = cfg.strict
+	if cfg.external != nil {
+		e.externalDecls = cfg.external.nodes
+	}
 	if err := e.emitFile(nodes); err != nil {
 		return "", nil, &TranspileError{Err: err}
 	}
@@ -96,6 +147,16 @@ func TranspileFileStrict(src, filename string) (string, error) {
 // TranspileNoRuntimeFileStrict is like TranspileNoRuntimeFile with strict mode enabled.
 func TranspileNoRuntimeFileStrict(src, filename string) (string, map[string]bool, error) {
 	return transpileInternal(src, filename, false, true)
+}
+
+// TranspileNoRuntimeFileExt is like TranspileNoRuntimeFile but seeds the
+// emitter's type tables with declarations from sibling files (ext), so a
+// multi-file build resolves struct field access and method dispatch on types
+// declared in another file of the same package. ext may include the current
+// file's own declarations (duplicates merge harmlessly); only the nodes parsed
+// from src are emitted.
+func TranspileNoRuntimeFileExt(src, filename string, ext *DeclSet, strict bool) (string, map[string]bool, error) {
+	return transpileWith(src, transpileConfig{filename: filename, runtime: false, strict: strict, external: ext})
 }
 
 // fnSig holds the arity information for a user-defined function.
@@ -165,6 +226,10 @@ type Emitter struct {
 	// sawLineDir: true once any //line directive has been emitted (file mode);
 	// gates the //line reset in front of the appended runtime helpers.
 	sawLineDir bool
+	// externalDecls: top-level declarations from sibling files in a multi-file
+	// build. Folded into the pre-pass type tables (symbols/structs/ifaces/
+	// methods/defGlobals) so cross-file types resolve; never emitted.
+	externalDecls []ast.Node
 }
 
 func (e *Emitter) needImport(pkg string) {
@@ -304,9 +369,18 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 
 	// Pre-pass: collect user-defined function signatures (arity + types),
 	// declared struct types, and method tables for dot-free method dispatch.
+	// Sibling-file declarations (externalDecls, multi-file builds) are folded in
+	// so cross-file struct field access and method dispatch resolve; only the
+	// current file's nodes are emitted below.
+	declNodes := nodes
+	if len(e.externalDecls) > 0 {
+		declNodes = make([]ast.Node, 0, len(nodes)+len(e.externalDecls))
+		declNodes = append(declNodes, nodes...)
+		declNodes = append(declNodes, e.externalDecls...)
+	}
 	symbols := map[string]*fnSig{}
 	structs := map[string]*structInfo{}
-	for _, n := range nodes {
+	for _, n := range declNodes {
 		switch d := n.(type) {
 		case *ast.DefnDecl:
 			symbols[d.Name] = buildFnSig(d.Params, d.ReturnType)
@@ -314,7 +388,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			structs[d.Name] = buildStructInfo(d)
 		}
 	}
-	ifaces, methods, defGlobals := collectMethodTables(nodes)
+	ifaces, methods, defGlobals := collectMethodTables(declNodes)
 
 	// Pass 1: emit declarations into a side buffer to discover import needs
 	declEmitter := newEmitter()
@@ -351,6 +425,10 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		// _glispToInt/_glispToFloat64 (always in glispRuntime) parse numeric
 		// strings via strconv, so the runtime always needs it.
 		e.needImport("strconv")
+		// _glispToSlice/_glispLen (always in glispRuntime) fall back to reflection
+		// for user-typed slices, so the runtime always needs reflect. (fmt already
+		// links reflect, so this adds no real binary weight.)
+		e.needImport("reflect")
 		if e.builtinImports["data"] {
 			e.needImport("fmt")
 		}
@@ -462,7 +540,7 @@ func (e *Emitter) emitImports() error {
 	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
 	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
 	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true, "regexp": true}
-	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context"} {
+	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
 				continue

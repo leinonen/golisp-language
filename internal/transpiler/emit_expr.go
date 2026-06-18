@@ -76,6 +76,30 @@ func (e *Emitter) emitExprWithHint(n ast.Node, hint string) error {
 		if strings.HasPrefix(hint, "map[") {
 			return e.emitMapLitTyped(v, hint)
 		}
+	case *ast.IfExpr:
+		if e.hintPropagatable(v, hint) {
+			return e.emitTypedIIFE(hint, func() error { return e.emitIfExprReturn(v) })
+		}
+	case *ast.WhenExpr:
+		if e.hintPropagatable(v, hint) {
+			return e.emitTypedIIFE(hint, func() error { return e.emitWhenReturn(v) })
+		}
+	case *ast.CondExpr:
+		if e.hintPropagatable(v, hint) {
+			return e.emitTypedIIFE(hint, func() error { return e.emitCondExprReturn(v) })
+		}
+	case *ast.SwitchExpr:
+		if e.hintPropagatable(v, hint) {
+			return e.emitTypedIIFE(hint, func() error { return e.emitSwitchExprReturn(v) })
+		}
+	case *ast.DoExpr:
+		if e.hintPropagatable(v, hint) {
+			return e.emitTypedIIFE(hint, func() error { return e.emitDoExprReturn(v) })
+		}
+	case *ast.CallExpr:
+		if done, err := e.tryEmitTypedMap(v, hint); done {
+			return err
+		}
 	}
 	// Numeric coercion: an `any` value (e.g. any-arithmetic result or map lookup)
 	// in a concrete numeric position (typed let binding or `-> int`/`-> float64`
@@ -105,6 +129,152 @@ func numericCoercion(hint string) (string, string, bool) {
 		return "float32(_glispToFloat64(", "))", true
 	}
 	return "", "", false
+}
+
+// hintPropagatable reports whether a concrete type hint can be pushed into the
+// return type of a block-expression IIFE (if/when/do/cond/switch) instead of
+// `any`. Constructs that fall through to an implicit `return nil` (when, an
+// `if` with no else — left unchanged here, a cond/switch with no default) need
+// a nilable hint; constructs where every path returns a value accept any hint.
+func (e *Emitter) hintPropagatable(n ast.Node, hint string) bool {
+	if hint == "" || hint == "any" {
+		return false
+	}
+	switch v := n.(type) {
+	case *ast.IfExpr:
+		// A no-else `if` has no implicit return today; leave its emission
+		// (broken in expression position) untouched rather than reshaping it.
+		return v.Else != nil
+	case *ast.DoExpr:
+		return true
+	case *ast.WhenExpr:
+		return e.isNilableGoType(hint)
+	case *ast.CondExpr:
+		if v.Default != nil {
+			return true
+		}
+		return e.isNilableGoType(hint)
+	case *ast.SwitchExpr:
+		if v.Default != nil {
+			return true
+		}
+		return e.isNilableGoType(hint)
+	}
+	return false
+}
+
+// isNilableGoType reports whether a Go type accepts an untyped nil — slices,
+// maps, pointers, channels, funcs, interfaces (any/error and declared
+// interfaces). Drives hintPropagatable for IIFEs with an implicit nil tail.
+func (e *Emitter) isNilableGoType(hint string) bool {
+	hint = strings.TrimSpace(hint)
+	switch hint {
+	case "any", "error":
+		return true
+	}
+	if strings.HasPrefix(hint, "[]") || strings.HasPrefix(hint, "map[") ||
+		strings.HasPrefix(hint, "*") || strings.HasPrefix(hint, "chan ") ||
+		strings.HasPrefix(hint, "func") {
+		return true
+	}
+	if _, ok := e.ifaces[hint]; ok {
+		return true
+	}
+	return false
+}
+
+// emitTypedIIFE emits a block-expression IIFE with the concrete return type
+// hint instead of `any`, threading hint through e.currentRetType so each inner
+// return is emitted (and coerced) for that type. inner emits the body in return
+// position (e.g. emitIfExprReturn).
+func (e *Emitter) emitTypedIIFE(hint string, inner func() error) error {
+	saved := e.currentRetType
+	e.currentRetType = hint
+	defer func() { e.currentRetType = saved }()
+	e.writef("func() %s {", hint)
+	e.nl()
+	e.push()
+	if err := inner(); err != nil {
+		return err
+	}
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// tryEmitTypedMap recognises `(map (fn [x] ...) coll)` in a `[]T` position and
+// emits a typed loop (`var r []T; for _, x := range _glispToSlice(coll) { r =
+// append(r, fn(x)) }`) instead of `_glispMap`, which always returns `[]any` and
+// so can't satisfy a typed slice binding/return. It only fires for a single,
+// untyped-param lambda (signature `func(any) R`): the element from
+// _glispToSlice passes straight in. When the lambda's Go return type is `any`
+// (the common `(fn [v] (as T v))` case) the result is asserted to the element
+// type. Returns (true, err) when it handled the call.
+func (e *Emitter) tryEmitTypedMap(n *ast.CallExpr, hint string) (bool, error) {
+	sym, ok := n.Head.(*ast.Symbol)
+	if !ok || sym.Name != "map" || len(n.Args) != 2 {
+		return false, nil
+	}
+	if !strings.HasPrefix(hint, "[]") {
+		return false, nil
+	}
+	elem := strings.TrimSpace(hint[2:])
+	if elem == "" || elem == "any" {
+		return false, nil
+	}
+	fn, ok := n.Args[0].(*ast.FnExpr)
+	if !ok {
+		return false, nil
+	}
+	// Single untyped, non-destructured param only.
+	if len(fn.Params) != 1 {
+		return false, nil
+	}
+	p := fn.Params[0]
+	if p.IsRest || p.Pattern != nil || p.TypeAnnot != nil {
+		return false, nil
+	}
+	ret := e.formatReturnType(fn.ReturnType)
+	switch ret {
+	case "void":
+		return false, nil
+	case "":
+		ret = "any"
+	}
+
+	r := e.fresh("m")
+	x := e.fresh("x")
+	e.writef("func() %s {", hint)
+	e.nl()
+	e.push()
+	e.linef("%s := %s{}", r, hint)
+	e.writeIndent()
+	e.writef("for _, %s := range _glispToSlice(", x)
+	if err := e.emitExpr(n.Args[1]); err != nil {
+		return true, err
+	}
+	e.write(") {")
+	e.nl()
+	e.push()
+	e.writeIndent()
+	e.writef("%s = append(%s, (", r, r)
+	if err := e.emitExpr(fn); err != nil {
+		return true, err
+	}
+	e.writef(")(%s)", x)
+	if ret == "any" {
+		e.writef(".(%s)", elem)
+	}
+	e.write(")")
+	e.nl()
+	e.pop()
+	e.line("}")
+	e.linef("return %s", r)
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return true, nil
 }
 
 // emitStructLitFromMap emits a struct literal from a plain map literal when the
@@ -689,6 +859,18 @@ func (e *Emitter) emitWhenExpr(n *ast.WhenExpr) error {
 	e.write("func() any {")
 	e.nl()
 	e.push()
+	if err := e.emitWhenReturn(n); err != nil {
+		return err
+	}
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// emitWhenReturn emits a when's body in return position (the inside of its
+// IIFE): the truthy branch returns its last expr, the false case returns nil.
+func (e *Emitter) emitWhenReturn(n *ast.WhenExpr) error {
 	e.writeIndent()
 	e.write("if ")
 	if err := e.emitCondition(n.Cond); err != nil {
@@ -703,9 +885,6 @@ func (e *Emitter) emitWhenExpr(n *ast.WhenExpr) error {
 	e.pop()
 	e.line("}")
 	e.line("return nil")
-	e.pop()
-	e.writeIndent()
-	e.write("}()")
 	return nil
 }
 

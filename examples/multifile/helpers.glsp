@@ -11,3 +11,14 @@
 ;;; Prints a labeled list of values to stdout.
 (defn print-results [label string nums []any] -> void
   (fmt/printf "%s: %v\n" label nums))
+
+;;; A point on the plane. Declared here, but its fields and method are used
+;;; from main.glsp — cross-file type resolution makes (:x p) emit p.X and
+;;; (distance p) emit p.Distance() without any accessor boilerplate.
+(defstruct Point
+  x float64
+  y float64)
+
+;;; Euclidean distance of the point from the origin.
+(defmethod Point Distance [p] -> float64
+  (let [x (:x p) y (:y p)] (math/sqrt (+ (* x x) (* y y)))))

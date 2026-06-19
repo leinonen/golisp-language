@@ -11,7 +11,7 @@ The transpiler lives in `internal/transpiler/` and is split across several files
 | `transpiler.go` | `Emitter` struct, two-pass `emitFile`, import resolution |
 | `emit_decl.go` | Top-level declarations: `def`, `defn`, `defstruct`, `definterface`, `defmethod`, `deftype` |
 | `emit_expr.go` | Expressions: `fn`, `let`, `if`, `cond`, `do`, `loop`/`recur`, built-ins |
-| `emit_concurrency.go` | Concurrency forms: `go`, `chan`, `send!`, `recv!`, `select!`, `par`, `with-lock`, … |
+| `emit_concurrency.go` | Concurrency & resource forms: `go`, `chan`, `send!`, `recv!`, `select!`, `par`, `with-lock`, `with-open`, … |
 | `emit_types.go` | Type annotation conversion: `identToGo`, `typeExprToGo`, `qualifiedTypeToGo` |
 | `emit_runtime.go` | Inline Go runtime helpers appended to generated files |
 

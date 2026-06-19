@@ -605,6 +605,22 @@ func NewWithLockExpr(pos Position, mutex Node, body []Node) *WithLockExpr {
 	return &WithLockExpr{Pos_: pos, Mutex: mutex, Body: body}
 }
 
+// WithOpenExpr: (with-open [name resource ...] body...) → IIFE that binds each
+// resource and `defer`s its Close() (function-scoped, so cleanup runs when the
+// form — not the enclosing function — exits). Bindings reuse LetBinding (each
+// Pattern must be a plain symbol; an optional type annotation is allowed).
+type WithOpenExpr struct {
+	Pos_     Position
+	Bindings []LetBinding
+	Body     []Node
+}
+
+func (n *WithOpenExpr) nodeMarker()   {}
+func (n *WithOpenExpr) Pos() Position { return n.Pos_ }
+func NewWithOpenExpr(pos Position, bindings []LetBinding, body []Node) *WithOpenExpr {
+	return &WithOpenExpr{Pos_: pos, Bindings: bindings, Body: body}
+}
+
 // PipelineExpr: (pipeline [x src-ch] stage1 stage2 ...) → chained goroutines returning chan any
 type PipelineExpr struct {
 	Pos_    Position

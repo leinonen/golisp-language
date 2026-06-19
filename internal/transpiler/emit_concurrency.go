@@ -198,6 +198,44 @@ func (e *Emitter) emitWithLockExpr(n *ast.WithLockExpr) error {
 	return nil
 }
 
+// emitWithOpenExpr: (with-open [f resource ...] body...) → an IIFE that binds
+// each resource and `defer`s _glispClose on it, so Close() runs when the form
+// exits (the IIFE gives the defers function scope — a bare Go block would defer
+// to the *enclosing* function's return instead). Returns the body's value.
+func (e *Emitter) emitWithOpenExpr(n *ast.WithOpenExpr) error {
+	e.write("func() any {")
+	e.nl()
+	e.push()
+	if err := e.emitWithOpenInner(n); err != nil {
+		return err
+	}
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// emitWithOpenInner emits the binding+defer+body statements of a with-open,
+// without the surrounding closure — shared by the plain `func() any` IIFE and
+// the typed-return IIFE (emitTypedIIFE). Each binding is emitted then its defer,
+// so a panic while opening a later resource still closes the earlier ones.
+func (e *Emitter) emitWithOpenInner(n *ast.WithOpenExpr) error {
+	e.needImport("_close")
+	saved := e.pushTypeScope()
+	defer e.popTypeScope(saved)
+	for _, b := range n.Bindings {
+		sym, ok := b.Pattern.(*ast.Symbol)
+		if !ok {
+			return fmt.Errorf("with-open binding must be a name (at %s)", b.Value.Pos())
+		}
+		if err := e.emitLetBindings([]ast.LetBinding{b}); err != nil {
+			return err
+		}
+		e.linef("defer _glispClose(%s)", identToGo(sym.Name))
+	}
+	return e.emitBody(n.Body, true)
+}
+
 // emitSelectStmt emits a select statement.
 func (e *Emitter) emitSelectStmt(n *ast.SelectStmt) error {
 	for _, sc := range n.Cases {

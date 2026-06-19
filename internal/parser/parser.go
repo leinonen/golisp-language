@@ -540,6 +540,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseForChan(pos)
 		case "with-lock":
 			return p.parseWithLock(pos)
+		case "with-open":
+			return p.parseWithOpen(pos)
 		case "pipeline":
 			return p.parsePipeline(pos)
 		case "fan-out":
@@ -1347,6 +1349,52 @@ func (p *parser) parseWithLock(pos ast.Position) (*ast.WithLockExpr, error) {
 		return nil, err
 	}
 	return ast.NewWithLockExpr(pos, mu, body), nil
+}
+
+// parseWithOpen parses (with-open [name resource ...] body...). Bindings mirror
+// typed let bindings (name, optional type, value) but the pattern must be a
+// plain symbol — there is nothing to Close in a destructure. At least one
+// binding is required.
+func (p *parser) parseWithOpen(pos ast.Position) (*ast.WithOpenExpr, error) {
+	p.advance() // "with-open"
+	if _, err := p.expect(lexer.TokenLBracket); err != nil {
+		return nil, err
+	}
+	var bindings []ast.LetBinding
+	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
+		symTok, err := p.expect(lexer.TokenSymbol)
+		if err != nil {
+			return nil, p.errorf("with-open binding name must be a symbol")
+		}
+		pattern := ast.NewSymbol(p.mkpos(symTok), symTok.Text)
+		var annot *ast.TypeExpr
+		if p.isBindingTypeStart() {
+			t, err := p.parseTypeExpr()
+			if err != nil {
+				return nil, err
+			}
+			annot = t
+		}
+		val, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		bindings = append(bindings, ast.LetBinding{Pattern: pattern, TypeAnnot: annot, Value: val})
+	}
+	if _, err := p.expect(lexer.TokenRBracket); err != nil {
+		return nil, err
+	}
+	if len(bindings) == 0 {
+		return nil, p.errorf("with-open requires at least one [name resource] binding")
+	}
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewWithOpenExpr(pos, bindings, body), nil
 }
 
 func (p *parser) parsePipeline(pos ast.Position) (*ast.PipelineExpr, error) {

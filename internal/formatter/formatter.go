@@ -226,6 +226,14 @@ func nodeMaxLine(n ast.Node) int {
 		for _, b := range v.Bodies {
 			consider(b)
 		}
+	case *ast.WithOpenExpr:
+		for _, b := range v.Bindings {
+			consider(b.Pattern)
+			consider(b.Value)
+		}
+		for _, b := range v.Body {
+			consider(b)
+		}
 	case *ast.WithLockExpr:
 		consider(v.Mutex)
 		for _, b := range v.Body {
@@ -447,6 +455,8 @@ func (c *cfmt) format(n ast.Node, indent int) string {
 		return c.formatForChan(v, indent)
 	case *ast.ParStmt:
 		return c.formatPar(v, indent)
+	case *ast.WithOpenExpr:
+		return c.formatLet("with-open", v.Bindings, v.Body, indent, v.Pos().Line)
 	case *ast.WithLockExpr:
 		return c.formatWithLock(v, indent)
 	case *ast.PipelineExpr:
@@ -752,6 +762,8 @@ func inline(n ast.Node) string {
 		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.RecvOkExpr:
 		return "(recv-ok! " + inline(v.Chan) + ")"
+	case *ast.WithOpenExpr:
+		return inlineBindingForm("with-open", v.Bindings, v.Body)
 	case *ast.WithLockExpr:
 		parts := []string{"with-lock", inline(v.Mutex)}
 		for _, b := range v.Body {

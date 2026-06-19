@@ -80,6 +80,11 @@ glisp doc     [name]            # show built-in docs (all if no name)
 (par (init-cache) (connect-db))                ; parallel + WaitGroup
 (for-chan [msg ch] (process msg))              ; range until closed
 (with-lock mu (fmt/println "safe"))            ; mutex critical section
+
+; State & resources
+(def hits (atom int 0))                        ; typed atom
+(swap! hits (fn [n] (+ n 1)))                  ; atomic update; (deref hits) → int
+(with-open [f (open-file path)] (read f))      ; binds f, defers Close() (LIFO, even on panic)
 ```
 
 See [`docs/builtins.md`](docs/builtins.md) and [`docs/stdlib.md`](docs/stdlib.md) for the

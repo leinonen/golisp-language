@@ -320,8 +320,8 @@ Building blocks that close the gap between a toy language and one you'd stake pr
 - [x] **Typed atoms** — `(atom T init)` (e.g. `(atom int 0)`, `(atom map[string]Book {})`) records the element type so a typed `(deref a)` coerces to a concrete *scalar* (int/float/string) without an `(as …)` cast; the init is built under the element-type hint. Tracked via `e.atomTypes` (let/def/param bindings), `e.globalAtomTypes` (top-level `def`), and `structInfo.atomElems` (struct fields). **Any-seam limit:** map/slice/struct element atoms keep `any` deref (a helper write like `assoc` would drift the stored shape, so a concrete assertion could panic) — use bare `any`-element atoms with the collection helpers there.
 - [x] **Atoms as struct fields** — the type spelling `Atom` (bare, `any` element) or `(Atom T)` is valid in `defstruct` fields and params, emitting Go `*_glispAtom`; the element type drives field/param deref coercion. So `(defstruct Repo store (Atom map[string]any) hits (Atom int))` works, and stateful structs no longer need a module-level `def` singleton.
 
-### 10f. with-open
-- [ ] `(with-open [f (os/Open path)] body...)` — wraps body in `defer f.Close()`; safe resource cleanup for files, HTTP responses, and anything with a `Close()` method
+### 10f. with-open ✓
+- [x] `(with-open [name resource ...] body...)` — binds each resource and `defer`s `Close()` on it inside an IIFE (function-scoped, so cleanup runs at the form's exit, LIFO, even on panic). `_glispClose` asserts `interface{ Close() error }`, so the resource needn't be statically typed; bindings accept an optional type annotation (`[f *os/File (expr)]`). The return type propagates into the IIFE (`hintPropagatable`), so a `with-open` works as a typed function tail. A multi-return resource (`os/open` → `(*os.File, error)`) must be unpacked with `if-err` first.
 
 ### 10g. Context propagation ✓
 - [x] `(ctx/background)` — `context.Background()`

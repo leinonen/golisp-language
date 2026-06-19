@@ -7,19 +7,21 @@
 (ns main)
 
 ; ── counter ─────────────────────────────────────────────────────────────────
-; A plain atom wrapping an integer.  swap! takes a function (any → any) and
-; applies it atomically: lock, call f with current value, store result, unlock.
-(defn make-counter [] -> any
-  (atom 0))
+; A typed atom wrapping an integer.  (atom int 0) records the element type, so
+; (deref c) coerces to a concrete int — no (int (deref c)) cast needed — and an
+; (Atom int) param documents that the value is an int-valued atom.  swap! takes
+; a function (any → any) and applies it atomically: lock, call f, store, unlock.
+(defn make-counter [] -> (Atom int)
+  (atom int 0))
 
-(defn increment! [c any] -> any
+(defn increment! [c (Atom int)] -> any
   (swap! c (fn [n any] (+ (int n) 1))))
 
-(defn add! [c any delta any] -> any
+(defn add! [c (Atom int) delta any] -> any
   (swap! c (fn [n any] (+ (int n) (int delta)))))
 
-(defn current [c any] -> int
-  (int (deref c)))
+(defn current [c (Atom int)] -> int
+  (deref c))
 
 ; ── main ─────────────────────────────────────────────────────────────────────
 (defn main [] -> void

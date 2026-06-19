@@ -397,8 +397,8 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"errors/is?": {Sig: "(errors/is? err target) →  bool", Doc: "Return true if err or any error in its chain matches target."},
 
 	// Atom — shared mutable state
-	"atom":   {Sig: "(atom init)       →  atom", Doc: "Create a thread-safe mutable reference wrapping init."},
+	"atom":   {Sig: "(atom init) / (atom T init)  →  atom", Doc: "Create a thread-safe mutable reference wrapping init. The typed form (atom T init) — e.g. (atom int 0), (atom map[string]Book {}) — records the element type so (deref a) coerces to a concrete scalar (int/float/string) without an (as …) cast."},
 	"swap!":  {Sig: "(swap! a f)       →  any", Doc: "Atomically update atom a by applying f to its current value. Returns the new value."},
 	"reset!": {Sig: "(reset! a v)      →  any", Doc: "Atomically set atom a to v. Returns v."},
-	"deref":  {Sig: "(deref a)         →  any", Doc: "Read the current value of atom a."},
+	"deref":  {Sig: "(deref a)         →  any", Doc: "Read the current value of atom a. On a typed atom (param/field declared (Atom T), or a typed (atom T …) binding) with a scalar element type, the result is that concrete type."},
 }

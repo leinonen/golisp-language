@@ -568,6 +568,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseCase(pos)
 		case "as":
 			return p.parseTypeAssert(pos)
+		case "atom":
+			return p.parseAtom(pos)
 		case "deftest":
 			return p.parseDefTest(pos)
 		}
@@ -1767,6 +1769,31 @@ func (p *parser) parseTypeAssert(pos ast.Position) (*ast.TypeAssertExpr, error) 
 	return ast.NewTypeAssertExpr(pos, ty, val), nil
 }
 
+// parseAtom parses (atom init) or the typed (atom T init). A leading type
+// expression is recognised with the same heuristic as typed let/loop bindings
+// (isBindingTypeStart) — a type symbol or []T form — so (atom 0) / (atom x)
+// stay untyped while (atom int 0) / (atom map[string]Book {}) carry an element
+// type. The type, when present, never begins with '(' (those are value exprs).
+func (p *parser) parseAtom(pos ast.Position) (*ast.AtomExpr, error) {
+	p.advance() // "atom"
+	var elem *ast.TypeExpr
+	if p.isBindingTypeStart() {
+		t, err := p.parseTypeExpr()
+		if err != nil {
+			return nil, err
+		}
+		elem = t
+	}
+	init, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewAtomExpr(pos, elem, init), nil
+}
+
 func (p *parser) parseMethodCall(pos ast.Position) (*ast.MethodCallExpr, error) {
 	symTok := p.advance() // .Method
 	method := symTok.Text[1:]
@@ -1941,14 +1968,16 @@ func (p *parser) parseTypeExpr() (*ast.TypeExpr, error) {
 		return ast.NewTypeExpr(pos, "["+strings.Join(parts, " ")+"]"), nil
 
 	case lexer.TokenLParen:
-		// (chan T) — channel type
+		// (chan T) — channel type; (Atom T) — typed atom reference
 		p.advance() // consume (
-		chanTok, err := p.expect(lexer.TokenSymbol)
+		headTok, err := p.expect(lexer.TokenSymbol)
 		if err != nil {
 			return nil, err
 		}
-		if chanTok.Text != "chan" {
-			return nil, p.errorf("expected 'chan' in type expression, got %q", chanTok.Text)
+		switch headTok.Text {
+		case "chan", "Atom":
+		default:
+			return nil, p.errorf("expected 'chan' or 'Atom' in type expression, got %q", headTok.Text)
 		}
 		elem, err := p.parseTypeExpr()
 		if err != nil {
@@ -1957,7 +1986,7 @@ func (p *parser) parseTypeExpr() (*ast.TypeExpr, error) {
 		if _, err := p.expect(lexer.TokenRParen); err != nil {
 			return nil, err
 		}
-		return ast.NewTypeExpr(pos, "chan "+elem.Text), nil
+		return ast.NewTypeExpr(pos, headTok.Text+" "+elem.Text), nil
 
 	case lexer.TokenSymbol:
 		symTok := p.advance()

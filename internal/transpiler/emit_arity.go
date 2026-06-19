@@ -93,8 +93,10 @@ var builtinArity = map[string][2]int{
 	"re/replace": {3, 3}, "re/split": {2, 2},
 
 	// error wrapping, atoms, context
+	// (atom …) parses to *ast.AtomExpr (typed form needs a type arg), so it is
+	// not a symbol-dispatched call form and has no arity row here.
 	"wrap-error": {2, 2}, "errors/is?": {2, 2},
-	"atom": {1, 1}, "swap!": {2, 2}, "reset!": {2, 2}, "deref": {1, 1},
+	"swap!": {2, 2}, "reset!": {2, 2}, "deref": {1, 1},
 	"ctx/background": {0, 0}, "ctx/todo": {0, 0}, "ctx/with-cancel": {1, 1},
 	"ctx/with-timeout": {2, 2}, "ctx/cancel!": {1, 1}, "ctx/value": {2, 2},
 	"ctx/with-value": {3, 3}, "ctx/done?": {1, 1}, "ctx/err": {1, 1},

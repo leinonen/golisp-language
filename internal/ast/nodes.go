@@ -726,6 +726,21 @@ func NewTypeAssertExpr(pos Position, ty *TypeExpr, val Node) *TypeAssertExpr {
 	return &TypeAssertExpr{Pos_: pos, Type: ty, Value: val}
 }
 
+// AtomExpr: (atom init) — an untyped thread-safe mutable reference — or the
+// typed form (atom T init), where ElemType records the wrapped value's element
+// type so (deref a) can coerce to it. ElemType is nil for the untyped form.
+type AtomExpr struct {
+	Pos_     Position
+	ElemType *TypeExpr // nil when untyped
+	Init     Node
+}
+
+func (n *AtomExpr) nodeMarker()   {}
+func (n *AtomExpr) Pos() Position { return n.Pos_ }
+func NewAtomExpr(pos Position, elem *TypeExpr, init Node) *AtomExpr {
+	return &AtomExpr{Pos_: pos, ElemType: elem, Init: init}
+}
+
 // ---------- Test declarations ----------
 
 // DefTestDecl: (deftest name body...)

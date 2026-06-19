@@ -1,0 +1,57 @@
+;;; with-open — deterministic resource cleanup
+;;;
+;;; (with-open [name resource ...] body...) binds each resource, runs the body,
+;;; and defers Close() on each one.  The defers are function-scoped (the form
+;;; compiles to an IIFE), so cleanup runs when the with-open exits — in reverse
+;;; order of acquisition, and even if the body panics.  Anything implementing
+;;; Close() error is closed; other values are left untouched.
+(ns main)
+
+; ── a closable resource ──────────────────────────────────────────────────────
+; Any type with a (Close [] -> error) method works.  Here a trivial in-memory
+; "file" that reports when it is opened and closed.
+(defstruct File
+  name string)
+
+(defmethod *File Close [f] -> error
+  (println "  close" (:name f))
+  nil)
+
+(defn open-file [n string] -> *File
+  (println "  open " n)
+  {:name n})
+
+(defn read-contents [f *File] -> string
+  (str "<contents of " (:name f) ">"))
+
+; ── single resource ──────────────────────────────────────────────────────────
+; The body's value is returned; the file is closed on the way out.
+(defn read-one [path string] -> string
+  (with-open [f (open-file path)] (read-contents f)))
+
+; ── multiple resources ───────────────────────────────────────────────────────
+; Bindings open left-to-right and close right-to-left (LIFO), so a resource
+; opened later is always released before the ones it depends on.
+(defn copy-file [src string dst string] -> int
+  (with-open [in (open-file src)
+              out (open-file dst)]
+    (println "  copy " (:name in) "->" (:name out))
+    1))
+
+; ── cleanup still runs on panic ──────────────────────────────────────────────
+; recover (in a deferred handler) catches the panic; the with-open's deferred
+; close has already fired by then.
+(defn guard [] -> void
+  (let [r (recover)] (when r (println "  recovered:" r))))
+
+(defn read-or-fail [path string] -> void
+  (defer (guard))
+  (with-open [f (open-file path)] (panic "boom while reading")))
+
+(defn main [] -> void
+  (println "read-one:")
+  (println " =>" (read-one "notes.txt"))
+  (println "copy:")
+  (println " =>" (copy-file "a.dat" "b.dat"))
+  (println "panic safety:")
+  (read-or-fail "flaky.txt"))

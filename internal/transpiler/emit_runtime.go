@@ -66,6 +66,7 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	// "_set" is a pseudo-package marker for set algebra helpers (no real import needed)
 	// "_file" is a pseudo-package marker for file I/O helpers (real imports: os, fmt)
 	// "_atom" is a pseudo-package marker for atom helpers (real import: sync)
+	// "_close" is a pseudo-package marker for with-open's _glispClose (no real import needed)
 	// "_ctx" is a pseudo-package marker for context helpers (real imports: context, time)
 	// "regexp" gates regex helpers (real imports: regexp, fmt)
 
@@ -113,6 +114,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["_atom"] {
 		s += glispAtomRuntime
+	}
+	if builtins["_close"] {
+		s += glispCloseRuntime
 	}
 	if builtins["_ctx"] {
 		s += glispCtxRuntime
@@ -1879,6 +1883,17 @@ func _glispAtomDeref(a any) any {
 	atom.mu.Lock()
 	defer atom.mu.Unlock()
 	return atom.val
+}
+`
+
+const glispCloseRuntime = `
+// _glispClose closes v if it implements Close() error (io.Closer); any other
+// value is ignored. Backs (with-open …)'s deferred cleanup without requiring the
+// bound resource to be statically typed.
+func _glispClose(v any) {
+	if c, ok := v.(interface{ Close() error }); ok {
+		_ = c.Close()
+	}
 }
 `
 

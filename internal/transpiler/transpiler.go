@@ -531,6 +531,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["_atom"] {
 			e.write(glispAtomRuntime)
 		}
+		if e.builtinImports["_close"] {
+			e.write(glispCloseRuntime)
+		}
 		if e.builtinImports["_ctx"] {
 			e.write(glispCtxRuntime)
 		}
@@ -713,6 +716,8 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitSelectStmt(v)
 	case *ast.WithLockExpr:
 		return e.emitWithLockExpr(v)
+	case *ast.WithOpenExpr:
+		return e.emitWithOpenExpr(v)
 	case *ast.PipelineExpr:
 		return e.emitPipelineExpr(v)
 	case *ast.FanInExpr:

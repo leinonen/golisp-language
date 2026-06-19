@@ -917,6 +917,31 @@ func TestTranspileSnippets(t *testing.T) {
 			wantSub: "_glispAtomDeref(c)",
 			wantNot: "_glispToInt(_glispAtomDeref(c))",
 		},
+		{
+			name:    "with-open defers close",
+			src:     `(defn f [] (with-open [r (open "p")] (use r)))`,
+			wantSub: "defer _glispClose(r)",
+		},
+		{
+			name:    "with-open is an IIFE",
+			src:     `(defn f [] (with-open [r (open "p")] (use r)))`,
+			wantSub: "func() any {",
+		},
+		{
+			name:    "with-open multi-binding interleaves opens and defers",
+			src:     `(defn f [] (with-open [a (open "a") b (open "b")] (use a b)))`,
+			wantSub: "a := open(\"a\")\n\t\tdefer _glispClose(a)\n\t\tb := open(\"b\")\n\t\tdefer _glispClose(b)",
+		},
+		{
+			name:    "with-open propagates return type into IIFE",
+			src:     `(defn f [] -> int (with-open [r (open "p")] 42))`,
+			wantSub: "func() int {",
+		},
+		{
+			name:    "with-open typed binding",
+			src:     `(defn f [] (with-open [r *os/File (open "p")] (use r)))`,
+			wantSub: "var r *os.File = open(\"p\")",
+		},
 	}
 
 	for _, tt := range tests {

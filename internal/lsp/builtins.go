@@ -156,6 +156,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"par":       {Sig: "(par expr1 expr2 ...)", Doc: "Run each expression in its own goroutine and block until all finish (sync.WaitGroup). No result collection — use go-val + recv! for that."},
 	"recv-ok!":  {Sig: "(recv-ok! ch)  →  [val ok]", Doc: "Comma-ok channel receive. Returns []any{val, ok}. Destructure with [[val ok] (recv-ok! ch)]. Check ok with (= ok true) — it is any, not bool."},
 	"with-lock": {Sig: "(with-lock mu body...)", Doc: "Execute body inside a mutex critical section. Emits mu.Lock()/defer mu.Unlock() inside an IIFE, so unlock is guaranteed even on panic."},
+	"with-open": {Sig: "(with-open [name resource ...] body...)", Doc: "Bind each resource, run body, and defer Close() on each (function-scoped, reverse order) — guaranteed cleanup even on panic. Closes anything implementing Close() error; the resource is left untouched otherwise. Bindings may carry an optional type, e.g. [f *os/File (os/open path)]."},
 
 	// OS
 	"os/env": {Sig: "(os/env name)  →  string\n(os/env name default)  →  string", Doc: "Read environment variable. Returns empty string if unset. With default, returns default when the variable is unset."},

@@ -226,6 +226,7 @@ Goroutines, channels, and synchronisation. `sync` and `time` imports are added a
 | Form | Returns | Description |
 |---|---|---|
 | `(with-lock mu body...)` | any | Execute body inside a mutex critical section. Emits `mu.Lock() / defer mu.Unlock()` inside an IIFE so unlock is guaranteed even on panic. `mu` must be a `sync.Mutex` or `sync.RWMutex` value. |
+| `(with-open [name resource ...] body...)` | body value | Bind each resource, run body, and `defer Close()` on each (function-scoped via an IIFE, so cleanup runs at the form's exit — LIFO, even on panic). Closes anything implementing `Close() error`; other values are ignored. Bindings accept an optional type, e.g. `[f *os/File (expr)]`. A multi-return resource (`os/open`) must be unpacked with `if-err` first. |
 | `(defer expr)` | — | Defer expr until the enclosing function returns |
 
 ```clojure
@@ -260,7 +261,46 @@ Goroutines, channels, and synchronisation. `sync` and `time` imports are added a
 (select!
   ([msg ch] (handle msg))
   (:timeout 1000 (fmt/println "timed out")))
+
+; Deterministic resource cleanup (LIFO close, even on panic)
+(with-open [in  (open-reader src)
+            out (open-writer dst)]
+  (copy-all in out))
 ```
+
+## Atoms
+
+Thread-safe mutable references (backed by `struct { mu sync.Mutex; val any }`).
+
+| Form | Returns | Description |
+|---|---|---|
+| `(atom init)` | atom | Create an atom wrapping `init` |
+| `(atom T init)` | atom | Typed atom: records element type `T` so a scalar `(deref a)` returns a concrete type. E.g. `(atom int 0)`, `(atom map[string]Book {})` |
+| `(swap! a f)` | any | Atomically set `a` to `(f current)`; returns the new value |
+| `(reset! a v)` | any | Atomically set `a` to `v`; returns `v` |
+| `(deref a)` | any / T | Read the current value. On a typed atom with a **scalar** element type (int/float/string), returns that concrete type — no `(as …)` cast needed |
+
+Atoms live in type positions as `Atom` (any element) or `(Atom T)` — usable as
+`defstruct` field types and params, so a stateful struct can own its own atom:
+
+```clojure
+(def counter (atom int 0))
+
+(defn tick [] -> int
+  (swap! counter (fn [n] (+ n 1)))
+  (deref counter))                ; concrete int, no (int (deref …))
+
+(defstruct Store
+  items (Atom map[string]any))
+
+(defn item-count [s Store] -> int
+  (count (deref (:items s))))
+```
+
+> Typed `deref` coercion covers **scalar** element types. Map/slice/struct
+> element atoms deref as `any` (a helper write like `assoc` can change the
+> stored shape under the `any`-seam), so use them with the collection helpers
+> directly.
 
 ## I/O
 

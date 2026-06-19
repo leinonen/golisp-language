@@ -96,6 +96,10 @@ func (e *Emitter) emitExprWithHint(n ast.Node, hint string) error {
 		if e.hintPropagatable(v, hint) {
 			return e.emitTypedIIFE(hint, func() error { return e.emitDoExprReturn(v) })
 		}
+	case *ast.WithOpenExpr:
+		if e.hintPropagatable(v, hint) {
+			return e.emitTypedIIFE(hint, func() error { return e.emitWithOpenInner(v) })
+		}
 	case *ast.CallExpr:
 		if done, err := e.tryEmitTypedMap(v, hint); done {
 			return err
@@ -146,6 +150,9 @@ func (e *Emitter) hintPropagatable(n ast.Node, hint string) bool {
 		// (broken in expression position) untouched rather than reshaping it.
 		return v.Else != nil
 	case *ast.DoExpr:
+		return true
+	case *ast.WithOpenExpr:
+		// The body's last expr is always the value — like do, any hint is safe.
 		return true
 	case *ast.WhenExpr:
 		return e.isNilableGoType(hint)

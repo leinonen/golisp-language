@@ -179,6 +179,8 @@ Go `sync` package. Auto-imported whenever `sync/Mutex.`, `sync/WaitGroup.`, etc.
 
 For most locking needs, prefer `(with-lock mu body...)` — it emits Lock/defer-Unlock correctly.
 
+For resources that need closing (files, connections, anything with `Close() error`), prefer `(with-open [r resource ...] body...)` — it binds each resource and defers `Close()` in LIFO order, even on panic. See `builtins.md` → Atoms/Synchronisation.
+
 ---
 
 ## time

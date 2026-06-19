@@ -1,0 +1,28 @@
+(ns main)
+
+;;; with-open — deferred resource cleanup. Each [name resource] binding is
+;;; opened, used, and its Close() is deferred (function-scoped via an IIFE), so
+;;; cleanup runs in reverse order when the form exits — even on an early panic.
+
+(defstruct File name string)
+
+(defmethod *File Close [f] -> error
+  (println "closing" (:name f))
+  nil)
+
+(defn open-file [n string] -> *File
+  {:name n})
+
+(defn read-one [path string] -> string
+  (with-open [f (open-file path)]
+    (str "contents of " (:name f))))
+
+(defn copy-file [src string dst string] -> int
+  (with-open [in (open-file src)
+              out (open-file dst)]
+    (println "copying" (:name in) "to" (:name out))
+    1))
+
+(defn main [] -> void
+  (println (read-one "a.txt"))
+  (println "copied:" (copy-file "src" "dst")))

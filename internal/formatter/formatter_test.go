@@ -377,6 +377,21 @@ func TestFormat(t *testing.T) {
 			input: "(defstruct R store Atom hits (Atom int))",
 			want:  "(defstruct R\n  store Atom\n  hits (Atom int))\n",
 		},
+		{
+			name:  "with-open inline",
+			input: "(with-open [f (open p)] (read f))",
+			want:  "(with-open [f (open p)] (read f))\n",
+		},
+		{
+			name:  "with-open typed binding round-trips",
+			input: "(with-open [f *os/File (open p)] (read f))",
+			want:  "(with-open [f *os/File (open p)] (read f))\n",
+		},
+		{
+			name:  "with-open multi-line body",
+			input: "(with-open [reader (open-input-file path) writer (open-output-file dest)] (copy-all reader writer))",
+			want:  "(with-open [reader (open-input-file path)\n            writer (open-output-file dest)]\n  (copy-all reader writer))\n",
+		},
 	}
 
 	for _, tt := range tests {

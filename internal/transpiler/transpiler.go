@@ -213,6 +213,14 @@ type Emitter struct {
 	// instead of native Go operators (which don't type-check on `any`). Scoped
 	// together with localTypes/localVars.
 	localAny map[string]bool
+	// atomTypes: in-scope bindings (params, let/loop bindings) holding an atom,
+	// mapped to the atom's element Go type. Drives typed (deref a) scalar
+	// coercion. Scoped together with localTypes/localVars/localAny.
+	atomTypes map[string]string
+	// globalAtomTypes: top-level (def name (atom T init)) atoms by glisp name,
+	// mapped to their element Go type. Populated by the pre-pass so (deref name)
+	// in any function body coerces. Not scoped (globals are always in scope).
+	globalAtomTypes map[string]string
 	// ifaces: definterface method tables by interface name (populated by pre-pass).
 	ifaces map[string]methodSet
 	// methods: defmethod method tables by bare receiver struct name (pre-pass).
@@ -380,12 +388,17 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	}
 	symbols := map[string]*fnSig{}
 	structs := map[string]*structInfo{}
+	globalAtoms := map[string]string{}
 	for _, n := range declNodes {
 		switch d := n.(type) {
 		case *ast.DefnDecl:
 			symbols[d.Name] = buildFnSig(d.Params, d.ReturnType)
 		case *ast.StructDecl:
 			structs[d.Name] = buildStructInfo(d)
+		case *ast.DefDecl:
+			if elem, ok := e.atomElemOfBinding(d.TypeAnnot, d.Value); ok {
+				globalAtoms[d.Name] = elem
+			}
 		}
 	}
 	ifaces, methods, defGlobals := collectMethodTables(declNodes)
@@ -396,6 +409,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	declEmitter.strict = e.strict
 	declEmitter.symbols = symbols
 	declEmitter.structs = structs
+	declEmitter.globalAtomTypes = globalAtoms
 	declEmitter.ifaces = ifaces
 	declEmitter.methods = methods
 	declEmitter.defGlobals = defGlobals
@@ -741,6 +755,8 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitStructLitExpr(v)
 	case *ast.TypeAssertExpr:
 		return e.emitTypeAssertExpr(v)
+	case *ast.AtomExpr:
+		return e.emitAtomExpr(v)
 	default:
 		return fmt.Errorf("unsupported expression: %T at %s", n, n.Pos())
 	}

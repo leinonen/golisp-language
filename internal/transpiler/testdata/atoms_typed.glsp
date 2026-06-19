@@ -1,0 +1,30 @@
+(ns main)
+
+;;; Typed atoms — element type drives (deref a) coercion so reads land in a
+;;; concrete scalar position without an (as …) cast. Atoms also live in struct
+;;; fields via the `(Atom T)` / bare `Atom` type spelling.
+
+(def total (atom int 0))
+
+(defstruct Counter
+  value (Atom int)
+  label (Atom string))
+
+(defn make-counter [name string] -> Counter
+  (Counter. {:value (atom int 0) :label (atom string name)}))
+
+(defn bump [c Counter] -> int
+  (swap! (:value c) (fn [n] (+ n 1)))
+  (deref (:value c)))
+
+(defn label-of [c Counter] -> string
+  (deref (:label c)))
+
+(defn current [a (Atom int)] -> int
+  (deref a))
+
+(defn demo [] -> int
+  (let [c (atom int 0)]
+    (swap! c (fn [n] (+ n 10)))
+    (reset! total (current c))
+    (+ (deref c) (deref total))))

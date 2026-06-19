@@ -866,6 +866,57 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defstruct P name string) (defn f [m] -> string (let [{p :product :- P} m] (:name p)))`,
 			wantSub: "return p.Name",
 		},
+		{
+			name:    "untyped atom",
+			src:     `(defn f [] (atom 0))`,
+			wantSub: "&_glispAtom{val: 0}",
+		},
+		{
+			name:    "typed atom int binding derefs without cast",
+			src:     `(defn f [] -> int (let [c (atom int 0)] (deref c)))`,
+			wantSub: "return _glispToInt(_glispAtomDeref(c))",
+		},
+		{
+			name:    "typed atom string binding",
+			src:     `(defn f [] -> string (let [s (atom string "hi")] (deref s)))`,
+			wantSub: "return _glispToString(_glispAtomDeref(s))",
+		},
+		{
+			name:    "Atom param type derefs to scalar",
+			src:     `(defn cur [c (Atom int)] -> int (deref c))`,
+			wantSub: "func cur(c *_glispAtom) int {",
+		},
+		{
+			name:    "Atom param deref single coercion",
+			src:     `(defn cur [c (Atom int)] -> int (deref c))`,
+			wantSub: "return _glispToInt(_glispAtomDeref(c))",
+		},
+		{
+			name:    "atom as struct field",
+			src:     `(defstruct R hits (Atom int))`,
+			wantSub: "Hits *_glispAtom",
+		},
+		{
+			name:    "deref atom struct field coerces",
+			src:     `(defstruct R hits (Atom int)) (defn h [r R] -> int (deref (:hits r)))`,
+			wantSub: "return _glispToInt(_glispAtomDeref(r.Hits))",
+		},
+		{
+			name:    "global def atom derefs typed",
+			src:     `(def n (atom int 0)) (defn read [] -> int (deref n))`,
+			wantSub: "return _glispToInt(_glispAtomDeref(n))",
+		},
+		{
+			name:    "typed map atom init builds concrete shape",
+			src:     `(defn f [] (atom map[string]int {}))`,
+			wantSub: "&_glispAtom{val: map[string]int{}}",
+		},
+		{
+			name:    "untyped atom deref stays any",
+			src:     `(defn f [c] (deref c))`,
+			wantSub: "_glispAtomDeref(c)",
+			wantNot: "_glispToInt(_glispAtomDeref(c))",
+		},
 	}
 
 	for _, tt := range tests {

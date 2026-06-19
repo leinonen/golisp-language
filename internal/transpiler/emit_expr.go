@@ -277,6 +277,27 @@ func (e *Emitter) tryEmitTypedMap(n *ast.CallExpr, hint string) (bool, error) {
 	return true, nil
 }
 
+// emitAtomExpr emits (atom init) → &_glispAtom{val: init} and the typed
+// (atom T init) form, where the init is emitted under the element-type hint so
+// a typed map/struct/numeric literal is built in its concrete shape.
+func (e *Emitter) emitAtomExpr(n *ast.AtomExpr) error {
+	e.needImport("_atom")
+	e.write("&_glispAtom{val: ")
+	hint := ""
+	if n.ElemType != nil {
+		hint = typeExprToGo(n.ElemType.Text)
+	}
+	if hint != "" && hint != "any" {
+		if err := e.emitExprWithHint(n.Init, hint); err != nil {
+			return err
+		}
+	} else if err := e.emitExpr(n.Init); err != nil {
+		return err
+	}
+	e.write("}")
+	return nil
+}
+
 // emitStructLitFromMap emits a struct literal from a plain map literal when the
 // surrounding context expects a declared struct type. Keyword/symbol/string keys
 // are matched against the struct's fields; an unknown field is a compile-time
@@ -614,6 +635,11 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 				}
 				e.registerVarType(pat.Name, typeStr)
 				e.clearAnyVar(pat.Name) // explicit concrete type
+				if elem, ok := e.atomElemOfBinding(b.TypeAnnot, b.Value); ok {
+					e.registerAtomType(pat.Name, elem)
+				} else {
+					e.clearAtomType(pat.Name)
+				}
 			} else {
 				// Evaluate any-ness of the RHS before the binding shadows an
 				// outer same-named var in localAny.
@@ -632,6 +658,12 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 				// so keyword access on the binding resolves to field access.
 				if name := e.inferValueStructType(b.Value); name != "" && e.localTypes != nil {
 					e.localTypes[pat.Name] = name
+				}
+				// Track an atom binding so a typed (deref name) coerces.
+				if elem, ok := e.atomElemOfBinding(b.TypeAnnot, b.Value); ok {
+					e.registerAtomType(pat.Name, elem)
+				} else {
+					e.clearAtomType(pat.Name)
 				}
 			}
 			e.nl()
@@ -746,6 +778,17 @@ func (e *Emitter) exprIsAny(n ast.Node) bool {
 		case "+", "-", "*", "/", "mod":
 			// Arithmetic over any `any` operand routes through a helper → `any`.
 			return e.anyOperand(v.Args)
+		case "deref":
+			// A typed atom whose element coerces to a concrete scalar derefs to
+			// that scalar, not `any` — so no extra numeric wrapping is applied.
+			if len(v.Args) == 1 {
+				if elem, ok := e.atomTypeOfExpr(v.Args[0]); ok {
+					if _, _, ok := derefCoercion(elem); ok {
+						return false
+					}
+				}
+			}
+			return true
 		}
 		if anyReturningBuiltins[sym.Name] {
 			return true
@@ -1761,18 +1804,8 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "errors/is?":
 			e.needImport("errors")
 			return e.emitRuntimeCall("errors.Is", n.Args, 2)
-		// atom — shared mutable state
-		case "atom":
-			e.needImport("_atom")
-			if len(n.Args) != 1 {
-				return fmt.Errorf("atom requires 1 argument, got %d", len(n.Args))
-			}
-			e.write("&_glispAtom{val: ")
-			if err := e.emitExpr(n.Args[0]); err != nil {
-				return err
-			}
-			e.write("}")
-			return nil
+		// atom — shared mutable state ((atom …) parses to *ast.AtomExpr; only the
+		// mutators remain symbol-dispatched call forms).
 		case "swap!":
 			e.needImport("_atom")
 			if len(n.Args) != 2 {
@@ -1789,6 +1822,20 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			e.needImport("_atom")
 			if len(n.Args) != 1 {
 				return fmt.Errorf("deref requires 1 argument, got %d", len(n.Args))
+			}
+			// Typed atom: coerce the `any` result to the declared scalar element
+			// type so e.g. (deref c) on (Atom int) yields int without (int …).
+			if elem, ok := e.atomTypeOfExpr(n.Args[0]); ok {
+				if pre, post, ok := derefCoercion(elem); ok {
+					e.write(pre)
+					e.write("_glispAtomDeref(")
+					if err := e.emitExpr(n.Args[0]); err != nil {
+						return err
+					}
+					e.write(")")
+					e.write(post)
+					return nil
+				}
 			}
 			return e.emitRuntimeCall("_glispAtomDeref", n.Args, 1)
 		// Context propagation

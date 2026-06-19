@@ -352,6 +352,31 @@ func TestFormat(t *testing.T) {
 			input: "(cond-> base-value pred-one (assoc :a 1) pred-two (assoc :b 2) pred-three (final-x))",
 			want:  "(cond-> base-value\n        pred-one (assoc :a 1)\n        pred-two (assoc :b 2)\n        pred-three (final-x))\n",
 		},
+		{
+			name:  "untyped atom",
+			input: "(atom 0)",
+			want:  "(atom 0)\n",
+		},
+		{
+			name:  "typed atom scalar",
+			input: "(atom int 0)",
+			want:  "(atom int 0)\n",
+		},
+		{
+			name:  "typed atom map round-trips",
+			input: "(atom map[string]int {})",
+			want:  "(atom map[string]int {})\n",
+		},
+		{
+			name:  "Atom type in param round-trips",
+			input: "(defn cur [c (Atom int)] -> int (deref c))",
+			want:  "(defn cur [c (Atom int)] -> int\n  (deref c))\n",
+		},
+		{
+			name:  "bare Atom struct field round-trips",
+			input: "(defstruct R store Atom hits (Atom int))",
+			want:  "(defstruct R\n  store Atom\n  hits (Atom int))\n",
+		},
 	}
 
 	for _, tt := range tests {

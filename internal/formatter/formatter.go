@@ -206,6 +206,8 @@ func nodeMaxLine(n ast.Node) int {
 			consider(p.Key)
 			consider(p.Value)
 		}
+	case *ast.AtomExpr:
+		consider(v.Init)
 	case *ast.SelectStmt:
 		for _, sc := range v.Cases {
 			consider(sc.ChanExpr)
@@ -318,6 +320,11 @@ func wrapChanType(s string) string {
 	if strings.HasPrefix(s, "chan ") {
 		return "(chan " + wrapChanType(s[len("chan "):]) + ")"
 	}
+	// (Atom T) loses its parens at parse time (Text is "Atom T"); re-add them.
+	// Bare `Atom` self-delimits and passes through.
+	if strings.HasPrefix(s, "Atom ") {
+		return "(Atom " + wrapChanType(s[len("Atom "):]) + ")"
+	}
 	return s
 }
 
@@ -412,6 +419,8 @@ func (c *cfmt) format(n ast.Node, indent int) string {
 		return formatStructLit(v, indent)
 	case *ast.TypeAssertExpr:
 		return ind(indent) + inline(n)
+	case *ast.AtomExpr:
+		return c.formatAtom(v, indent)
 	case *ast.IfErrExpr:
 		return c.formatIfErr(v, indent)
 	case *ast.IfLetExpr:
@@ -653,6 +662,11 @@ func inline(n ast.Node) string {
 		return "(" + v.TypeName + ". {" + strings.Join(pairParts, " ") + "})"
 	case *ast.TypeAssertExpr:
 		return "(as " + tt(v.Type) + " " + inline(v.Value) + ")"
+	case *ast.AtomExpr:
+		if v.ElemType != nil {
+			return "(atom " + tt(v.ElemType) + " " + inline(v.Init) + ")"
+		}
+		return "(atom " + inline(v.Init) + ")"
 	case *ast.IfErrExpr:
 		return "(if-err [" + v.ValName + " " + v.ErrName + "] " +
 			inline(v.Expr) + " " + inline(v.OnErr) + " " + inline(v.OnOk) + ")"
@@ -1582,6 +1596,24 @@ func (c *cfmt) formatPar(v *ast.ParStmt, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + "(par")
 	c.emitForms(&sb, v.Bodies, indent+1, v.Pos().Line)
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatAtom(v *ast.AtomExpr, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	// Multi-line: keep the head (and element type) on the open line, format the
+	// init below it — handles a large map/struct literal init.
+	head := "(atom"
+	if v.ElemType != nil {
+		head += " " + tt(v.ElemType)
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + head)
+	sb.WriteString("\n" + c.format(v.Init, indent+1))
 	sb.WriteString(")")
 	return sb.String()
 }

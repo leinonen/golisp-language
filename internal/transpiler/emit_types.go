@@ -136,6 +136,12 @@ func cleanIdentPart(s string) string {
 //	"(chan web/Response)" → "chan web.Response"
 func typeExprToGo(text string) string {
 	text = strings.TrimSpace(text)
+	// Atom reference type: bare `Atom` or `(Atom T)` (parsed to text "Atom T").
+	// Both map to the single runtime pointer type — the element type is tracked
+	// separately (atomElemTypeFromText) to drive typed (deref a) coercion.
+	if text == "Atom" || strings.HasPrefix(text, "Atom ") {
+		return "*_glispAtom"
+	}
 	// Multi-return: [T1 T2 ...]
 	if strings.HasPrefix(text, "[") && strings.HasSuffix(text, "]") {
 		inner := strings.TrimSpace(text[1 : len(text)-1])
@@ -151,6 +157,45 @@ func typeExprToGo(text string) string {
 		return qualifiedTypeToGo(strings.TrimSpace(text[1 : len(text)-1]))
 	}
 	return qualifiedTypeToGo(text)
+}
+
+// atomElemTypeFromText reports whether a TypeExpr text spells an atom type and,
+// if so, its element Go type. Bare `Atom` carries an `any` element; `(Atom T)`
+// (text "Atom T") carries the converted element type. Used to populate the
+// atom-element type tables that drive typed (deref a) coercion.
+func atomElemTypeFromText(text string) (string, bool) {
+	text = strings.TrimSpace(text)
+	if text == "Atom" {
+		return "any", true
+	}
+	if strings.HasPrefix(text, "Atom ") {
+		return typeExprToGo(strings.TrimSpace(text[len("Atom "):])), true
+	}
+	return "", false
+}
+
+// derefCoercion returns the wrapper (prefix, suffix) that smart-converts the
+// `any` result of _glispAtomDeref into the atom's declared scalar element type,
+// and whether elem is one such type. Mirrors numericCoercion but is forgiving
+// (coerces int64/float64/string uniformly) rather than a brittle type assertion
+// — so a swap! that produced an int64 still derefs cleanly to `int`. Non-scalar
+// element types (structs, maps, slices) are intentionally not coerced: under
+// the `any`-seam their stored shape can drift (e.g. assoc yields map[string]any),
+// so the deref stays `any` rather than risk a runtime panic.
+func derefCoercion(elem string) (string, string, bool) {
+	switch elem {
+	case "int":
+		return "_glispToInt(", ")", true
+	case "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "byte", "rune":
+		return elem + "(_glispToInt(", "))", true
+	case "float64":
+		return "_glispToFloat64(", ")", true
+	case "float32":
+		return "float32(_glispToFloat64(", "))", true
+	case "string":
+		return "_glispToString(", ")", true
+	}
+	return "", "", false
 }
 
 // qualifiedTypeToGo converts pkg/Type notation to pkg.Type within a Go type string.

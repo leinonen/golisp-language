@@ -1571,6 +1571,109 @@ func TestTypedMapAndIIFE(t *testing.T) {
 	}
 }
 
+// TestTypedReturnPropagation verifies that `any`-returning collection built-ins
+// (conj/reduce/into/filter/get/first/…) are absorbed into a concrete-typed
+// position — either by a type assertion (assertableHint cases) or, for a `[]T`
+// hint, by an element-converting IIFE (tryEmitTypedSeq) — so the user no longer
+// has to hand-write (as []any (conj …)) / (as bool (reduce …)).
+func TestTypedReturnPropagation(t *testing.T) {
+	const decls = `(defstruct Book id string title string)`
+	tests := []struct {
+		name    string
+		src     string
+		wantSub string
+		wantNot string
+	}{
+		// --- assertion path (any-static call into a non-numeric concrete hint) ---
+		{
+			name:    "reduce into bool return asserts",
+			src:     `(defn f [xs []any] -> bool (reduce (fn [a x] (and a x)) true xs))`,
+			wantSub: ".(bool)",
+		},
+		{
+			name:    "conj into []any return asserts",
+			src:     `(defn f [xs []any] -> []any (conj xs 1))`,
+			wantSub: "_glispConj(xs, 1).([]any)",
+		},
+		{
+			name:    "into into map[string]any return asserts",
+			src:     `(defn f [ps []any] -> map[string]any (into {} ps))`,
+			wantSub: ".(map[string]any)",
+		},
+		{
+			name:    "first into string return asserts",
+			src:     `(defn f [xs []any] -> string (first xs))`,
+			wantSub: "_glispFirst(xs).(string)",
+		},
+		{
+			name:    "get into struct return asserts",
+			src:     decls + `(defn f [m map[string]any] -> Book (get m "b"))`,
+			wantSub: ".(Book)",
+		},
+		{
+			name:    "reduce into typed let binding asserts",
+			src:     `(defn f [xs []any] -> any (let [ok bool (reduce (fn [a x] (and a x)) true xs)] ok))`,
+			wantSub: ".(bool)",
+		},
+		// --- typed-slice element conversion (tryEmitTypedSeq) ---
+		{
+			name:    "filter into []string converts elements",
+			src:     `(defn f [xs []any] -> []string (filter (fn [s] (not= s "")) xs))`,
+			wantSub: "func() []string {",
+		},
+		{
+			name:    "filter into []string asserts each element",
+			src:     `(defn f [xs []any] -> []string (filter (fn [s] (not= s "")) xs))`,
+			wantSub: ".(string))",
+		},
+		{
+			name:    "conj into []string converts elements",
+			src:     `(defn f [xs []any] -> []string (conj xs "a"))`,
+			wantSub: "_glispToSlice(_glispConj(xs, \"a\"))",
+		},
+		{
+			name:    "numeric element type uses smart coercion not assertion",
+			src:     `(defn f [xs []any] -> []int (filter (fn [x] (> x 0)) xs))`,
+			wantSub: "_glispToInt(",
+		},
+		{
+			name:    "numeric element type avoids blind assertion",
+			src:     `(defn f [xs []any] -> []int (filter (fn [x] (> x 0)) xs))`,
+			wantNot: ".(int))",
+		},
+		// --- non-regression: native/exact-match positions are untouched ---
+		{
+			name:    "filter into []any stays native (no assertion, no IIFE)",
+			src:     `(defn f [xs []any] -> []any (filter (fn [x] x) xs))`,
+			wantNot: ".([]any)",
+		},
+		{
+			name:    "assoc into map[string]any stays native",
+			src:     `(defn f [m map[string]any] -> map[string]any (assoc m "k" 1))`,
+			wantNot: `_glispAssoc(m, "k", 1).(`,
+		},
+		{
+			name:    "reduce into int return keeps numeric coercion",
+			src:     `(defn f [xs []any] -> int (reduce (fn [a x] (+ a x)) 0 xs))`,
+			wantSub: "_glispToInt(",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Transpile(tt.src)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantSub != "" && !strings.Contains(got, tt.wantSub) {
+				t.Errorf("output missing %q\n--- got ---\n%s", tt.wantSub, got)
+			}
+			if tt.wantNot != "" && strings.Contains(got, tt.wantNot) {
+				t.Errorf("output unexpectedly contains %q\n--- got ---\n%s", tt.wantNot, got)
+			}
+		})
+	}
+}
+
 // TestBuiltinArity verifies that built-in call forms are checked against the
 // central arity table and report a position-tagged error rather than panicking
 // on a downstream slice index.

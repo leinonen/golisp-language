@@ -104,6 +104,9 @@ func (e *Emitter) emitExprWithHint(n ast.Node, hint string) error {
 		if done, err := e.tryEmitTypedMap(v, hint); done {
 			return err
 		}
+		if done, err := e.tryEmitTypedSeq(v, hint); done {
+			return err
+		}
 	}
 	// Numeric coercion: an `any` value (e.g. any-arithmetic result or map lookup)
 	// in a concrete numeric position (typed let binding or `-> int`/`-> float64`
@@ -114,6 +117,18 @@ func (e *Emitter) emitExprWithHint(n ast.Node, hint string) error {
 			return err
 		}
 		e.write(post)
+		return nil
+	}
+	// `any`-seam absorption: a call whose Go static type is `any` (map/slice
+	// lookup, `reduce`, `conj`/`into`, a `-> any` fn/method) landing in a concrete
+	// non-numeric position is asserted to the hint — mirroring (as T …) — instead
+	// of emitting an uncompilable Go assignment. Typed slices/maps (`[]T`/`map[K]V`)
+	// are excluded by assertableHint (they need element conversion, handled above).
+	if call, ok := n.(*ast.CallExpr); ok && assertableHint(hint) && e.callReturnsGoAny(call) {
+		if err := e.emitExpr(n); err != nil {
+			return err
+		}
+		e.writef(".(%s)", hint)
 		return nil
 	}
 	return e.emitExpr(n)
@@ -282,6 +297,113 @@ func (e *Emitter) tryEmitTypedMap(n *ast.CallExpr, hint string) (bool, error) {
 	e.writeIndent()
 	e.write("}()")
 	return true, nil
+}
+
+// typedSeqBuiltins lists sequence-returning built-ins whose result is a sequence
+// of the *input* elements, so a per-element conversion to T is valid. A call to
+// one in a `[]T` (T != any) position is wrapped in an element-converting loop —
+// like tryEmitTypedMap — so it satisfies the typed slice instead of yielding the
+// uncoercible `[]any` / `any` these helpers actually return.
+var typedSeqBuiltins = map[string]bool{
+	"filter": true, "remove": true, "conj": true, "into": true,
+	"concat": true, "distinct": true, "take": true, "drop": true,
+	"take-while": true, "drop-while": true, "reverse": true, "rest": true,
+	"sort": true, "sort-by": true, "shuffle": true, "flatten": true,
+}
+
+// tryEmitTypedSeq recognises a sequence-returning built-in (typedSeqBuiltins) in
+// a `[]T` (T != any) position and emits an element-converting IIFE instead of the
+// raw `[]any`/`any` the helper returns, so it satisfies a typed slice binding or
+// `-> []T` return. Returns (true, err) when it handled the call.
+func (e *Emitter) tryEmitTypedSeq(v *ast.CallExpr, hint string) (bool, error) {
+	if !strings.HasPrefix(hint, "[]") {
+		return false, nil
+	}
+	elem := strings.TrimSpace(hint[2:])
+	if elem == "" || elem == "any" {
+		return false, nil
+	}
+	sym, ok := v.Head.(*ast.Symbol)
+	if !ok || !typedSeqBuiltins[sym.Name] {
+		return false, nil
+	}
+	return true, e.emitTypedSliceConv(hint, elem, func() error { return e.emitExpr(v) })
+}
+
+// emitTypedSliceConv emits an IIFE that ranges the (any/[]any-typed) sequence
+// produced by inner and converts each element to elem, yielding a real []elem.
+// Numeric element types route through the smart-coercion helpers (glisp ints are
+// int64, so a blind `.(int)` would panic); every other type uses a `.(elem)`
+// assertion (matching tryEmitTypedMap).
+func (e *Emitter) emitTypedSliceConv(hint, elem string, inner func() error) error {
+	r := e.fresh("s")
+	x := e.fresh("x")
+	e.writef("func() %s {", hint)
+	e.nl()
+	e.push()
+	e.linef("%s := %s{}", r, hint)
+	e.writeIndent()
+	e.writef("for _, %s := range _glispToSlice(", x)
+	if err := inner(); err != nil {
+		return err
+	}
+	e.write(") {")
+	e.nl()
+	e.push()
+	e.linef("%s = append(%s, %s)", r, r, elemConvExpr(elem, x))
+	e.pop()
+	e.line("}")
+	e.linef("return %s", r)
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// elemConvExpr returns the Go text converting loop variable x (typed `any`) to
+// elem: smart numeric coercion for numeric types, a type assertion otherwise.
+func elemConvExpr(elem, x string) string {
+	if pre, post, ok := numericCoercion(elem); ok {
+		return pre + x + post
+	}
+	return x + ".(" + elem + ")"
+}
+
+// assertableHint reports whether a concrete type hint can be satisfied by
+// asserting an `any` value to it (`v.(hint)`). Excludes "" / "any" (no-op),
+// numeric types (smart-coerced elsewhere), and typed slices/maps `[]T`/`map[K]V`
+// (T/V != any) — those need element conversion (tryEmitTypedSeq / typed map
+// literals), not a blind assertion of the `[]any`/map the helpers return.
+func assertableHint(hint string) bool {
+	hint = strings.TrimSpace(hint)
+	switch hint {
+	case "", "any":
+		return false
+	}
+	if _, _, ok := numericCoercion(hint); ok {
+		return false
+	}
+	if strings.HasPrefix(hint, "[]") {
+		return strings.TrimSpace(hint[2:]) == "any"
+	}
+	if strings.HasPrefix(hint, "map[") {
+		return hint == "map[string]any"
+	}
+	return true
+}
+
+// callReturnsGoAny reports whether a call expression's Go static return type is
+// the empty interface `any` — so a type assertion `.(T)` is legal on it. It is
+// exprIsAny's call cases plus `conj`/`into`, which return `any` but are not part
+// of the numeric-coercion any-set.
+func (e *Emitter) callReturnsGoAny(v *ast.CallExpr) bool {
+	if sym, ok := v.Head.(*ast.Symbol); ok {
+		switch sym.Name {
+		case "conj", "into":
+			return true
+		}
+	}
+	return e.exprIsAny(v)
 }
 
 // emitAtomExpr emits (atom init) → &_glispAtom{val: init} and the typed

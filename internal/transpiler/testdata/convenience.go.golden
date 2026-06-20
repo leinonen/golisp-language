@@ -124,8 +124,59 @@ func _glispGet(m any, key any) any {
 		if idx >= 0 && idx < len(s) {
 			return s[idx]
 		}
+		return nil
+	}
+	// Struct (or pointer-to-struct) field access by name via reflection, so
+	// (:field x) / (get x "field") works on an any value that happens to hold a
+	// declared struct. The glisp key (kebab-case keyword/string) is matched
+	// against exported Go field names ignoring case and hyphens/underscores
+	// (Title from "title", FirstName from "first-name"). Missing field -> nil,
+	// like a map miss.
+	if k, ok := key.(string); ok {
+		rv := reflect.ValueOf(m)
+		for rv.Kind() == reflect.Ptr {
+			if rv.IsNil() {
+				return nil
+			}
+			rv = rv.Elem()
+		}
+		if rv.Kind() == reflect.Struct {
+			rt := rv.Type()
+			for i := 0; i < rt.NumField(); i++ {
+				sf := rt.Field(i)
+				if sf.PkgPath != "" { // unexported field
+					continue
+				}
+				if _glispFieldEq(sf.Name, k) {
+					return rv.Field(i).Interface()
+				}
+			}
+		}
 	}
 	return nil
+}
+
+// _glispFieldEq reports whether a Go struct field name and a glisp key name
+// refer to the same field, ignoring ASCII case and hyphens/underscores — so
+// "first-name" matches the Go field FirstName. Avoids a strings-package
+// dependency in the always-present runtime.
+func _glispFieldEq(goName, key string) bool {
+	return _glispNormField(goName) == _glispNormField(key)
+}
+
+func _glispNormField(s string) string {
+	b := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '-' || c == '_' {
+			continue
+		}
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		b = append(b, c)
+	}
+	return string(b)
 }
 
 func _glispGetD(m any, key any, def any) any {

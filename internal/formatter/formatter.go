@@ -101,6 +101,22 @@ func (c *cfmt) commentLines(lo, hi, indent int) []string {
 	return out
 }
 
+// takeTrailingComment returns the not-yet-used comment on exactly `line` —
+// a comment that trails code already emitted on that source line — and marks it
+// used, or "" if none. Used to keep inline binding comments (`x 1 ; why`) on the
+// binding's line instead of relocating them to the end of the file.
+func (c *cfmt) takeTrailingComment(line int) string {
+	if line <= 0 || c.used[line] {
+		return ""
+	}
+	ct, ok := c.comments[line]
+	if !ok {
+		return ""
+	}
+	c.used[line] = true
+	return ct
+}
+
 // hasComments reports whether any not-yet-used comment lies on a line in [lo,hi].
 // Used to force a form multi-line when it contains comments that an inline
 // rendering could not preserve.
@@ -1172,8 +1188,10 @@ func (c *cfmt) formatFn(v *ast.FnExpr, indent int) string {
 
 func (c *cfmt) formatLet(keyword string, bindings []ast.LetBinding, body []ast.Node, indent, headLine int) string {
 	il := inlineBindingForm(keyword, bindings, body)
-	// Inline only when it fits and the form holds no comments to preserve.
-	if fits(il, indent) && !c.hasComments(headLine+1, letMaxLine(bindings, body, headLine)) {
+	// Inline only when it fits and the form holds no comments to preserve. The
+	// lower bound is headLine (not headLine+1): a trailing comment on the first
+	// binding shares the header line, and inlining would drop it.
+	if fits(il, indent) && !c.hasComments(headLine, letMaxLine(bindings, body, headLine)) {
 		return ind(indent) + il
 	}
 	// multi-line: bindings vector may itself be multi-line
@@ -1201,14 +1219,23 @@ func (c *cfmt) formatLet(keyword string, bindings []ast.LetBinding, body []ast.N
 			bindCol+len(inlineB) > maxLine {
 			if ml, ok := formatDestructurePattern(mapPat, bindCol); ok {
 				sb.WriteString(ml + " " + inline(b.Value))
+				c.appendBindingTrailingComment(&sb, b, i, len(bindings))
 				prevLine = b.Value.Pos().Line
 				continue
 			}
 		}
 		sb.WriteString(inlineB)
+		c.appendBindingTrailingComment(&sb, b, i, len(bindings))
 		prevLine = b.Value.Pos().Line
 	}
 	sb.WriteString("]")
+	// A trailing comment on the last binding's line goes after the `]` — putting
+	// it before would comment out the bracket.
+	if n := len(bindings); n > 0 {
+		if ct := c.takeTrailingComment(nodeMaxLine(bindings[n-1].Value)); ct != "" {
+			sb.WriteString(" " + ct)
+		}
+	}
 	// Body comments start after the last binding (or the header if no bindings).
 	afterLine := headLine
 	if len(bindings) > 0 {
@@ -1217,6 +1244,19 @@ func (c *cfmt) formatLet(keyword string, bindings []ast.LetBinding, body []ast.N
 	c.emitForms(&sb, body, indent+1, afterLine)
 	sb.WriteString(")")
 	return sb.String()
+}
+
+// appendBindingTrailingComment appends a trailing comment on binding b's line
+// (`x 1 ; why`). The last binding is skipped here: its comment must follow the
+// closing `]`, which the caller handles. A non-last binding is followed by a
+// newline, so the comment sits cleanly at the end of its line.
+func (c *cfmt) appendBindingTrailingComment(sb *strings.Builder, b ast.LetBinding, i, n int) {
+	if i == n-1 {
+		return
+	}
+	if ct := c.takeTrailingComment(nodeMaxLine(b.Value)); ct != "" {
+		sb.WriteString(" " + ct)
+	}
 }
 
 // fmtDestructEntry is one binding of a map destructure pattern, reconstructed

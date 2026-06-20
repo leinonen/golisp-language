@@ -392,6 +392,36 @@ func TestFormat(t *testing.T) {
 			input: "(with-open [reader (open-input-file path) writer (open-output-file dest)] (copy-all reader writer))",
 			want:  "(with-open [reader (open-input-file path)\n            writer (open-output-file dest)]\n  (copy-all reader writer))\n",
 		},
+		{
+			name:  "trailing comment on let binding preserved in place",
+			input: "(let [x 1 ; the x\n y 2]\n  (+ x y))",
+			want:  "(let [x 1 ; the x\n      y 2]\n  (+ x y))\n",
+		},
+		{
+			name:  "trailing comment on last binding goes after bracket",
+			input: "(let [x 1\n y 2] ; the y\n  (+ x y))",
+			want:  "(let [x 1\n      y 2] ; the y\n  (+ x y))\n",
+		},
+		{
+			name:  "trailing comment on single binding",
+			input: "(let [x 1] ; only\n  x)",
+			want:  "(let [x 1] ; only\n  x)\n",
+		},
+		{
+			name:  "trailing comment on loop binding",
+			input: "(loop [i 0 ; index\n acc 0]\n  acc)",
+			want:  "(loop [i 0 ; index\n       acc 0]\n  acc)\n",
+		},
+		{
+			name:  "trailing comment on with-open binding",
+			input: "(with-open [f (open p) ; the file\n g (open q)]\n  (read f))",
+			want:  "(with-open [f (open p) ; the file\n            g (open q)]\n  (read f))\n",
+		},
+		{
+			name:  "trailing and own-line binding comments mix",
+			input: "(let [x 1 ; trailing x\n ; own-line before y\n y 2]\n  (+ x y))",
+			want:  "(let [x 1 ; trailing x\n      ; own-line before y\n      y 2]\n  (+ x y))\n",
+		},
 	}
 
 	for _, tt := range tests {

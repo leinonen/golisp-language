@@ -233,3 +233,50 @@ func TestRunConcreteSlices(t *testing.T) {
 		}
 	}
 }
+
+// TestRunStructFieldReflect verifies that (:field x) / (get x "field") work on
+// an `any` value that holds a declared struct, via the reflect fallback in
+// _glispGet — including kebab-case keys mapping to PascalCase Go fields and a
+// missing field returning nil.
+func TestRunStructFieldReflect(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go toolchain not available")
+	}
+	dir := t.TempDir()
+	src := `(ns main)
+
+(defstruct Book id string title string)
+(defstruct Person first-name string age int)
+
+(defn main [] -> void
+  (let [bs [(Book. {:id "1" :title "Go"}) (Book. {:id "2" :title "Lisp"})]
+        b (first bs)]
+    (fmt/println "titles:" (join (map (fn [x] (:title x)) bs) ","))
+    (fmt/println "kw:" (:title b))
+    (fmt/println "get:" (get b "id")))
+  (let [p (first [(Person. {:first-name "Ada" :age 36})])]
+    (fmt/println "kebab:" (get p "first-name"))
+    (fmt/println "age:" (:age p))
+    (fmt/println "missing:" (:nope p))))
+`
+	path := filepath.Join(dir, "structs.glsp")
+	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errBuf bytes.Buffer
+	code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+	if err != nil {
+		t.Fatalf("RunWithIO: %v\nstderr: %s", err, errBuf.String())
+	}
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0\nstderr: %s", code, errBuf.String())
+	}
+	for _, want := range []string{
+		"titles: Go,Lisp", "kw: Go", "get: 1",
+		"kebab: Ada", "age: 36", "missing: <nil>",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("stdout missing %q\n--- stdout ---\n%s", want, out.String())
+		}
+	}
+}

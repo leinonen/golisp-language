@@ -1,0 +1,35 @@
+(ns main)
+
+;;; doto — evaluate an object once, run a sequence of side-effecting steps on it
+;;; (each (.method …) threads the object as the receiver; a bare (fn …) threads
+;;; it as the first argument), and return the object.
+
+(defstruct Logger lines []any)
+
+(defmethod *Logger Write [l msg string] -> error
+  (println "log:" msg)
+  nil)
+
+(defmethod *Logger Flush [l] -> error
+  (println "flush")
+  nil)
+
+(defn make-logger [] -> *Logger
+  {:lines []})
+
+;; (.method …) interop steps, including a zero-arg one.
+(defn configured [] -> any
+  (doto (make-logger)
+    (.Write "starting")
+    (.Write "working")
+    (.Flush)))
+
+;; dot-free dispatch on a typed object also works (write → Write).
+(defn log-twice [l *Logger] -> any
+  (doto l
+    (write "one")
+    (write "two")))
+
+(defn main [] -> void
+  (configured)
+  (log-twice (make-logger)))

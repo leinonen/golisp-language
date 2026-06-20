@@ -942,6 +942,36 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn f [] (with-open [r *os/File (open "p")] (use r)))`,
 			wantSub: "var r *os.File = open(\"p\")",
 		},
+		{
+			name:    "doto evaluates object once into temp",
+			src:     `(defn f [] (doto (make) (.A) (.B 1)))`,
+			wantSub: "_dotoTgt1 := make()",
+		},
+		{
+			name:    "doto threads temp as method receiver",
+			src:     `(defn f [] (doto (make) (.A) (.B 1)))`,
+			wantSub: "_dotoTgt1.A()\n\t\t_dotoTgt1.B(1)",
+		},
+		{
+			name:    "doto returns the object",
+			src:     `(defn f [] (doto (make) (.A)))`,
+			wantSub: "return _dotoTgt1",
+		},
+		{
+			name:    "doto threads bare function step as first arg",
+			src:     `(defn f [] (doto (make) (configure 7)))`,
+			wantSub: "configure(_dotoTgt1, 7)",
+		},
+		{
+			name:    "doto symbol step",
+			src:     `(defn f [] (doto (make) start))`,
+			wantSub: "start(_dotoTgt1)",
+		},
+		{
+			name:    "doto dot-free method dispatch on typed object",
+			src:     `(defstruct B n int) (defmethod *B Push [b x int] -> error nil) (defn f [b *B] (doto b (push 9)))`,
+			wantSub: "_dotoTgt1.Push(9)",
+		},
 	}
 
 	for _, tt := range tests {
@@ -955,6 +985,29 @@ func TestTranspileSnippets(t *testing.T) {
 			}
 			if tt.wantNot != "" && strings.Contains(got, tt.wantNot) {
 				t.Errorf("expected output NOT to contain %q\nfull output:\n%s", tt.wantNot, got)
+			}
+		})
+	}
+}
+
+// TestDotoErrors verifies doto rejects steps that aren't side-effecting calls.
+func TestDotoErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"field access step", `(defn f [x] (doto x (.-Field)))`, "field access"},
+		{"non-call step", `(defn f [x] (doto x 42))`, "must be a call or symbol"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Transpile(tc.src)
+			if err == nil {
+				t.Fatalf("expected an error, got none")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.want)
 			}
 		})
 	}

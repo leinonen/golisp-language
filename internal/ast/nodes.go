@@ -621,6 +621,23 @@ func NewWithOpenExpr(pos Position, bindings []LetBinding, body []Node) *WithOpen
 	return &WithOpenExpr{Pos_: pos, Bindings: bindings, Body: body}
 }
 
+// DotoExpr: (doto obj form...) evaluates obj once, threads it into each form (as
+// the receiver of a (.method …) step, else as the first argument), runs the
+// forms for their side effects, and returns obj. A (.method …) step is parsed
+// as a CallExpr headed by a "."-prefixed symbol (the receiver is supplied by
+// doto); other steps are normal calls or bare function symbols.
+type DotoExpr struct {
+	Pos_   Position
+	Object Node
+	Steps  []Node
+}
+
+func (n *DotoExpr) nodeMarker()   {}
+func (n *DotoExpr) Pos() Position { return n.Pos_ }
+func NewDotoExpr(pos Position, obj Node, steps []Node) *DotoExpr {
+	return &DotoExpr{Pos_: pos, Object: obj, Steps: steps}
+}
+
 // PipelineExpr: (pipeline [x src-ch] stage1 stage2 ...) → chained goroutines returning chan any
 type PipelineExpr struct {
 	Pos_    Position

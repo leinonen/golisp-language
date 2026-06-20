@@ -227,6 +227,7 @@ Goroutines, channels, and synchronisation. `sync` and `time` imports are added a
 |---|---|---|
 | `(with-lock mu body...)` | any | Execute body inside a mutex critical section. Emits `mu.Lock() / defer mu.Unlock()` inside an IIFE so unlock is guaranteed even on panic. `mu` must be a `sync.Mutex` or `sync.RWMutex` value. |
 | `(with-open [name resource ...] body...)` | body value | Bind each resource, run body, and `defer Close()` on each (function-scoped via an IIFE, so cleanup runs at the form's exit — LIFO, even on panic). Closes anything implementing `Close() error`; other values are ignored. Bindings accept an optional type, e.g. `[f *os/File (expr)]`. A multi-return resource (`os/open`) must be unpacked with `if-err` first. |
+| `(doto x form...)` | x | Evaluate x once, run each form on it for side effects, and return x. A `(.method args)` step threads x as the receiver (`x.Method(args)`); any other call or bare symbol threads x as the first argument (`f(x, args)`) — so dot-free method dispatch works too. For configuring a freshly-built object without a throwaway `let`. |
 | `(defer expr)` | — | Defer expr until the enclosing function returns |
 
 ```clojure
@@ -266,6 +267,12 @@ Goroutines, channels, and synchronisation. `sync` and `time` imports are added a
 (with-open [in  (open-reader src)
             out (open-writer dst)]
   (copy-all in out))
+
+; Build-and-configure: evaluate once, run the steps, return the object
+(doto (new-builder)
+  (.SetTitle "Report")   ; threads the builder as the receiver
+  (.AddLine "line one")
+  (.Render))             ; zero-arg method step
 ```
 
 ## Atoms

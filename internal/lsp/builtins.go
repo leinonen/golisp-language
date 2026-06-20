@@ -157,6 +157,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"recv-ok!":  {Sig: "(recv-ok! ch)  →  [val ok]", Doc: "Comma-ok channel receive. Returns []any{val, ok}. Destructure with [[val ok] (recv-ok! ch)]. Check ok with (= ok true) — it is any, not bool."},
 	"with-lock": {Sig: "(with-lock mu body...)", Doc: "Execute body inside a mutex critical section. Emits mu.Lock()/defer mu.Unlock() inside an IIFE, so unlock is guaranteed even on panic."},
 	"with-open": {Sig: "(with-open [name resource ...] body...)", Doc: "Bind each resource, run body, and defer Close() on each (function-scoped, reverse order) — guaranteed cleanup even on panic. Closes anything implementing Close() error; the resource is left untouched otherwise. Bindings may carry an optional type, e.g. [f *os/File (os/open path)]."},
+	"doto":      {Sig: "(doto x form...)", Doc: "Evaluate x once, run each form on it for side effects, and return x. A (.method args) step threads x as the receiver (x.Method(args)); any other call or bare symbol threads x as the first argument. Great for configuring a freshly-built object: (doto (Builder.) (.SetName \"a\") (.Build))."},
 
 	// OS
 	"os/env": {Sig: "(os/env name)  →  string\n(os/env name default)  →  string", Doc: "Read environment variable. Returns empty string if unset. With default, returns default when the variable is unset."},

@@ -718,6 +718,8 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitWithLockExpr(v)
 	case *ast.WithOpenExpr:
 		return e.emitWithOpenExpr(v)
+	case *ast.DotoExpr:
+		return e.emitDotoExpr(v)
 	case *ast.PipelineExpr:
 		return e.emitPipelineExpr(v)
 	case *ast.FanInExpr:

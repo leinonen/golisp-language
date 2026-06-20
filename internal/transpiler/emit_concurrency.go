@@ -236,6 +236,80 @@ func (e *Emitter) emitWithOpenInner(n *ast.WithOpenExpr) error {
 	return e.emitBody(n.Body, true)
 }
 
+// emitDotoExpr: (doto obj form...) → an IIFE that binds obj to a temp once,
+// runs each form with the temp threaded in (as the receiver of a (.method …)
+// step, else as the first argument), and returns the temp. The temp name is
+// identToGo-stable (no hyphens/special chars), so it can also seed the threaded
+// AST as a plain symbol. obj's inferred struct type is registered on the temp so
+// dot-free method dispatch resolves on it inside the steps.
+func (e *Emitter) emitDotoExpr(n *ast.DotoExpr) error {
+	if err := e.checkMultiReturnValue(n.Object); err != nil {
+		return err
+	}
+	tmp := e.fresh("dotoTgt")
+	saved := e.pushTypeScope()
+	defer e.popTypeScope(saved)
+	e.write("func() any {")
+	e.nl()
+	e.push()
+	e.writeIndent()
+	e.writef("%s := ", tmp)
+	if err := e.emitExpr(n.Object); err != nil {
+		return err
+	}
+	e.nl()
+	e.registerLocalVar(tmp)
+	// Carry obj's struct/interface type to the temp so dot-free method dispatch
+	// (a bare (method …) step) resolves on it. inferValueStructType covers struct
+	// literals / typed-return calls; a bare object symbol already in localTypes
+	// (typed param or let binding) is propagated directly.
+	st := e.inferValueStructType(n.Object)
+	if st == "" {
+		if sym, ok := n.Object.(*ast.Symbol); ok {
+			st = e.localTypes[sym.Name]
+		}
+	}
+	if st != "" && e.localTypes != nil {
+		e.localTypes[tmp] = st
+	}
+	tmpSym := ast.NewSymbol(n.Pos(), tmp)
+	for _, step := range n.Steps {
+		threaded, err := dotoThread(tmpSym, step)
+		if err != nil {
+			return err
+		}
+		if err := e.emitStmtNode(threaded); err != nil {
+			return err
+		}
+	}
+	e.linef("return %s", tmp)
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
+// dotoThread rewrites one doto step to insert target as its receiver — for a
+// (.method …) step, a CallExpr headed by a "."-prefixed symbol — or as its
+// first argument (any other call, or a bare function symbol).
+func dotoThread(target ast.Node, step ast.Node) (ast.Node, error) {
+	switch f := step.(type) {
+	case *ast.Symbol:
+		return ast.NewCallExpr(f.Pos_, f, []ast.Node{target}), nil
+	case *ast.CallExpr:
+		if head, ok := f.Head.(*ast.Symbol); ok && strings.HasPrefix(head.Name, ".") {
+			if strings.HasPrefix(head.Name, ".-") {
+				return nil, fmt.Errorf("doto step cannot be a field access (%s) (at %s)", head.Name, f.Pos())
+			}
+			return ast.NewMethodCallExpr(f.Pos_, head.Name[1:], target, f.Args), nil
+		}
+		newArgs := append([]ast.Node{target}, f.Args...)
+		return ast.NewCallExpr(f.Pos_, f.Head, newArgs), nil
+	default:
+		return nil, fmt.Errorf("doto step must be a call or symbol, got %T (at %s)", step, step.Pos())
+	}
+}
+
 // emitSelectStmt emits a select statement.
 func (e *Emitter) emitSelectStmt(n *ast.SelectStmt) error {
 	for _, sc := range n.Cases {

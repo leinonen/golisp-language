@@ -250,6 +250,11 @@ func nodeMaxLine(n ast.Node) int {
 		for _, b := range v.Body {
 			consider(b)
 		}
+	case *ast.DotoExpr:
+		consider(v.Object)
+		for _, s := range v.Steps {
+			consider(s)
+		}
 	case *ast.WithLockExpr:
 		consider(v.Mutex)
 		for _, b := range v.Body {
@@ -473,6 +478,8 @@ func (c *cfmt) format(n ast.Node, indent int) string {
 		return c.formatPar(v, indent)
 	case *ast.WithOpenExpr:
 		return c.formatLet("with-open", v.Bindings, v.Body, indent, v.Pos().Line)
+	case *ast.DotoExpr:
+		return c.formatDoto(v, indent)
 	case *ast.WithLockExpr:
 		return c.formatWithLock(v, indent)
 	case *ast.PipelineExpr:
@@ -780,6 +787,12 @@ func inline(n ast.Node) string {
 		return "(recv-ok! " + inline(v.Chan) + ")"
 	case *ast.WithOpenExpr:
 		return inlineBindingForm("with-open", v.Bindings, v.Body)
+	case *ast.DotoExpr:
+		parts := []string{"doto", inline(v.Object)}
+		for _, s := range v.Steps {
+			parts = append(parts, inline(s))
+		}
+		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.WithLockExpr:
 		parts := []string{"with-lock", inline(v.Mutex)}
 		for _, b := range v.Body {
@@ -1666,6 +1679,18 @@ func (c *cfmt) formatAtom(v *ast.AtomExpr, indent int) string {
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + head)
 	sb.WriteString("\n" + c.format(v.Init, indent+1))
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatDoto(v *ast.DotoExpr, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(doto " + inline(v.Object))
+	c.emitForms(&sb, v.Steps, indent+1, v.Object.Pos().Line)
 	sb.WriteString(")")
 	return sb.String()
 }

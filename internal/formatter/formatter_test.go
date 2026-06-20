@@ -422,6 +422,21 @@ func TestFormat(t *testing.T) {
 			input: "(let [x 1 ; trailing x\n ; own-line before y\n y 2]\n  (+ x y))",
 			want:  "(let [x 1 ; trailing x\n      ; own-line before y\n      y 2]\n  (+ x y))\n",
 		},
+		{
+			name:  "doto inline when it fits",
+			input: "(doto sb (.WriteString \"a\") (.WriteString \"b\"))",
+			want:  "(doto sb (.WriteString \"a\") (.WriteString \"b\"))\n",
+		},
+		{
+			name:  "doto zero-arg method step round-trips",
+			input: "(doto x (.Close))",
+			want:  "(doto x (.Close))\n",
+		},
+		{
+			name:  "doto multi-line when long",
+			input: "(doto (make-builder-with-a-really-long-name) (.WriteString \"alpha\") (.WriteString \"beta\") (.Flush))",
+			want:  "(doto (make-builder-with-a-really-long-name)\n  (.WriteString \"alpha\")\n  (.WriteString \"beta\")\n  (.Flush))\n",
+		},
 	}
 
 	for _, tt := range tests {

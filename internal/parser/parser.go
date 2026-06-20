@@ -542,6 +542,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseWithLock(pos)
 		case "with-open":
 			return p.parseWithOpen(pos)
+		case "doto":
+			return p.parseDoto(pos)
 		case "pipeline":
 			return p.parsePipeline(pos)
 		case "fan-out":
@@ -1840,6 +1842,52 @@ func (p *parser) parseAtom(pos ast.Position) (*ast.AtomExpr, error) {
 		return nil, err
 	}
 	return ast.NewAtomExpr(pos, elem, init), nil
+}
+
+// parseDoto parses (doto obj form...). At least the object is required.
+func (p *parser) parseDoto(pos ast.Position) (*ast.DotoExpr, error) {
+	p.advance() // "doto"
+	obj, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	var steps []ast.Node
+	for p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF {
+		step, err := p.parseDotoStep()
+		if err != nil {
+			return nil, err
+		}
+		steps = append(steps, step)
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	return ast.NewDotoExpr(pos, obj, steps), nil
+}
+
+// parseDotoStep parses one doto step. A (.method args...) form is read as a
+// receiver-less method call — a CallExpr headed by the "."-symbol — rather than
+// the usual MethodCallExpr, since the receiver is supplied by doto and a
+// zero-arg (.close) would otherwise fail to parse (parseMethodCall expects an
+// object). Everything else parses normally (a call to thread into, or a bare
+// function symbol).
+func (p *parser) parseDotoStep() (ast.Node, error) {
+	if p.peekType() == lexer.TokenLParen {
+		if nxt := p.peekAt(1); nxt.Type == lexer.TokenSymbol && strings.HasPrefix(nxt.Text, ".") {
+			lp := p.advance()      // (
+			headTok := p.advance() // .method
+			args, err := p.parseArgs()
+			if err != nil {
+				return nil, err
+			}
+			if _, err := p.expect(lexer.TokenRParen); err != nil {
+				return nil, err
+			}
+			head := ast.NewSymbol(p.mkpos(headTok), headTok.Text)
+			return ast.NewCallExpr(p.mkpos(lp), head, args), nil
+		}
+	}
+	return p.parseExpr()
 }
 
 func (p *parser) parseMethodCall(pos ast.Position) (*ast.MethodCallExpr, error) {

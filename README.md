@@ -85,6 +85,7 @@ glisp doc     [name]            # show built-in docs (all if no name)
 (def hits (atom int 0))                        ; typed atom
 (swap! hits (fn [n] (+ n 1)))                  ; atomic update; (deref hits) → int
 (with-open [f (open-file path)] (read f))      ; binds f, defers Close() (LIFO, even on panic)
+(doto (new-builder) (.SetTitle "x") (.Build))  ; configure an object, return it
 ```
 
 See [`docs/builtins.md`](docs/builtins.md) and [`docs/stdlib.md`](docs/stdlib.md) for the

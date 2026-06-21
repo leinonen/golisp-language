@@ -1072,6 +1072,73 @@ func TestDotoErrors(t *testing.T) {
 	}
 }
 
+// TestVariadicSpread covers the `& xs` call-position spread marker:
+// (f a & xs) → f(a, xs...). The marker is the glisp spelling for Go's
+// variadic-spread call (Phase 12b / ADR-015).
+func TestVariadicSpread(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantSub string
+	}{
+		{
+			name:    "spread into a Go interop variadic call",
+			src:     `(defn log [msg string & args] (fmt/printf msg & args))`,
+			wantSub: "fmt.Printf(msg, args...)",
+		},
+		{
+			name:    "spread with no leading args",
+			src:     `(defn f [xs] (fmt/sprintln & xs))`,
+			wantSub: "fmt.Sprintln(xs...)",
+		},
+		{
+			name:    "spread into a user variadic fn",
+			src:     `(defn sum [& ns] 0) (defn f [xs] (sum & xs))`,
+			wantSub: "sum(xs...)",
+		},
+		{
+			name:    "leading literal arg before spread",
+			src:     `(defn f [xs] (fmt/sprintf "%d" & xs))`,
+			wantSub: `fmt.Sprintf("%d", xs...)`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Transpile(tt.src)
+			if err != nil {
+				t.Fatalf("transpile error: %v", err)
+			}
+			if !strings.Contains(got, tt.wantSub) {
+				t.Errorf("expected output to contain %q\nfull output:\n%s", tt.wantSub, got)
+			}
+		})
+	}
+}
+
+// TestVariadicSpreadErrors covers misuse of the `& xs` spread marker.
+func TestVariadicSpreadErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"spread into non-variadic user fn", `(defn g [a b] 0) (defn f [xs] (g 1 & xs))`, "is not variadic"},
+		{"marker not followed by one arg", `(defn f [xs] (fmt/sprintf & xs 9))`, "exactly one argument"},
+		{"duplicate marker", `(defn f [xs ys] (fmt/sprintf & xs & ys))`, "only one spread marker"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Transpile(tc.src)
+			if err == nil {
+				t.Fatalf("expected an error, got none")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.want)
+			}
+		})
+	}
+}
+
 // TestNoSpuriousQualifierImports guards the qualifier-suppression logic:
 // a pkg/fn call whose qualifier resolves to a declared import (by path
 // segment, /vN convention, or :as alias) must not emit a bare import of

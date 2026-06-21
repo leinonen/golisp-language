@@ -3,7 +3,8 @@
 ;               cond, switch, case, loop/recur, map/filter/reduce, truthiness,
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
 ;               destructuring (map and sequential), keyword lookup (:key m),
-;               panic/recover, assert, format, parse-int, parse-float, repeat, interpose
+;               panic/recover, assert, format, parse-int, parse-float, repeat, interpose,
+;               variadic spread (& xs)
 (ns main)
 
 ; --- Named types (deftype) ---
@@ -89,6 +90,13 @@
   (let [ws (split (lower-case (trim text)) " ")]
     (sort-by (fn [w] w) (filter (fn [w] (> (len w) 3)) ws))))
 
+; --- Variadic spread (& xs) ---
+; & ns collects extra args; (f label & xs) spreads a slice into the variadic
+; tail — the glisp spelling for Go's f(args...), no bridge code needed.
+;;; Sums any number of integers and labels the total.
+(defn labeled-total [label string & ns] -> string
+  (fmt/sprintf "%s = %d" label (reduce (fn [a b] (+ a b)) 0 ns)))
+
 ; --- Concurrent class analysis ---
 ; Typed def: names is []string, not []any. Go catches element-type mismatches.
 (def months []string
@@ -114,6 +122,8 @@
   ; Panic and recover
   (println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)
+  ; Variadic spread: pass a runtime slice into a variadic fn via & xs
+  (let [xs [3 5 7]] (println (labeled-total "spread" & xs)))
   ; Fibonacci via typed loop/recur (i, a, b are int — no any-boxing)
   (let [fibs (map (fn [n] (fib n)) (range 10))]
     (println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))

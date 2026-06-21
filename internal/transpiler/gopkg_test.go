@@ -25,6 +25,47 @@ func TestGoImportPaths(t *testing.T) {
 	}
 }
 
+// TestMultiReturnInterop checks that an imported Go function whose loaded
+// signature returns 2+ values, used in single-value position, becomes the
+// friendly if-err diagnostic rather than a raw Go "assignment mismatch"
+// (ADR-015, go-interop-exploration §3.5).
+func TestMultiReturnInterop(t *testing.T) {
+	idx := LoadGoPackages(".", map[string]string{"os": "os"})
+	if idx == nil {
+		t.Fatal("failed to load os signatures")
+	}
+	// os.Create returns (*os.File, error); os.Getenv returns string.
+	if fn, ok := idx.lookup("os", "Create"); !ok || len(fn.results) != 2 {
+		t.Fatalf("os.Create should have 2 results, got %+v (ok=%v)", fn, ok)
+	}
+
+	withIndex := func(src string) (string, error) {
+		ds, err := CollectDecls(nil, src, "")
+		if err != nil {
+			return "", err
+		}
+		ds.SetGoPackages(idx)
+		out, _, err := TranspileNoRuntimeFileExt(src, "", ds, false)
+		return out, err
+	}
+
+	// Multi-return used as a single value → diagnostic.
+	_, err := withIndex(`(ns main)
+(defn f [] -> any (let [c (os/create "x")] c))`)
+	if err == nil {
+		t.Fatal("expected multi-return diagnostic for os/create as single value")
+	}
+	if !strings.Contains(err.Error(), "returns multiple values") || !strings.Contains(err.Error(), "if-err") {
+		t.Errorf("error %q should mention multiple values and if-err", err.Error())
+	}
+
+	// Single-return interop fn in the same position is fine.
+	if _, err := withIndex(`(ns main)
+(defn f [] -> any (let [v (os/getenv "X")] v))`); err != nil {
+		t.Errorf("single-return os/getenv should not be flagged: %v", err)
+	}
+}
+
 // TestVariadicSpreadLoaderValidation checks that, with loaded signatures in
 // scope, spreading into a non-variadic imported function is a transpile error
 // while spreading into a variadic one is accepted (ADR-015, Phase 12a — the

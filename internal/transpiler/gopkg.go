@@ -14,7 +14,8 @@ import (
 type goFunc struct {
 	params   []string // Go type per parameter; the last is []T when variadic
 	variadic bool
-	ret      string // single return Go type; "" if none, void, or multi-return
+	ret      string   // single return Go type; "" if none, void, or multi-return
+	results  []string // every return Go type (len >= 2 marks a multi-return fn)
 }
 
 // goPkgIndex maps a package qualifier (the call-site prefix in `pkg/fn`) to its
@@ -114,11 +115,16 @@ func LoadGoPackages(dir string, paths map[string]string) goPkgIndex {
 			for i := 0; i < params.Len(); i++ {
 				ptypes[i] = types.TypeString(params.At(i).Type(), qualifier)
 			}
-			ret := ""
-			if res := sig.Results(); res.Len() == 1 {
-				ret = types.TypeString(res.At(0).Type(), qualifier)
+			res := sig.Results()
+			results := make([]string, res.Len())
+			for i := 0; i < res.Len(); i++ {
+				results[i] = types.TypeString(res.At(i).Type(), qualifier)
 			}
-			fns[name] = goFunc{params: ptypes, variadic: sig.Variadic(), ret: ret}
+			ret := ""
+			if len(results) == 1 {
+				ret = results[0]
+			}
+			fns[name] = goFunc{params: ptypes, variadic: sig.Variadic(), ret: ret, results: results}
 		}
 		if len(fns) > 0 {
 			idx[qual] = fns

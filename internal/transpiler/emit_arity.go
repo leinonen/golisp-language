@@ -175,6 +175,13 @@ func (e *Emitter) multiReturnCall(n ast.Node) (name, shape string, ok bool) {
 	if info, ok := e.resolveMethodCall(call); ok && strings.HasPrefix(info.sig.retType, "(") {
 		return sym.Name, info.sig.retType, true
 	}
+	// An imported Go function whose loaded signature returns 2+ values (e.g.
+	// pgx.Connect → (*pgx.Conn, error)) — used as a single value, this can't
+	// compile, so report it like a multi-return built-in instead of leaking
+	// Go's "assignment mismatch" error (ADR-015, go-interop-exploration §3.5).
+	if fn, found := e.lookupGoCall(sym.Name); found && len(fn.results) >= 2 {
+		return sym.Name, "(" + strings.Join(fn.results, ", ") + ")", true
+	}
 	return "", "", false
 }
 

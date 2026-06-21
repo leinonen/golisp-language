@@ -3,7 +3,9 @@ package lsp
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -835,5 +837,37 @@ func TestDocumentSymbols_methodAndTest(t *testing.T) {
 func TestDocumentSymbols_parseErrorReturnsNil(t *testing.T) {
 	if syms := DocumentSymbols("(defn broken ["); syms != nil {
 		t.Errorf("expected nil on parse error, got %+v", syms)
+	}
+}
+
+// TestHover_goPackage covers Go-package interop hover (ADR-015 / Phase 12f):
+// the server loads a referenced stdlib package's signatures and reports the
+// real Go signature for a `pkg/fn` symbol.
+func TestHover_goPackage(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go toolchain not available")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module hovertest\n\ngo 1.21\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	src := "(ns main)\n(defn f [s string] -> string (strings/to-upper s))"
+	uri := "file://" + filepath.Join(dir, "main.glsp")
+
+	s := NewServer()
+	s.docs[uri] = src
+
+	g := s.goSignatures(uri, src)
+	sig, ok := g.Signature("strings/to-upper")
+	if !ok {
+		t.Fatal("expected a Go signature for strings/to-upper")
+	}
+	if !strings.Contains(sig, "ToUpper") {
+		t.Errorf("signature %q should mention ToUpper", sig)
+	}
+
+	// Second call hits the cache (same instance).
+	if g2 := s.goSignatures(uri, src); g2 != g {
+		t.Error("expected goSignatures to be cached per dir+paths")
 	}
 }

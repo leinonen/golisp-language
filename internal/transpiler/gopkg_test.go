@@ -253,3 +253,37 @@ func TestLoadGoPackagesDegrades(t *testing.T) {
 		t.Error("bogus package should not appear in the index")
 	}
 }
+
+// TestGoSignatures covers the exported LSP-facing hover/completion API
+// (ADR-015, Phase 12f).
+func TestGoSignatures(t *testing.T) {
+	g := LoadGoSignatures(".", map[string]string{"strings": "strings"})
+
+	sig, ok := g.Signature("strings/to-upper")
+	if !ok {
+		t.Fatal("no signature for strings/to-upper")
+	}
+	if !strings.Contains(sig, "ToUpper") || !strings.Contains(sig, "string") {
+		t.Errorf("signature %q should describe ToUpper(string) string", sig)
+	}
+
+	// Unqualified or unknown → not ok.
+	if _, ok := g.Signature("toupper"); ok {
+		t.Error("unqualified symbol should have no Go signature")
+	}
+
+	// Kebab-case partial matches the PascalCase Go name.
+	comps := g.Completions("strings", "to-up")
+	found := false
+	for _, c := range comps {
+		if c.Name == "ToUpper" {
+			found = true
+			if !strings.Contains(c.Sig, "ToUpper") {
+				t.Errorf("completion sig %q missing ToUpper", c.Sig)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("Completions(strings, to-up) should include ToUpper, got %+v", comps)
+	}
+}

@@ -779,9 +779,17 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 				}
 				if valueIsAny {
 					e.registerAnyVar(pat.Name) // Go infers `any` from the RHS
+					e.clearNumericVar(pat.Name)
 				} else {
 					e.registerLocalVar(pat.Name)
 					e.clearAnyVar(pat.Name)
+					// Track a concrete numeric RHS so arithmetic on the binding
+					// promotes (e.g. (let [r (math/sqrt x)] (+ r int-var))).
+					if k := e.bindingNumericKind(b.Value); k != "" {
+						e.registerNumericVar(pat.Name, k)
+					} else {
+						e.clearNumericVar(pat.Name)
+					}
 				}
 				// Infer struct type from the value (struct literal or known fn return)
 				// so keyword access on the binding resolves to field access.
@@ -932,6 +940,130 @@ func (e *Emitter) exprIsAny(n ast.Node) bool {
 		}
 	}
 	return false
+}
+
+// numericKind classifies n as a concrete numeric Go value of kind "int" or
+// "float", or "" when it is not statically a concrete numeric — untyped
+// constants (an int/float literal adapts to either kind in Go), `any` values,
+// and non-numeric expressions all return "". Drives int→float64 auto-promotion
+// when an arithmetic/comparison form mixes concrete int and float operands.
+func (e *Emitter) numericKind(n ast.Node) string {
+	switch v := n.(type) {
+	case *ast.FloatLit:
+		// A float literal forces a float context (its value may not be an exact
+		// integer, so a sibling typed-int operand must be promoted).
+		return "float"
+	case *ast.IntLit:
+		return ""
+	case *ast.Symbol:
+		if k, ok := e.localNumeric[v.Name]; ok {
+			return k
+		}
+		return e.globalNumeric[v.Name]
+	case *ast.TypeAssertExpr:
+		// (as float64 x) / (as int x) yields a concrete numeric.
+		if v.Type != nil {
+			return numericGoKind(typeExprToGo(v.Type.Text))
+		}
+	case *ast.CallExpr:
+		return e.callNumericKind(v)
+	}
+	return ""
+}
+
+// callNumericKind returns the numeric kind a call expression statically yields.
+func (e *Emitter) callNumericKind(n *ast.CallExpr) string {
+	sym, ok := n.Head.(*ast.Symbol)
+	if !ok {
+		return ""
+	}
+	switch sym.Name {
+	case "int":
+		return "int"
+	case "float64", "float32":
+		return "float"
+	case "+", "-", "*", "/", "mod":
+		// Arithmetic over an `any` operand yields `any`, not a concrete numeric.
+		if e.anyOperand(n.Args) {
+			return ""
+		}
+		// Result is float if any operand is float (this function's own promotion
+		// makes the form float64), else int if any operand is a concrete int.
+		kind := ""
+		for _, a := range n.Args {
+			switch e.numericKind(a) {
+			case "float":
+				return "float"
+			case "int":
+				kind = "int"
+			}
+		}
+		return kind
+	}
+	// math/* all return float64.
+	if _, ok := stdlibNumericParams[sym.Name]; ok {
+		return "float"
+	}
+	// A typed (deref atom) of a numeric element type.
+	if sym.Name == "deref" && len(n.Args) == 1 {
+		if elem, ok := e.atomTypeOfExpr(n.Args[0]); ok {
+			return numericGoKind(elem)
+		}
+	}
+	// A user fn / method with a declared numeric return type.
+	if !e.localVars[sym.Name] {
+		if sig, found := e.symbols[sym.Name]; found {
+			return numericGoKind(sig.retType)
+		}
+	}
+	if info, ok := e.resolveMethodCall(n); ok {
+		return numericGoKind(info.sig.retType)
+	}
+	return ""
+}
+
+// bindingNumericKind returns the numeric kind of the Go variable a `:=` binding
+// over value produces. An int/float literal init makes the variable concretely
+// int/float64 (Go's inference), even though the bare literal is an untyped
+// constant for numericKind's purposes; other inits defer to numericKind.
+func (e *Emitter) bindingNumericKind(value ast.Node) string {
+	switch value.(type) {
+	case *ast.IntLit:
+		return "int"
+	case *ast.FloatLit:
+		return "float"
+	}
+	return e.numericKind(value)
+}
+
+// mixesIntFloat reports whether args contain both a concrete int operand and a
+// concrete float operand — the case Go won't compile without an explicit
+// conversion, so an int→float64 promotion is needed.
+func (e *Emitter) mixesIntFloat(args []ast.Node) bool {
+	hasInt, hasFloat := false, false
+	for _, a := range args {
+		switch e.numericKind(a) {
+		case "int":
+			hasInt = true
+		case "float":
+			hasFloat = true
+		}
+	}
+	return hasInt && hasFloat
+}
+
+// emitPromotedOperand emits a, wrapping it in float64(...) when promote is set
+// and a is a concrete int operand (auto-promotion in mixed int/float forms).
+func (e *Emitter) emitPromotedOperand(a ast.Node, promote bool) error {
+	if promote && e.numericKind(a) == "int" {
+		e.write("float64(")
+		if err := e.emitExpr(a); err != nil {
+			return err
+		}
+		e.write(")")
+		return nil
+	}
+	return e.emitExpr(a)
 }
 
 // anyOperand reports whether any of args is statically Go `any`.
@@ -2205,6 +2337,12 @@ func (e *Emitter) emitArith(op string, args []ast.Node) error {
 		e.write(")")
 		return nil
 	}
+	// Auto-promote across concrete numeric types: Go has no implicit int↔float64
+	// conversion, so `(/ int-var 2.0)` / `(+ int-var float-var)` won't compile.
+	// When a form mixes a concrete int and a concrete float operand, wrap each
+	// int operand in float64(...). Skipped for `mod` — `%` is integer-only, so a
+	// float operand there is a genuine error left for the Go compiler to report.
+	promote := op != "mod" && e.mixesIntFloat(args)
 	if op == "mod" {
 		op = "%"
 	}
@@ -2222,7 +2360,7 @@ func (e *Emitter) emitArith(op string, args []ast.Node) error {
 		if i > 0 {
 			e.writef(" %s ", op)
 		}
-		if err := e.emitExpr(arg); err != nil {
+		if err := e.emitPromotedOperand(arg, promote); err != nil {
 			return err
 		}
 	}
@@ -2255,12 +2393,16 @@ func (e *Emitter) emitBinOp(op string, args []ast.Node) error {
 		e.write(")")
 		return nil
 	}
+	// Ordering comparisons mixing a concrete int and float operand need the same
+	// int→float64 promotion as arithmetic (`int-var < float-var` won't compile).
+	// `==`/`!=` stay native interface comparisons (handled by their own callers).
+	promote := cmpHelpers[op] != "" && e.mixesIntFloat(args)
 	e.write("(")
-	if err := e.emitExpr(args[0]); err != nil {
+	if err := e.emitPromotedOperand(args[0], promote); err != nil {
 		return err
 	}
 	e.writef(" %s ", op)
-	if err := e.emitExpr(args[1]); err != nil {
+	if err := e.emitPromotedOperand(args[1], promote); err != nil {
 		return err
 	}
 	e.write(")")

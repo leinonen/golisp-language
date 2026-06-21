@@ -173,6 +173,49 @@ func TestTranspileSnippets(t *testing.T) {
 			wantSub: "math.Abs(_glispToFloat64(",
 		},
 		{
+			name:    "promote int param with float literal in division",
+			src:     `(defn f [n int] -> float64 (/ n 2.0))`,
+			wantSub: "(float64(n) / 2.0)",
+		},
+		{
+			name:    "promote int and float params in arithmetic",
+			src:     `(defn f [a int b float64] -> float64 (+ a b))`,
+			wantSub: "(float64(a) + b)",
+		},
+		{
+			name:    "promote int in ordering comparison with float",
+			src:     `(defn f [i int x float64] -> bool (< i x))`,
+			wantSub: "(float64(i) < x)",
+		},
+		{
+			name:    "pure int arithmetic is not promoted",
+			src:     `(defn f [a int b int] -> int (+ a b))`,
+			wantSub: "(a + b)",
+			wantNot: "float64(a)",
+		},
+		{
+			name:    "pure float arithmetic is not promoted",
+			src:     `(defn f [a float64 b float64] -> float64 (* a b))`,
+			wantSub: "(a * b)",
+			wantNot: "float64(a)",
+		},
+		{
+			name:    "promote int let binding mixed with float",
+			src:     `(defn f [] -> float64 (let [total 10 avg 3.5] (+ total avg)))`,
+			wantSub: "(float64(total) + avg)",
+		},
+		{
+			name:    "promote typed global int with float",
+			src:     "(def n int 5)\n(defn f [] -> float64 (/ n 2.0))",
+			wantSub: "(float64(n) / 2.0)",
+		},
+		{
+			name:    "mod with float operand is not promoted",
+			src:     `(defn f [n int] (mod n 2.0))`,
+			wantSub: "(n % 2.0)",
+			wantNot: "float64(n) %",
+		},
+		{
 			name:    "math/pow coerces any args",
 			src:     `(defn f [m] -> float64 (math/pow (get m "x") (get m "y")))`,
 			wantSub: "math.Pow(_glispToFloat64(",

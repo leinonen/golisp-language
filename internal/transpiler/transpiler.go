@@ -217,10 +217,20 @@ type Emitter struct {
 	// mapped to the atom's element Go type. Drives typed (deref a) scalar
 	// coercion. Scoped together with localTypes/localVars/localAny.
 	atomTypes map[string]string
+	// localNumeric: in-scope bindings (typed params, typed/inferred let & loop
+	// bindings) holding a concrete numeric Go type, mapped to "int" or "float".
+	// Drives int→float64 auto-promotion when an arithmetic/comparison form mixes
+	// concrete int and float operands (Go has no implicit conversion). Scoped
+	// together with localTypes/localVars/localAny/atomTypes.
+	localNumeric map[string]string
 	// globalAtomTypes: top-level (def name (atom T init)) atoms by glisp name,
 	// mapped to their element Go type. Populated by the pre-pass so (deref name)
 	// in any function body coerces. Not scoped (globals are always in scope).
 	globalAtomTypes map[string]string
+	// globalNumeric: top-level (def name int/float64 …) bindings by glisp name,
+	// mapped to "int" or "float". Populated by the pre-pass so arithmetic on a
+	// typed global promotes like a local. Not scoped (globals always in scope).
+	globalNumeric map[string]string
 	// ifaces: definterface method tables by interface name (populated by pre-pass).
 	ifaces map[string]methodSet
 	// methods: defmethod method tables by bare receiver struct name (pre-pass).
@@ -389,6 +399,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	symbols := map[string]*fnSig{}
 	structs := map[string]*structInfo{}
 	globalAtoms := map[string]string{}
+	globalNums := map[string]string{}
 	for _, n := range declNodes {
 		switch d := n.(type) {
 		case *ast.DefnDecl:
@@ -398,6 +409,11 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		case *ast.DefDecl:
 			if elem, ok := e.atomElemOfBinding(d.TypeAnnot, d.Value); ok {
 				globalAtoms[d.Name] = elem
+			}
+			if d.TypeAnnot != nil {
+				if k := numericGoKind(typeExprToGo(d.TypeAnnot.Text)); k != "" {
+					globalNums[d.Name] = k
+				}
 			}
 		}
 	}
@@ -410,6 +426,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	declEmitter.symbols = symbols
 	declEmitter.structs = structs
 	declEmitter.globalAtomTypes = globalAtoms
+	declEmitter.globalNumeric = globalNums
 	declEmitter.ifaces = ifaces
 	declEmitter.methods = methods
 	declEmitter.defGlobals = defGlobals

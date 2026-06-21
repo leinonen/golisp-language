@@ -55,6 +55,7 @@ func (e *Emitter) emitLoopBlock(n *ast.LoopExpr, retVar string, inReturn bool) e
 	// with any-returning helpers (e.g. _glispConj returns any).
 	// Scalar inits keep `:=` so Go infers the concrete type for direct arithmetic.
 	for i, b := range n.Bindings {
+		sym := b.Pattern.(*ast.Symbol) // validated above
 		e.writeIndent()
 		if b.TypeAnnot != nil {
 			typeStr := typeExprToGo(b.TypeAnnot.Text)
@@ -62,6 +63,7 @@ func (e *Emitter) emitLoopBlock(n *ast.LoopExpr, retVar string, inReturn bool) e
 			if err := e.emitExprWithHint(b.Value, typeStr); err != nil {
 				return err
 			}
+			e.registerNumericVar(sym.Name, numericGoKind(typeStr))
 		} else if isCollectionNode(b.Value) {
 			e.writef("var %s any = ", bindingNames[i])
 			if err := e.emitExpr(b.Value); err != nil {
@@ -72,6 +74,9 @@ func (e *Emitter) emitLoopBlock(n *ast.LoopExpr, retVar string, inReturn bool) e
 			if err := e.emitExpr(b.Value); err != nil {
 				return err
 			}
+			// A scalar `:=` init makes the loop var a concrete numeric type, so
+			// arithmetic mixing it with the other kind promotes.
+			e.registerNumericVar(sym.Name, e.bindingNumericKind(b.Value))
 		}
 		e.nl()
 	}

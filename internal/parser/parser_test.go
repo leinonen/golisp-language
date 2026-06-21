@@ -447,6 +447,30 @@ func TestDocComment(t *testing.T) {
 	})
 }
 
+func TestTrailingCommentInBindings(t *testing.T) {
+	// A trailing ; comment after a binding value used to fail with
+	// "expected symbol, got comment" on the transpiler parse path (the
+	// formatter filters comments first). The parser now skips comment tokens
+	// between bindings in let/loop/let-or/with-open vectors.
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{"let", "(let [x 1 ; why\n y 2] (+ x y))"},
+		{"let leading comment", "(let [; head\n x 1] x)"},
+		{"loop", "(loop [i 0 ; counter\n acc 0] acc)"},
+		{"let-or", "(let-or [a (f) 0 ; default\n b (g) 1] a)"},
+		{"with-open", "(with-open [f (open) ; resource\n g (open)] f)"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := ParseString(c.src); err != nil {
+				t.Errorf("parse error: %v", err)
+			}
+		})
+	}
+}
+
 func TestUnclosedDelimiter(t *testing.T) {
 	// Missing the final ) on a multi-line defn: error should point at the
 	// opening ( on line 1, not the end of the file.

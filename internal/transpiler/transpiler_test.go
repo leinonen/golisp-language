@@ -168,6 +168,22 @@ func TestTranspileSnippets(t *testing.T) {
 			wantNot: "return panic",
 		},
 		{
+			name:    "math/abs coerces any arg",
+			src:     `(defn f [m] -> float64 (math/abs (get m "x")))`,
+			wantSub: "math.Abs(_glispToFloat64(",
+		},
+		{
+			name:    "math/pow coerces any args",
+			src:     `(defn f [m] -> float64 (math/pow (get m "x") (get m "y")))`,
+			wantSub: "math.Pow(_glispToFloat64(",
+		},
+		{
+			name:    "math/sqrt leaves concrete float arg native",
+			src:     `(defn f [x float64] -> float64 (math/sqrt x))`,
+			wantSub: "math.Sqrt(x)",
+			wantNot: "math.Sqrt(_glispToFloat64",
+		},
+		{
 			name:    "pipeline",
 			src:     `(defn pipe [ch (chan any)] (pipeline [x ch] (* x 2)))`,
 			wantSub: "defer close(",

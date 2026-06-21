@@ -15,10 +15,10 @@
   (atom int 0))
 
 (defn increment! [c (Atom int)] -> any
-  (swap! c (fn [n any] (+ (int n) 1))))
+  (swap! c (fn [n any] (+ n 1))))
 
 (defn add! [c (Atom int) delta any] -> any
-  (swap! c (fn [n any] (+ (int n) (int delta)))))
+  (swap! c (fn [n any] (+ n delta))))
 
 (defn current [c (Atom int)] -> int
   (deref c))

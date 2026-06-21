@@ -763,7 +763,9 @@ func (e *Emitter) emitLetBindings(bindings []ast.LetBinding) error {
 					return err
 				}
 				e.registerVarType(pat.Name, typeStr)
-				e.clearAnyVar(pat.Name) // explicit concrete type
+				if typeStr != "any" {
+					e.clearAnyVar(pat.Name) // explicit concrete type
+				}
 				if elem, ok := e.atomElemOfBinding(b.TypeAnnot, b.Value); ok {
 					e.registerAtomType(pat.Name, elem)
 				} else {

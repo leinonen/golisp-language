@@ -254,6 +254,13 @@ func (e *Emitter) registerVarType(glispName, goType string) {
 	} else {
 		e.clearNumericVar(glispName)
 	}
+	// An explicitly `any`-typed binding (param `[n any]`, `(let [x any …])`)
+	// behaves like an untyped one for the any-seam: arithmetic/comparison on it
+	// must coerce (`any + int` is a Go error either way), so mark it. Callers
+	// that bind a concrete type clear localAny separately.
+	if goType == "any" {
+		e.registerAnyVar(glispName)
+	}
 }
 
 // numericGoKind classifies a Go type name as "int" (any integer family type),

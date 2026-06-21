@@ -21,7 +21,7 @@
       (os/exit 0))
     (let [nums (if (empty? args) default-nums (map (fn [a] (parse-arg (str a))) args))
           sorted (sort nums)
-          total (reduce (fn [acc n] (+ (int acc) (int n))) 0 nums)]
+          total (reduce (fn [acc n] (+ acc n)) 0 nums)]
       (when (empty? args) (println "(no args given — using defaults)"))
       (println "count:" (len nums))
       (println "sum:  " total)

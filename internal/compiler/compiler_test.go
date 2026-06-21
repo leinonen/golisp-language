@@ -280,3 +280,35 @@ func TestRunStructFieldReflect(t *testing.T) {
 		}
 	}
 }
+
+// TestRunDirFromForeignCWD guards the dir-build working directory: the build
+// must run inside the target package's module, not the caller's CWD. This test
+// process runs inside the golisp module, so before the fix a `go build <absDir>`
+// of an external project failed with "directory … outside main module".
+func TestRunDirFromForeignCWD(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go toolchain not available")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "glisp.mod"), []byte("module example.com/dirbuild\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	src := `(ns main)
+(defn main [] -> void
+  (fmt/println "dir build ok"))
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.glsp"), []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errBuf bytes.Buffer
+	code, err := RunWithIO(dir, Options{}, nil, nil, &out, &errBuf)
+	if err != nil {
+		t.Fatalf("RunWithIO(dir): %v\nstderr: %s", err, errBuf.String())
+	}
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0\nstderr: %s", code, errBuf.String())
+	}
+	if !strings.Contains(out.String(), "dir build ok") {
+		t.Errorf("stdout = %q, want it to contain %q", out.String(), "dir build ok")
+	}
+}

@@ -12,13 +12,13 @@ func makeCounter() any {
 
 func increment(a any) any {
 	return _glispAtomSwap(a, func(x any) any {
-		return (x + 1)
+		return _glispAdd(x, 1)
 	})
 }
 
 func addN(a any, n any) any {
 	return _glispAtomSwap(a, func(x any) any {
-		return (x + n)
+		return _glispAdd(x, n)
 	})
 }
 
@@ -33,10 +33,10 @@ func readValue(a any) any {
 func counterDemo() any {
 	c := &_glispAtom{val: 0}
 	_glispAtomSwap(c, func(x any) any {
-		return (x + 1)
+		return _glispAdd(x, 1)
 	})
 	_glispAtomSwap(c, func(x any) any {
-		return (x + 1)
+		return _glispAdd(x, 1)
 	})
 	_glispAtomReset(c, 10)
 	return _glispAtomDeref(c)
@@ -1050,6 +1050,143 @@ func _glispNotAny(pred any, coll any) bool {
 }
 
 // --- end glisp runtime helpers ---
+
+// _glispNumVal extracts a numeric value from a as both int64 and float64,
+// reporting whether it was a floating-point value. Non-numbers contribute 0.
+func _glispNumVal(a any) (int64, float64, bool) {
+	switch v := a.(type) {
+	case int:
+		return int64(v), float64(v), false
+	case int8:
+		return int64(v), float64(v), false
+	case int16:
+		return int64(v), float64(v), false
+	case int32:
+		return int64(v), float64(v), false
+	case int64:
+		return v, float64(v), false
+	case uint:
+		return int64(v), float64(v), false
+	case uint8:
+		return int64(v), float64(v), false
+	case uint16:
+		return int64(v), float64(v), false
+	case uint32:
+		return int64(v), float64(v), false
+	case uint64:
+		return int64(v), float64(v), false
+	case float32:
+		return 0, float64(v), true
+	case float64:
+		return 0, v, true
+	}
+	return 0, 0, false
+}
+
+func _glispAdd(args ...any) any {
+	var isum int64
+	var fsum float64
+	anyFloat := false
+	for _, a := range args {
+		i, f, isF := _glispNumVal(a)
+		isum += i
+		fsum += f
+		if isF {
+			anyFloat = true
+		}
+	}
+	if anyFloat {
+		return fsum
+	}
+	return isum
+}
+
+func _glispSub(args ...any) any {
+	if len(args) == 0 {
+		return int64(0)
+	}
+	isum, fsum, anyFloat := _glispNumVal(args[0])
+	for _, a := range args[1:] {
+		i, f, isF := _glispNumVal(a)
+		isum -= i
+		fsum -= f
+		if isF {
+			anyFloat = true
+		}
+	}
+	if anyFloat {
+		return fsum
+	}
+	return isum
+}
+
+func _glispMul(args ...any) any {
+	iprod := int64(1)
+	fprod := 1.0
+	anyFloat := false
+	for _, a := range args {
+		i, f, isF := _glispNumVal(a)
+		iprod *= i
+		fprod *= f
+		if isF {
+			anyFloat = true
+		}
+	}
+	if anyFloat {
+		return fprod
+	}
+	return iprod
+}
+
+func _glispDiv(args ...any) any {
+	if len(args) == 0 {
+		return int64(0)
+	}
+	anyFloat := false
+	for _, a := range args {
+		if _, _, isF := _glispNumVal(a); isF {
+			anyFloat = true
+		}
+	}
+	if anyFloat {
+		_, res, _ := _glispNumVal(args[0])
+		for _, a := range args[1:] {
+			_, f, _ := _glispNumVal(a)
+			res /= f
+		}
+		return res
+	}
+	res, _, _ := _glispNumVal(args[0])
+	for _, a := range args[1:] {
+		i, _, _ := _glispNumVal(a)
+		res /= i
+	}
+	return res
+}
+
+func _glispMod(a, b any) any {
+	ai, _, _ := _glispNumVal(a)
+	bi, _, _ := _glispNumVal(b)
+	return ai % bi
+}
+
+func _glispNumCmp(a, b any) int {
+	_, af, _ := _glispNumVal(a)
+	_, bf, _ := _glispNumVal(b)
+	switch {
+	case af < bf:
+		return -1
+	case af > bf:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func _glispLt(a, b any) bool { return _glispNumCmp(a, b) < 0 }
+func _glispGt(a, b any) bool { return _glispNumCmp(a, b) > 0 }
+func _glispLe(a, b any) bool { return _glispNumCmp(a, b) <= 0 }
+func _glispGe(a, b any) bool { return _glispNumCmp(a, b) >= 0 }
 
 type _glispAtom struct {
 	mu  sync.Mutex

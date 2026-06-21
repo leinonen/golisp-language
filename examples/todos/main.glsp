@@ -28,7 +28,7 @@
 
 ;;; Claims the next numeric id as a string (swap! returns the new value).
 (defn claim-id [] -> string
-  (str (swap! next-id (fn [n] (+ (int n) 1)))))
+  (str (swap! next-id (fn [n] (+ n 1)))))
 
 ; ── views ──────────────────────────────────────────────────────────
 (defn todo-item [todo any] -> any

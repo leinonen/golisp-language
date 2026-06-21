@@ -115,7 +115,7 @@
   (println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)
   ; Fibonacci via typed loop/recur (i, a, b are int — no any-boxing)
-  (let [fibs (map (fn [n] (fib (int n))) (range 10))]
+  (let [fibs (map (fn [n] (fib n)) (range 10))]
     (println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))
   ; Typed let binding: sep is string, not any
   (let [sep string ", "
@@ -142,11 +142,11 @@
       ; Spawn one goroutine per class using map destructuring on the param
       (map
         (fn [{name :name scores :scores}]
-          (let [total (reduce (fn [acc s] (+ (int acc) (int s))) 0 scores)
-                n (int (reduce (fn [k _] (+ (int k) 1)) 0 scores))
+          (let [total (reduce (fn [acc s] (+ acc s)) 0 scores)
+                n (count scores)
                 avg (/ (int total) n)
-                pass (filter (fn [s] (>= (int s) 60)) scores)
-                pass-n (int (reduce (fn [k _] (+ (int k) 1)) 0 pass))]
+                pass (filter (fn [s] (>= s 60)) scores)
+                pass-n (count pass)]
             ; go in tail position needs no trailing nil — statement-only
             ; forms auto-return nil (ADR-011)
             (go

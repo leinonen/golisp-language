@@ -83,8 +83,8 @@
   ; second returns any, so all built-ins work normally.
   (println "\n=== update / update-in ===")
   (let [pb (second products)
-        restocked (update pb "stock" (fn [n] (* (int n) 3)))
-        tiered (update-in pb ["supplier" "tier"] (fn [n] (- (int n) 1)))]
+        restocked (update pb "stock" (fn [n] (* n 3)))
+        tiered (update-in pb ["supplier" "tier"] (fn [n] (- n 1)))]
     (println "  stock before:"
              (get pb "stock")
              " after x3:"
@@ -124,8 +124,8 @@
     (println "  Wrench Set stock:" (get stocks "Wrench Set")))
   ; --- concat ---
   (println "\n=== concat ===")
-  (let [cheap (filter (fn [p] (< (int (get p "price")) 1000)) products)
-        pricey (filter (fn [p] (>= (int (get p "price")) 5000)) products)
+  (let [cheap (filter (fn [p] (< (get p "price") 1000)) products)
+        pricey (filter (fn [p] (>= (get p "price") 5000)) products)
         extremes (concat cheap pricey)]
     (println "  cheap (<$10):" (map (fn [p] (get p "name")) cheap))
     (println "  pricey (≥$50):" (map (fn [p] (get p "name")) pricey))
@@ -137,8 +137,8 @@
   ; --- take-while / drop-while ---
   (println "\n=== take-while / drop-while ===")
   (let [price-sorted (sort-by (fn [p] (get p "price")) products)
-        budget (take-while (fn [p] (< (int (get p "price")) 2000)) price-sorted)
-        premium (drop-while (fn [p] (< (int (get p "price")) 2000)) price-sorted)]
+        budget (take-while (fn [p] (< (get p "price") 2000)) price-sorted)
+        premium (drop-while (fn [p] (< (get p "price") 2000)) price-sorted)]
     (println "  budget (<$20): " (map (fn [p] (get p "name")) budget))
     (println "  premium (≥$20):" (map (fn [p] (get p "name")) premium)))
   ; --- partition ---

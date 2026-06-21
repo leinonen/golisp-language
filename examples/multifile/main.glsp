@@ -3,7 +3,7 @@
 (defn main [] -> void
   (println (greet "World"))
   (println (greet "glisp"))
-  (let [nums (map (fn [n] (square (int n))) (range 1 6))]
+  (let [nums (map (fn [n] (square n)) (range 1 6))]
     (print-results "squares" nums))
   ;; Point is declared in helpers.glsp — field access and the Distance method
   ;; resolve across files.

@@ -82,13 +82,14 @@ type typeScope struct {
 	vars  map[string]bool
 	anys  map[string]bool
 	atoms map[string]string
+	nums  map[string]string
 }
 
 // pushTypeScope shallow-copies the current local type and binding environments
 // so that registrations inside a function/let body do not leak to sibling
 // scopes. The returned value is passed back to popTypeScope on exit.
 func (e *Emitter) pushTypeScope() typeScope {
-	saved := typeScope{types: e.localTypes, vars: e.localVars, anys: e.localAny, atoms: e.atomTypes}
+	saved := typeScope{types: e.localTypes, vars: e.localVars, anys: e.localAny, atoms: e.atomTypes, nums: e.localNumeric}
 	nt := make(map[string]string, len(saved.types))
 	for k, v := range saved.types {
 		nt[k] = v
@@ -105,10 +106,15 @@ func (e *Emitter) pushTypeScope() typeScope {
 	for k, v := range saved.atoms {
 		nm[k] = v
 	}
+	nn := make(map[string]string, len(saved.nums))
+	for k, v := range saved.nums {
+		nn[k] = v
+	}
 	e.localTypes = nt
 	e.localVars = nv
 	e.localAny = na
 	e.atomTypes = nm
+	e.localNumeric = nn
 	return saved
 }
 
@@ -118,6 +124,7 @@ func (e *Emitter) popTypeScope(saved typeScope) {
 	e.localVars = saved.vars
 	e.localAny = saved.anys
 	e.atomTypes = saved.atoms
+	e.localNumeric = saved.nums
 }
 
 // registerAnyVar records glispName as an in-scope binding statically known to
@@ -229,14 +236,61 @@ func (e *Emitter) registerLocalVar(glispName string) {
 // registerVarType records that the glisp variable glispName has the declared
 // struct or interface type described by goType. Other types are ignored (the
 // variable stays untyped from keyword access and method dispatch's view).
-// The name is always recorded as an in-scope binding.
+// A concrete numeric goType (int/float family) is recorded in localNumeric so
+// arithmetic mixing it with the other kind auto-promotes. The name is always
+// recorded as an in-scope binding.
 func (e *Emitter) registerVarType(glispName, goType string) {
 	e.registerLocalVar(glispName)
-	if e.localTypes == nil || glispName == "" || glispName == "_" {
+	if glispName == "" || glispName == "_" {
 		return
 	}
-	if name, ok := e.namedTypeHint(goType); ok {
-		e.localTypes[glispName] = name
+	if e.localTypes != nil {
+		if name, ok := e.namedTypeHint(goType); ok {
+			e.localTypes[glispName] = name
+		}
+	}
+	if k := numericGoKind(goType); k != "" {
+		e.registerNumericVar(glispName, k)
+	} else {
+		e.clearNumericVar(glispName)
+	}
+	// An explicitly `any`-typed binding (param `[n any]`, `(let [x any …])`)
+	// behaves like an untyped one for the any-seam: arithmetic/comparison on it
+	// must coerce (`any + int` is a Go error either way), so mark it. Callers
+	// that bind a concrete type clear localAny separately.
+	if goType == "any" {
+		e.registerAnyVar(glispName)
+	}
+}
+
+// numericGoKind classifies a Go type name as "int" (any integer family type),
+// "float" (float32/float64), or "" (not a concrete numeric scalar). Drives
+// int→float64 auto-promotion in mixed arithmetic/comparison.
+func numericGoKind(goType string) string {
+	switch goType {
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64", "byte", "rune", "uintptr":
+		return "int"
+	case "float32", "float64":
+		return "float"
+	}
+	return ""
+}
+
+// registerNumericVar records that the in-scope binding glispName holds a
+// concrete numeric value of the given kind ("int" or "float").
+func (e *Emitter) registerNumericVar(glispName, kind string) {
+	if e.localNumeric == nil || glispName == "" || glispName == "_" || kind == "" {
+		return
+	}
+	e.localNumeric[glispName] = kind
+}
+
+// clearNumericVar drops any numeric kind recorded for glispName (a rebinding to
+// a non-numeric or unknown value shadows an outer numeric binding of the name).
+func (e *Emitter) clearNumericVar(glispName string) {
+	if e.localNumeric != nil {
+		delete(e.localNumeric, glispName)
 	}
 }
 

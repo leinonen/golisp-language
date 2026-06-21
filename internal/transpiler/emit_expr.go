@@ -2095,9 +2095,19 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 	// When the callee is a known user function, thread each parameter's type to
 	// its argument so struct-typed params accept plain map literals.
 	var paramTypes []string
-	if sym, ok := n.Head.(*ast.Symbol); ok && e.symbols != nil {
-		if sig, found := e.symbols[sym.Name]; found {
-			paramTypes = sig.paramTypes
+	if sym, ok := n.Head.(*ast.Symbol); ok {
+		if e.symbols != nil {
+			if sig, found := e.symbols[sym.Name]; found {
+				paramTypes = sig.paramTypes
+			}
+		}
+		// A known stdlib numeric function (e.g. math/abs → math.Abs, a
+		// func(float64) float64) gets its param types so an `any`-typed argument
+		// is coerced (_glispToFloat64) instead of producing a raw Go
+		// "cannot use … (any) as float64" error. Only fills in when the head is
+		// not a user fn — those win above.
+		if paramTypes == nil {
+			paramTypes = stdlibNumericParams[sym.Name]
 		}
 	}
 	if err := e.emitExpr(n.Head); err != nil {
@@ -2122,6 +2132,48 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 
 var arithHelpers = map[string]string{
 	"+": "_glispAdd", "-": "_glispSub", "*": "_glispMul", "/": "_glispDiv", "mod": "_glispMod",
+}
+
+// stdlibNumericParams maps a stdlib-qualified call form to the Go parameter
+// types its arguments should be coerced toward. Used by the general call path so
+// an `any`-typed argument (map lookup, untyped param) at a known numeric stdlib
+// call site is smart-converted (via emitExprWithHint → numericCoercion) instead
+// of emitting an uncompilable Go assignment. Concrete-typed args are unaffected
+// (the coercion only fires for statically-`any` values). The `math` package is
+// all-float64; covering it removes the documented `(math/abs any-expr)` shim.
+var stdlibNumericParams = map[string][]string{
+	// func(float64) float64
+	"math/abs":   {"float64"},
+	"math/sqrt":  {"float64"},
+	"math/cbrt":  {"float64"},
+	"math/floor": {"float64"},
+	"math/ceil":  {"float64"},
+	"math/round": {"float64"},
+	"math/trunc": {"float64"},
+	"math/exp":   {"float64"},
+	"math/exp2":  {"float64"},
+	"math/log":   {"float64"},
+	"math/log2":  {"float64"},
+	"math/log10": {"float64"},
+	"math/sin":   {"float64"},
+	"math/cos":   {"float64"},
+	"math/tan":   {"float64"},
+	"math/asin":  {"float64"},
+	"math/acos":  {"float64"},
+	"math/atan":  {"float64"},
+	"math/sinh":  {"float64"},
+	"math/cosh":  {"float64"},
+	"math/tanh":  {"float64"},
+	// func(float64, float64) float64
+	"math/pow":       {"float64", "float64"},
+	"math/atan2":     {"float64", "float64"},
+	"math/hypot":     {"float64", "float64"},
+	"math/mod":       {"float64", "float64"},
+	"math/max":       {"float64", "float64"},
+	"math/min":       {"float64", "float64"},
+	"math/copysign":  {"float64", "float64"},
+	"math/dim":       {"float64", "float64"},
+	"math/remainder": {"float64", "float64"},
 }
 
 func (e *Emitter) emitArith(op string, args []ast.Node) error {

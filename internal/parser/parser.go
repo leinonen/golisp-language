@@ -176,6 +176,18 @@ func (p *parser) isBindingTypeStart() bool {
 
 func (p *parser) peekType() lexer.TokenType { return p.peek().Type }
 
+// skipComments advances past any `;`/`;;`/`;;;` comment tokens. Used inside
+// binding-vector loops (let/loop/let-or/with-open), where a trailing comment
+// after a binding value (`[x (f) ; why`) would otherwise land where the next
+// binding name is expected and fail with "expected symbol, got comment". The
+// transpiler path keeps comment tokens in the stream; the formatter path
+// (ParseWithComments) filters them out before parsing.
+func (p *parser) skipComments() {
+	for p.peekType() == lexer.TokenComment || p.peekType() == lexer.TokenDocComment {
+		p.advance()
+	}
+}
+
 func (p *parser) advance() lexer.Token {
 	tok := p.peek()
 	if tok.Type != lexer.TokenEOF {
@@ -988,7 +1000,7 @@ func (p *parser) parseLet(pos ast.Position) (*ast.LetExpr, error) {
 		return nil, err
 	}
 	var bindings []ast.LetBinding
-	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
+	for p.skipComments(); p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF; p.skipComments() {
 		var pattern ast.Node
 		if p.peekType() == lexer.TokenLBracket {
 			v, err := p.parseVector()
@@ -1363,7 +1375,7 @@ func (p *parser) parseWithOpen(pos ast.Position) (*ast.WithOpenExpr, error) {
 		return nil, err
 	}
 	var bindings []ast.LetBinding
-	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
+	for p.skipComments(); p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF; p.skipComments() {
 		symTok, err := p.expect(lexer.TokenSymbol)
 		if err != nil {
 			return nil, p.errorf("with-open binding name must be a symbol")
@@ -1584,7 +1596,7 @@ func (p *parser) parseLoop(pos ast.Position) (*ast.LoopExpr, error) {
 		return nil, err
 	}
 	var bindings []ast.LetBinding
-	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
+	for p.skipComments(); p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF; p.skipComments() {
 		symTok, err := p.expect(lexer.TokenSymbol)
 		if err != nil {
 			return nil, err
@@ -1745,7 +1757,7 @@ func (p *parser) parseLetOr(pos ast.Position) (*ast.LetOrExpr, error) {
 		return nil, err
 	}
 	var bindings []ast.LetOrBinding
-	for p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF {
+	for p.skipComments(); p.peekType() != lexer.TokenRBracket && p.peekType() != lexer.TokenEOF; p.skipComments() {
 		nameTok, err := p.expect(lexer.TokenSymbol)
 		if err != nil {
 			return nil, err

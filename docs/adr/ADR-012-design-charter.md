@@ -48,6 +48,17 @@ Every feature proposal is tested against three rules:
 3. **The user never debugs generated Go.** (ADR-011.) Failures surface as
    glisp-level diagnostics at `.glsp` positions, or the construct is absorbed
    by the transpiler. A documented workaround is a defect, not documentation.
+4. **The user never writes Go.** The complement of rule 3: rule 3 says you
+   never *read* the generated Go, rule 4 says you never *write* Go by hand —
+   and this binds *library/wrapper* authors as much as app authors. The Go
+   interop primitives (`(.Method o a)`, `(.-Field o)`, `(Type. {…})`,
+   `(as T v)`, and a spread marker for variadic calls) must be complete enough
+   that wrapping a Go package — the database story of ADR-014 included — is
+   done in pure glisp. A capability reachable only by hand-writing a
+   `bridge.go` is an *incomplete language*, and the missing interop form (e.g.
+   variadic spreading, `docs/go-interop-exploration.md §3.7`) is a defect to
+   close, not a pattern to document. Hand-written Go remains possible for those
+   who want it, but the language must never *require* it.
 
 ### The anti-roadmap
 
@@ -87,5 +98,9 @@ superseded by a future ADR):
 - The README should lead with the identity (a real JSON API as a single
   static binary), not a feature list.
 - Removing redundancy can be valid work even with no feature attached.
+- The `bridge.go` escape hatch, while still supported, is treated as a
+  to-be-eliminated workaround: each interop gap it papers over (starting with
+  variadic spreading) is tracked as a defect on the roadmap, not blessed as
+  the recommended way to wrap a Go package.
 - This ADR is the tiebreaker: when a change makes glisp bigger but not more
   itself, it is declined.

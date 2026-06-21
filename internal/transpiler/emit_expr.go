@@ -2207,13 +2207,29 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 	// Arity check for user-defined function calls.
 	if sym, ok := n.Head.(*ast.Symbol); ok && len(e.symbols) > 0 {
 		if sig, found := e.symbols[sym.Name]; found {
-			nargs := len(n.Args)
-			if sig.variadic {
-				if nargs < sig.minArity {
-					return fmt.Errorf("arity error: %s called with %d arg(s), expected at least %d (at %s)", sym.Name, nargs, sig.minArity, n.Pos())
+			leading, _, hasSpread, serr := spreadArgs(n.Args)
+			if serr != nil {
+				return serr
+			}
+			switch {
+			case hasSpread && !sig.variadic:
+				// Spreading into a fixed-arity fn can't be right — catch it at
+				// transpile time rather than emitting invalid Go.
+				return fmt.Errorf("%s is not variadic — cannot spread arguments with & (at %s)", sym.Name, sym.Pos())
+			case hasSpread:
+				// The spread fills the variadic tail; the leading args must still
+				// cover the required (non-variadic) parameters.
+				if len(leading) < sig.minArity {
+					return fmt.Errorf("arity error: %s called with %d arg(s) before & spread, expected at least %d (at %s)", sym.Name, len(leading), sig.minArity, n.Pos())
 				}
-			} else if nargs != sig.minArity {
-				return fmt.Errorf("arity error: %s called with %d arg(s), expected %d (at %s)", sym.Name, nargs, sig.minArity, n.Pos())
+			case sig.variadic:
+				if len(n.Args) < sig.minArity {
+					return fmt.Errorf("arity error: %s called with %d arg(s), expected at least %d (at %s)", sym.Name, len(n.Args), sig.minArity, n.Pos())
+				}
+			default:
+				if len(n.Args) != sig.minArity {
+					return fmt.Errorf("arity error: %s called with %d arg(s), expected %d (at %s)", sym.Name, len(n.Args), sig.minArity, n.Pos())
+				}
 			}
 		}
 	}
@@ -2226,6 +2242,14 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 	}
 
 	// General function call: f(args...)
+	// A trailing `& xs` spreads a slice into a Go variadic parameter:
+	// (f a b & xs) → f(a, b, xs...). This is the glisp spelling for Go's
+	// variadic-spread call, replacing the hand-written bridge.go that wrapping a
+	// variadic Go API (pgx.Query(ctx, sql, args...), fmt.Errorf) used to need.
+	leading, spread, hasSpread, err := spreadArgs(n.Args)
+	if err != nil {
+		return err
+	}
 	// When the callee is a known user function, thread each parameter's type to
 	// its argument so struct-typed params accept plain map literals.
 	var paramTypes []string
@@ -2248,7 +2272,7 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		return err
 	}
 	e.write("(")
-	for i, arg := range n.Args {
+	for i, arg := range leading {
 		if i > 0 {
 			e.write(", ")
 		}
@@ -2260,8 +2284,42 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return err
 		}
 	}
+	if hasSpread {
+		if len(leading) > 0 {
+			e.write(", ")
+		}
+		if err := e.emitExpr(spread); err != nil {
+			return err
+		}
+		e.write("...")
+	}
 	e.write(")")
 	return nil
+}
+
+// spreadArgs splits a call's arguments around an optional `& xs` spread marker.
+// A bare `&` symbol marks the next (and final) argument for Go variadic
+// spreading: (f a b & xs) → leading=[a b], spread=xs, ok=true. With no `&`
+// present, ok is false and leading is the unchanged argument list. A misplaced
+// or duplicated marker is a position-tagged error.
+func spreadArgs(args []ast.Node) (leading []ast.Node, spread ast.Node, ok bool, err error) {
+	amp := -1
+	for i, a := range args {
+		if s, isSym := a.(*ast.Symbol); isSym && s.Name == "&" {
+			if amp >= 0 {
+				return nil, nil, false, fmt.Errorf("only one spread marker & is allowed in a call (at %s)", s.Pos())
+			}
+			amp = i
+		}
+	}
+	if amp < 0 {
+		return args, nil, false, nil
+	}
+	ampSym := args[amp].(*ast.Symbol)
+	if amp != len(args)-2 {
+		return nil, nil, false, fmt.Errorf("spread marker & must be followed by exactly one argument, e.g. (f a & xs) (at %s)", ampSym.Pos())
+	}
+	return args[:amp], args[amp+1], true, nil
 }
 
 var arithHelpers = map[string]string{

@@ -53,6 +53,32 @@ func (e *Emitter) lookupGoCall(name string) (goFunc, bool) {
 	return e.goPkgs.lookup(name[:slash], fnToGo(name[slash+1:]))
 }
 
+// paramHintsFor returns a per-argument Go-type hint slice for a call with n
+// arguments to fn. For a fixed-arity fn it is just the parameter types; for a
+// variadic fn, arguments at or past the final (variadic) parameter get its
+// element type (the `[]T` slice type with the leading `[]` stripped), so each
+// individual trailing argument is coerced to T rather than to the slice.
+func paramHintsFor(fn goFunc, n int) []string {
+	if len(fn.params) == 0 || n == 0 {
+		return nil
+	}
+	last := len(fn.params) - 1
+	elem := ""
+	if fn.variadic {
+		elem = strings.TrimPrefix(fn.params[last], "[]")
+	}
+	hints := make([]string, n)
+	for i := 0; i < n; i++ {
+		switch {
+		case fn.variadic && i >= last:
+			hints[i] = elem
+		case i <= last:
+			hints[i] = fn.params[i]
+		}
+	}
+	return hints
+}
+
 // LoadGoPackages loads exported function signatures for the given Go packages
 // using the Go toolchain (go/packages with type information). paths maps each
 // package qualifier (the `pkg` in `pkg/fn`) to its full import path; the result

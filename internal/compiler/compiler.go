@@ -459,11 +459,23 @@ func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 	}
 	args := []string{"build"}
 	if outBin != "" {
-		args = append(args, "-o", outBin)
+		// With cmd.Dir set below, resolve a relative -o against the caller's CWD
+		// so the output still lands where the user expects.
+		absOut, err := filepath.Abs(outBin)
+		if err != nil {
+			return fmt.Errorf("abs output path %s: %w", outBin, err)
+		}
+		args = append(args, "-o", absOut)
 	}
-	args = append(args, absSrcDir)
+	// Build "." from within the package directory rather than `go build <absDir>`
+	// from the caller's CWD. The latter fails with "directory … outside main
+	// module" when glisp is invoked from inside an unrelated module, or "no
+	// go.mod found" from a non-module CWD. Running in absSrcDir uses that
+	// package's own module, independent of where glisp was launched.
+	args = append(args, ".")
 
 	cmd := exec.Command("go", args...)
+	cmd.Dir = absSrcDir
 	cmd.Stdout = os.Stdout
 	// Stream the compiler output as usual, but keep a copy so we can add a
 	// short, friendly note explaining how the reported locations map back.

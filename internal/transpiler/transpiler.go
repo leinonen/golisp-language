@@ -30,20 +30,32 @@ func (e *TranspileError) Unwrap() error { return e.Err }
 // only to populate the emitter's type tables in the pre-pass; they are never
 // emitted.
 type DeclSet struct {
-	nodes  []ast.Node
-	goPkgs goPkgIndex // loaded Go package signatures (ADR-015); may be nil
+	nodes      []ast.Node
+	goPkgs     goPkgIndex      // loaded Go package signatures (ADR-015); may be nil
+	qualifiers map[string]bool // call-site qualifiers seen in `pkg/fn` symbols
 }
 
-// GoImportPaths returns the external Go packages declared with (:import …)
-// across the collected files, as a map from call-site qualifier (the `pkg` in
-// `pkg/fn`) to full import path. The caller feeds this to LoadGoPackages. Only
-// declared imports are returned — stdlib is auto-imported and already served by
-// the generated qualifier/signature tables.
+// builtinNamespaces are call-site qualifiers that are language built-ins with
+// synthetic expansions (json/encode, re/match, ctx/background, log/info,
+// http/get). They resolve to real stdlib packages but their calls are
+// dispatched by name before the general interop path, so loading the package
+// would be wasted work — skip them when resolving referenced qualifiers.
+var builtinNamespaces = map[string]bool{
+	"json": true, "re": true, "ctx": true, "log": true, "http": true,
+}
+
+// GoImportPaths returns the Go packages whose signatures should be loaded for
+// this program, as a map from call-site qualifier (the `pkg` in `pkg/fn`) to
+// full import path. It covers two sources: packages declared with (:import …),
+// and referenced stdlib packages (qualifiers seen in `pkg/fn` symbols that
+// resolve uniquely through the stdlib table). The caller feeds this to
+// LoadGoPackages.
 func (ds *DeclSet) GoImportPaths() map[string]string {
 	if ds == nil {
 		return nil
 	}
 	paths := map[string]string{}
+	moduleAliases := map[string]bool{} // glisp :require qualifiers — never stdlib
 	for _, n := range ds.nodes {
 		ns, ok := n.(*ast.NSDecl)
 		if !ok {
@@ -55,6 +67,26 @@ func (ds *DeclSet) GoImportPaths() map[string]string {
 				qual = pathQualifier(imp.Path)
 			}
 			paths[qual] = imp.Path
+		}
+		for _, req := range ns.Requires {
+			qual := req.Alias
+			if qual == "" {
+				qual = pathQualifier(req.Path)
+			}
+			moduleAliases[qual] = true
+		}
+	}
+	// Add referenced stdlib packages: a qualifier that isn't already a declared
+	// import or glisp module, isn't a built-in namespace, and resolves to a
+	// single stdlib path (filepath → path/filepath). Ambiguous qualifiers
+	// (rand → crypto/rand|math/rand) are left out — the user disambiguates with
+	// (:import …), which the loop above already picked up.
+	for qual := range ds.qualifiers {
+		if paths[qual] != "" || moduleAliases[qual] || builtinNamespaces[qual] {
+			continue
+		}
+		if resolved, ok := stdlibByQualifier[qual]; ok && len(resolved) == 1 {
+			paths[qual] = resolved[0]
 		}
 	}
 	if len(paths) == 0 {
@@ -95,6 +127,21 @@ func CollectDecls(ds *DeclSet, src, filename string) (*DeclSet, error) {
 		ds = &DeclSet{}
 	}
 	ds.nodes = append(ds.nodes, nodes...)
+	// Record call-site qualifiers (the `pkg` in `pkg/fn`) from the token stream
+	// — robust and complete vs. an AST walk, and string/comment contents are
+	// separate token kinds, so only real symbols are seen. GoImportPaths uses
+	// these to also load referenced stdlib packages, not just declared imports.
+	if ds.qualifiers == nil {
+		ds.qualifiers = map[string]bool{}
+	}
+	for _, t := range tokens {
+		if t.Type != lexer.TokenSymbol {
+			continue
+		}
+		if i := strings.Index(t.Text, "/"); i > 0 {
+			ds.qualifiers[t.Text[:i]] = true
+		}
+	}
 	return ds, nil
 }
 

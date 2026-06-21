@@ -406,8 +406,38 @@ principle: the user never debugs generated Go.
 - [ ] **Mark `loop` scalar bindings as `any`** — the known remaining gap in the numeric-coercion notes; closing it means arithmetic on a `loop`-bound scalar coerces like every other `any` value, removing surprise type annotations on `loop`.
 - [x] **Parser: trailing `;` comment after a `let`-binding value** — `(let [x (f) ; why\n y 2] …)` now parses on the transpiler path (it already round-tripped through the formatter, which filters comment tokens before parsing). A `skipComments` helper (`parser.go`) skips `;`/`;;`/`;;;` tokens between bindings in the `let`/`loop`/`let-or`/`with-open` binding-vector loops (run as the loop's init + post steps), where a trailing comment after a value previously landed where the next binding name was expected (`expected symbol, got comment`). Leading and interleaved binding comments are handled too.
 - [x] **Reflect struct fields in `_glispGet`** — `(:field x)` / `(get x "field")` on an `any` that holds a declared struct now returns the field value (was nil). `_glispGet` (`emit_runtime.go`) gained a reflect fallback after the map/slice cases: for a string key it reflects through a struct (or pointer-to-struct) and matches the key against exported Go field names ignoring ASCII case and hyphens/underscores (`_glispFieldEq`/`_glispNormField`, no `strings`-package dependency), so `"title"`→`Title` and `"first-name"`→`FirstName`. A missing field returns nil like a map miss. So keyword/`get` access is now uniform across maps and structs, including struct elements pulled out of a `[]any` (`(map (fn [b] (:title b)) books)`). `get-in`/`get`-with-default inherit it (they route through `_glispGet`).
-- [ ] **Declare external Go signatures** — `(declare-go fn-name [int] -> []any)` (or read sibling hand-written `.go` func signatures during a dir build) so calls into hand-written Go get typed returns instead of `any`. Makes the documented "bridge pattern for variadic/interop Go APIs" type-flow cleanly for any program that mixes `.glsp` with hand-written Go.
+- [ ] **Eliminate hand-written Go for wrapper modules** (no user ever writes Go — see ADR-012) — supersedes the dropped *declare-go* idea, which only made hand-written Go pleasant. The remaining reason a glisp module reaches for a `bridge.go` is **variadic spreading**: calling a Go variadic API (`pgx.Query(ctx, sql, args...)`, `fmt.Errorf`, `append`) with a runtime slice has no glisp spelling (`apply` routes through `_glispApply`, glisp fns only — it can't emit Go's `args...`). Add a spread marker in call position, e.g. `(pgx/query conn sql & args)` → `pgx.Query(conn, sql, args...)`, emitting `args...` when the trailing value is a slice (the `& rest` syntax already exists in `fn` params). Then audit the other documented escape hatches (`docs/go-interop-exploration.md §3.7`, opaque-return handling, struct field/method interop) so a wrapper like `pgxdb` can be written in **pure glisp** — the database/Go-package story (ADR-014) without a line of user Go. **Now folded into Phase 12 (ADR-015)**, which makes the compiler read Go signatures so variadic spread and the rest of the escape-hatch audit fall out of typed interop.
 
 Lower priority (correctness / large bet, tracked but not ergonomics-first):
 - [ ] **Value-equality `=`/`not=`** — currently Go `==`, so `(= (int64 1) (int 1))` is `false` and collections compare by identity (documented footgun). A `_glispEquals` (numeric unification + deep collection compare) matches Clojure but is a behavior change → wants an ADR.
-- [ ] **User macros (`defmacro`)** — currently parses to `"(macros not yet supported)"`. The largest gap vs Clojure and the reason every new surface form requires patching the transpiler. Even a restricted compile-time (non-hygienic) AST→AST expansion would let the *library* grow instead of the *compiler*. Large enough to warrant an explicit in-scope/out-of-scope ADR (cf. ADR-014 for databases).
+- [ ] **User macros (`defmacro`)** — currently parses to `"(macros not yet supported)"`. The largest gap vs Clojure and the reason every new surface form requires patching the transpiler. Even a restricted compile-time (non-hygienic) AST→AST expansion would let the *library* grow instead of the *compiler*. Large enough to warrant an explicit in-scope/out-of-scope ADR (cf. ADR-014 for databases). The *other* half of extensibility from Phase 12: macros let you author new syntax, typed interop lets you use the existing Go ecosystem — Phase 12 is taken first as the smaller, higher-confidence bet (it needs signature *reading*, not compile-time *evaluation*).
+
+---
+
+## Phase 12 — Toolchain-driven typed interop (ADR-015)
+
+Make the compiler **type-aware of imported Go packages** by reading their
+exported signatures from the Go toolchain (`go/packages`, `NeedTypes`) and
+folding them into the same pre-pass tables user `defn`s populate
+(`e.symbols`/`e.structs`/`e.ifaces`). This is jank's model — Clang for C++
+becomes `go/types` for Go — and it has a precedent already in the tree
+(`stdlibgen` shells to `go list std`). The existing interop forms
+(`(pkg/fn …)`, `(.M o)`, `(.-F o)`, `(Type. {…})`, `(as T v)`) gain typed
+returns, coerced arguments, and variadic spread, so wrapping a Go package
+becomes **pure glisp** (ADR-012 rule 4). No new surface syntax except the
+`& args` spread marker (already the `fn`-param spelling).
+
+**Purely additive**: when `go/packages` can't load a package (offline,
+unresolved dep), its calls emit exactly as they do today (untyped) — typed
+interop never hard-fails a build. **Not** a new evaluator or compile phase —
+an enrichment of the pre-pass, same shape as ADR-013's cross-file `DeclSet`.
+
+Ordered by friction removed (12a enables the rest; 12b is the highest-ROI
+standalone win — it closes the last `bridge.go`):
+
+- [ ] **12a. Signature loader** — load exported func/method/struct-field signatures of each `(:import …)` package via `go/packages`, keyed by import path, cached per build, run in the `emitFile` pre-pass after `ResolveDeps`. Map Go exported names → existing `fnSig`/`structInfo` shapes (reverse of `identToGo`'s kebab↔Pascal). A load failure marks the package "untyped" and degrades to current emission.
+- [ ] **12b. Variadic auto-spread** — `(pkg/fn a b & xs)` → `pkg.Fn(a, b, xs...)` when the loaded signature marks the final param variadic; `& sym` reuses the existing `fn`-param `& rest` form. Closes `go-interop-exploration §3.7` — the last documented reason a wrapper module needs hand-written Go. (Subsumes the Phase 11a "eliminate hand-written Go" item.)
+- [ ] **12c. Typed returns from interop calls** — a `(pkg/fn …)` call carries its real Go return type into typed `let`/`def`/param/return positions and dot-free method dispatch (ADR-013), so `(:field (pkg/fn …))` and `(method (pkg/fn …))` resolve without an `(as T …)` round-trip.
+- [ ] **12d. Coerce `any` args at all imported call sites** — generalize `stdlibNumericParams` (Phase 11a, `math/*`-only) to every loaded package signature, so `any` arguments coerce at any typed Go parameter (numeric via `numericCoercion`, others via the hint/assertion machinery) instead of producing a raw `cannot use … (any) as T` error.
+- [ ] **12e. Glisp-level interop diagnostics** — wrong arity, a wrong-typed argument, or a field/method that doesn't exist on the package's type surfaces as a position-tagged `.glsp` error at transpile time (ADR-011 rule 3), driven by the loaded signatures, instead of a raw `go/types`/`go build` error.
+- [ ] **12f. LSP completion/hover from loaded signatures** — surface imported-package functions, their signatures, and struct fields in completion and hover (the ADR-012 tooling-parity invariant), reusing the same loaded tables.

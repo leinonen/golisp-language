@@ -365,6 +365,12 @@ func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 		srcFiles = append(srcFiles, srcFile{srcPath: srcPath, absSrcPath: absSrcPath, src: string(src)})
 	}
 
+	// Load the exported signatures of any external Go packages the program
+	// imports, so interop calls are type-aware (ADR-015, Phase 12a).
+	// Best-effort: an unloadable package is simply absent and its calls emit
+	// untyped, so this never fails a build.
+	decls.SetGoPackages(transpiler.LoadGoPackages(srcDir, decls.GoImportPaths()))
+
 	for _, sf := range srcFiles {
 		srcPath, absSrcPath, src := sf.srcPath, sf.absSrcPath, sf.src
 		var goSrc string

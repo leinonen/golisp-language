@@ -25,6 +25,42 @@ func TestGoImportPaths(t *testing.T) {
 	}
 }
 
+// TestGoImportPathsStdlib checks that referenced stdlib qualifiers (seen in
+// `pkg/fn` tokens) are resolved to their import paths, while built-in
+// namespaces, ambiguous qualifiers, and glisp module aliases are excluded.
+func TestGoImportPathsStdlib(t *testing.T) {
+	src := `(ns main
+  (:require [github.com/user/mathlib]))
+(defn f [] -> void
+  (let [_ (os/create "x")
+        _ (filepath/join "a" "b")
+        _ (json/encode {})
+        _ (mathlib/add 1 2)
+        _ (rand/intn 5)]
+    nil))`
+	ds, err := CollectDecls(nil, src, "")
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	paths := ds.GoImportPaths()
+
+	if paths["os"] != "os" {
+		t.Errorf("os should resolve to os, got %q", paths["os"])
+	}
+	if paths["filepath"] != "path/filepath" {
+		t.Errorf("filepath should resolve to path/filepath, got %q", paths["filepath"])
+	}
+	if _, ok := paths["json"]; ok {
+		t.Error("json is a built-in namespace and must not be loaded")
+	}
+	if _, ok := paths["mathlib"]; ok {
+		t.Error("mathlib is a glisp module require, not stdlib — must not be loaded")
+	}
+	if _, ok := paths["rand"]; ok {
+		t.Error("rand is ambiguous (crypto/rand|math/rand) — must not be auto-loaded")
+	}
+}
+
 // TestMultiReturnInterop checks that an imported Go function whose loaded
 // signature returns 2+ values, used in single-value position, becomes the
 // friendly if-err diagnostic rather than a raw Go "assignment mismatch"

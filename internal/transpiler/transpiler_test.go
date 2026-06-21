@@ -1727,9 +1727,9 @@ func TestTypedReturnPropagation(t *testing.T) {
 			wantSub: ".(map[string]any)",
 		},
 		{
-			name:    "first into string return asserts",
+			name:    "first into string return coerces",
 			src:     `(defn f [xs []any] -> string (first xs))`,
-			wantSub: "_glispFirst(xs).(string)",
+			wantSub: "_glispToString(_glispFirst(xs))",
 		},
 		{
 			name:    "get into struct return asserts",

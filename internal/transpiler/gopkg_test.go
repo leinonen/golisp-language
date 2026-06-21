@@ -102,6 +102,64 @@ func TestMultiReturnInterop(t *testing.T) {
 	}
 }
 
+// TestArgCoercionInterop checks that an `any` argument at a typed Go parameter
+// of a loaded function is coerced/asserted at the call site (ADR-015, Phase
+// 12d), generalizing the math-only stdlibNumericParams table.
+func TestArgCoercionInterop(t *testing.T) {
+	idx := LoadGoPackages(".", map[string]string{
+		"strings": "strings", "strconv": "strconv", "path": "path",
+	})
+	if idx == nil {
+		t.Fatal("failed to load stdlib signatures")
+	}
+	emit := func(src string) string {
+		ds, err := CollectDecls(nil, src, "")
+		if err != nil {
+			t.Fatalf("collect: %v", err)
+		}
+		ds.SetGoPackages(idx)
+		out, _, err := TranspileNoRuntimeFileExt(src, "", ds, false)
+		if err != nil {
+			t.Fatalf("transpile: %v", err)
+		}
+		return out
+	}
+
+	cases := []struct{ name, src, want string }{
+		{
+			"string param coerces via _glispToString",
+			`(ns main)
+(defn f [xs []any] -> string (strings/to-upper (first xs)))`,
+			"strings.ToUpper(_glispToString(_glispFirst(xs)))",
+		},
+		{
+			"int param coerces via _glispToInt (non-math loaded fn)",
+			`(ns main)
+(defn f [xs []any] -> string (strconv/itoa (first xs)))`,
+			"strconv.Itoa(_glispToInt(_glispFirst(xs)))",
+		},
+		{
+			"variadic element type coerces per-arg, not the slice",
+			`(ns main)
+(defn f [xs []any] -> string (path/join (first xs) (second xs)))`,
+			"path.Join(_glispToString(_glispFirst(xs)), _glispToString(_glispSecond(xs)))",
+		},
+		{
+			"concrete arg is not wrapped",
+			`(ns main)
+(defn f [s string] -> string (strings/to-upper s))`,
+			"strings.ToUpper(s)",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := emit(tc.src); !strings.Contains(got, tc.want) {
+				t.Errorf("expected %q in output:\n%s", tc.want, got)
+			}
+		})
+	}
+}
+
 // TestVariadicSpreadLoaderValidation checks that, with loaded signatures in
 // scope, spreading into a non-variadic imported function is a transpile error
 // while spreading into a variadic one is accepted (ADR-015, Phase 12a — the

@@ -119,6 +119,19 @@ func (e *Emitter) emitExprWithHint(n ast.Node, hint string) error {
 		e.write(post)
 		return nil
 	}
+	// String coercion: an `any` value in a `string` position is converted with
+	// the forgiving _glispToString helper — matching the (string x) cast and
+	// `:- string` destructuring — rather than a brittle `.(string)` assertion
+	// (which would panic on a non-string). Only fires for provably-`any` values,
+	// so a concrete string arg is emitted unchanged.
+	if hint == "string" && e.exprIsAny(n) {
+		e.write("_glispToString(")
+		if err := e.emitExpr(n); err != nil {
+			return err
+		}
+		e.write(")")
+		return nil
+	}
 	// `any`-seam absorption: a call whose Go static type is `any` (map/slice
 	// lookup, `reduce`, `conj`/`into`, a `-> any` fn/method) landing in a concrete
 	// non-numeric position is asserted to the hint — mirroring (as T …) — instead
@@ -2266,6 +2279,16 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		// not a user fn — those win above.
 		if paramTypes == nil {
 			paramTypes = stdlibNumericParams[sym.Name]
+		}
+		// A loaded imported Go function (ADR-015) supplies its real parameter
+		// types, so an `any` argument is coerced/asserted at the call site
+		// (strings.ToUpper(_glispToString(x)), …) — generalizing the math-only
+		// table above to every loaded package. Variadic-aware: trailing args get
+		// the element type, not the []T slice type.
+		if paramTypes == nil {
+			if fn, ok := e.lookupGoCall(sym.Name); ok {
+				paramTypes = paramHintsFor(fn, len(leading))
+			}
 		}
 		// Spreading into an imported Go function whose loaded signature is not
 		// variadic can't be right — catch it at transpile time (ADR-011 rule 3)

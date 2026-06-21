@@ -30,7 +30,47 @@ func (e *TranspileError) Unwrap() error { return e.Err }
 // only to populate the emitter's type tables in the pre-pass; they are never
 // emitted.
 type DeclSet struct {
-	nodes []ast.Node
+	nodes  []ast.Node
+	goPkgs goPkgIndex // loaded Go package signatures (ADR-015); may be nil
+}
+
+// GoImportPaths returns the external Go packages declared with (:import …)
+// across the collected files, as a map from call-site qualifier (the `pkg` in
+// `pkg/fn`) to full import path. The caller feeds this to LoadGoPackages. Only
+// declared imports are returned — stdlib is auto-imported and already served by
+// the generated qualifier/signature tables.
+func (ds *DeclSet) GoImportPaths() map[string]string {
+	if ds == nil {
+		return nil
+	}
+	paths := map[string]string{}
+	for _, n := range ds.nodes {
+		ns, ok := n.(*ast.NSDecl)
+		if !ok {
+			continue
+		}
+		for _, imp := range ns.Imports {
+			qual := imp.Alias
+			if qual == "" {
+				qual = pathQualifier(imp.Path)
+			}
+			paths[qual] = imp.Path
+		}
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+	return paths
+}
+
+// SetGoPackages attaches loaded Go package signatures to the set, so the
+// per-file transpiles seeded from it become type-aware of imported packages
+// (typed returns, arg coercion, variadic-spread validation). nil is fine —
+// calls then emit untyped, exactly as before.
+func (ds *DeclSet) SetGoPackages(idx goPkgIndex) {
+	if ds != nil {
+		ds.goPkgs = idx
+	}
 }
 
 // CollectDecls parses src and appends its top-level declarations to ds (creating
@@ -104,6 +144,7 @@ func transpileWith(src string, cfg transpileConfig) (out string, imports map[str
 	e.strict = cfg.strict
 	if cfg.external != nil {
 		e.externalDecls = cfg.external.nodes
+		e.goPkgs = cfg.external.goPkgs
 	}
 	if err := e.emitFile(nodes); err != nil {
 		return "", nil, &TranspileError{Err: err}
@@ -248,6 +289,10 @@ type Emitter struct {
 	// build. Folded into the pre-pass type tables (symbols/structs/ifaces/
 	// methods/defGlobals) so cross-file types resolve; never emitted.
 	externalDecls []ast.Node
+	// goPkgs: exported signatures of imported Go packages, loaded from the Go
+	// toolchain (ADR-015, Phase 12a), keyed by call-site qualifier. Drives
+	// interop validation/typing; nil when unavailable (untyped fallback).
+	goPkgs goPkgIndex
 }
 
 func (e *Emitter) needImport(pkg string) {
@@ -433,6 +478,7 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	declEmitter.pkg = e.pkg
 	declEmitter.imports = e.imports
 	declEmitter.requires = e.requires
+	declEmitter.goPkgs = e.goPkgs
 	for _, n := range nodes {
 		if _, ok := n.(*ast.NSDecl); ok {
 			continue

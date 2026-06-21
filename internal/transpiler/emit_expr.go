@@ -2267,6 +2267,14 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		if paramTypes == nil {
 			paramTypes = stdlibNumericParams[sym.Name]
 		}
+		// Spreading into an imported Go function whose loaded signature is not
+		// variadic can't be right — catch it at transpile time (ADR-011 rule 3)
+		// rather than emitting invalid Go. Unloaded packages trust the marker.
+		if hasSpread {
+			if fn, found := e.lookupGoCall(sym.Name); found && !fn.variadic {
+				return fmt.Errorf("%s is not variadic — cannot spread arguments with & (at %s)", sym.Name, sym.Pos())
+			}
+		}
 	}
 	if err := e.emitExpr(n.Head); err != nil {
 		return err

@@ -1,0 +1,120 @@
+package transpiler
+
+import (
+	"strings"
+	"testing"
+)
+
+// TestGoImportPaths checks that declared (:import …) packages are collected as
+// qualifier → import path, the input to LoadGoPackages.
+func TestGoImportPaths(t *testing.T) {
+	src := `(ns main
+  (:import [github.com/jackc/pgx/v5])
+  (:import [github.com/google/uuid :as id]))
+(defn f [] -> void nil)`
+	ds, err := CollectDecls(nil, src, "")
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	paths := ds.GoImportPaths()
+	if got := paths["pgx"]; got != "github.com/jackc/pgx/v5" {
+		t.Errorf("pgx qualifier (via /vN convention) = %q, want github.com/jackc/pgx/v5", got)
+	}
+	if got := paths["id"]; got != "github.com/google/uuid" {
+		t.Errorf(":as alias qualifier = %q, want github.com/google/uuid", got)
+	}
+}
+
+// TestVariadicSpreadLoaderValidation checks that, with loaded signatures in
+// scope, spreading into a non-variadic imported function is a transpile error
+// while spreading into a variadic one is accepted (ADR-015, Phase 12a — the
+// external-call validation 12b deferred to the loader).
+func TestVariadicSpreadLoaderValidation(t *testing.T) {
+	idx := LoadGoPackages(".", map[string]string{"fmt": "fmt", "strings": "strings"})
+	if idx == nil {
+		t.Fatal("failed to load stdlib signatures")
+	}
+	withIndex := func(src string) (string, error) {
+		ds, err := CollectDecls(nil, src, "")
+		if err != nil {
+			return "", err
+		}
+		ds.SetGoPackages(idx)
+		out, _, err := TranspileNoRuntimeFileExt(src, "", ds, false)
+		return out, err
+	}
+
+	// Non-variadic: strings.ToUpper(string) string → spread is an error.
+	if _, err := withIndex(`(ns main)
+(defn f [xs] (strings/to-upper "x" & xs))`); err == nil {
+		t.Error("expected error spreading into non-variadic strings/to-upper")
+	} else if !strings.Contains(err.Error(), "is not variadic") {
+		t.Errorf("error %q does not mention 'is not variadic'", err.Error())
+	}
+
+	// Variadic: fmt.Printf(string, ...any) → spread is accepted.
+	out, err := withIndex(`(ns main)
+(defn f [fmtStr string xs] (fmt/printf fmtStr & xs))`)
+	if err != nil {
+		t.Fatalf("unexpected error spreading into variadic fmt/printf: %v", err)
+	}
+	if !strings.Contains(out, "fmt.Printf(fmtStr, xs...)") {
+		t.Errorf("expected fmt.Printf(fmtStr, xs...) in output:\n%s", out)
+	}
+}
+
+// TestLoadGoPackages checks the go/packages signature extraction against the
+// standard library (always available offline). It is the foundation of
+// ADR-015 / Phase 12a: the transpiler reading Go signatures the way jank reads
+// C++ via Clang.
+func TestLoadGoPackages(t *testing.T) {
+	idx := LoadGoPackages(".", map[string]string{
+		"fmt":     "fmt",
+		"strings": "strings",
+	})
+	if idx == nil {
+		t.Fatal("expected a non-nil index for stdlib packages")
+	}
+
+	// fmt.Printf(format string, a ...any) — variadic.
+	if fn, ok := idx.lookup("fmt", "Printf"); !ok {
+		t.Error("fmt.Printf not found")
+	} else if !fn.variadic {
+		t.Errorf("fmt.Printf should be variadic, got %+v", fn)
+	}
+
+	// strings.ToUpper(s string) string — fixed arity, single return.
+	fn, ok := idx.lookup("strings", "ToUpper")
+	if !ok {
+		t.Fatal("strings.ToUpper not found")
+	}
+	if fn.variadic {
+		t.Errorf("strings.ToUpper should not be variadic")
+	}
+	if len(fn.params) != 1 || fn.params[0] != "string" {
+		t.Errorf("strings.ToUpper params = %v, want [string]", fn.params)
+	}
+	if fn.ret != "string" {
+		t.Errorf("strings.ToUpper ret = %q, want string", fn.ret)
+	}
+
+	// strings.Join([]string, string) string.
+	if fn, ok := idx.lookup("strings", "Join"); !ok {
+		t.Error("strings.Join not found")
+	} else if len(fn.params) != 2 || fn.params[0] != "[]string" {
+		t.Errorf("strings.Join params = %v, want [[]string string]", fn.params)
+	}
+}
+
+// TestLoadGoPackagesDegrades verifies graceful degradation: an unresolvable
+// package yields no entry rather than an error (untyped fallback).
+func TestLoadGoPackagesDegrades(t *testing.T) {
+	if idx := LoadGoPackages(".", nil); idx != nil {
+		t.Errorf("empty paths should yield nil index, got %v", idx)
+	}
+	// A bogus import path must not panic or fail the caller; it is simply absent.
+	idx := LoadGoPackages(".", map[string]string{"nope": "example.com/does/not/exist/ever"})
+	if _, ok := idx.lookup("nope", "Anything"); ok {
+		t.Error("bogus package should not appear in the index")
+	}
+}

@@ -6,6 +6,7 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/leinonen/glispdb v0.2.0
 	golang.org/x/term v0.43.0
+	golang.org/x/tools v0.46.0
 )
 
 require (
@@ -13,7 +14,9 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.7.2 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/mod v0.37.0 // indirect
+	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 )
 

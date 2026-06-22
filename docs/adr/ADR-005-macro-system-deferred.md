@@ -1,6 +1,7 @@
 # ADR-005: Macro system deferred
 
-**Status**: Deferred
+**Status**: Superseded by ADR-017 (compile-time macros accepted). Preserved for
+history; the reasoning below was sound for v1 and ADR-017 documents what changed.
 
 ## Context
 

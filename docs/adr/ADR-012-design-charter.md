@@ -1,6 +1,13 @@
 # ADR-012: Design charter — small, data-first, one obvious way
 
-**Status**: Accepted
+**Status**: Identity superseded by ADR-016; engineering discipline still in
+force. The charter's *identity* ("Go's runtime model, undiluted"; "write
+Clojure-shaped code, ship a single static Go binary" as the point) is replaced
+by ADR-016's "a general-purpose Lisp hosted on Go." The charter's *rules* (data
+first / types optional, one obvious way, the user never reads or writes generated
+Go, tooling parity, the one-sitting tour) carry forward and still govern feature
+proposals. The anti-roadmap line "Macros / reader macros" is lifted for
+`defmacro` by ADR-017 (reader macros remain out).
 
 ## Context
 

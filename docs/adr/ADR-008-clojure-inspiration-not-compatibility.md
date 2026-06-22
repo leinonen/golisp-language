@@ -1,6 +1,8 @@
 # ADR-008: Clojure inspiration, not compatibility
 
-**Status**: Accepted
+**Status**: Accepted (amended by ADR-016: the host relationship is now
+explicitly modeled on Clojure↔Java — glisp has its own core vocabulary distinct
+from the host's, and the macro non-goal below is lifted by ADR-017).
 
 ## Context
 

@@ -129,8 +129,14 @@ func Eval(n ast.Node, env *Env) (Value, error) {
 	case *ast.CallExpr:
 		return evalCall(v, env)
 
-	case *ast.SyntaxQuoteExpr, *ast.UnquoteExpr, *ast.UnquoteSpliceExpr:
-		return nil, fmt.Errorf("syntax-quote/unquote evaluation is not implemented yet (Phase 13.2) (at %s)", n.Pos())
+	case *ast.SyntaxQuoteExpr:
+		return expandSyntaxQuote(v.Form, env, map[string]*Sym{})
+
+	case *ast.UnquoteExpr:
+		return nil, fmt.Errorf("unquote (~) is only valid inside a syntax-quote (`) (at %s)", n.Pos())
+
+	case *ast.UnquoteSpliceExpr:
+		return nil, fmt.Errorf("unquote-splice (~@) is only valid inside a syntax-quote (`) (at %s)", n.Pos())
 
 	default:
 		return nil, fmt.Errorf("cannot evaluate %T in a macro body (at %s)", n, n.Pos())

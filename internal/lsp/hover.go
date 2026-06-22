@@ -81,6 +81,8 @@ func buildSymbolTable(nodes []ast.Node) map[string]HoverResult {
 		switch n := node.(type) {
 		case *ast.DefnDecl:
 			table[n.Name] = HoverResult{Sig: formatDefnSig(n), Doc: n.Doc}
+		case *ast.MacroDecl:
+			table[n.Name] = HoverResult{Sig: formatMacroSig(n), Doc: n.Doc}
 		case *ast.DefDecl:
 			table[n.Name] = HoverResult{Sig: formatDefSig(n)}
 		case *ast.StructDecl:
@@ -153,6 +155,28 @@ func formatDefnSig(n *ast.DefnDecl) string {
 		sb.WriteString(n.ReturnType.Text)
 	}
 	sb.WriteString(")")
+	return sb.String()
+}
+
+func formatMacroSig(n *ast.MacroDecl) string {
+	var sb strings.Builder
+	sb.WriteString("(defmacro ")
+	sb.WriteString(n.Name)
+	sb.WriteString(" [")
+	for i, p := range n.Params {
+		if i > 0 {
+			sb.WriteString(" ")
+		}
+		if p.IsRest {
+			sb.WriteString("& ")
+		}
+		if p.Pattern != nil {
+			sb.WriteString(formatPatternSig(p.Pattern))
+		} else {
+			sb.WriteString(p.Name)
+		}
+	}
+	sb.WriteString("])")
 	return sb.String()
 }
 
@@ -313,6 +337,11 @@ func collectBindings(node ast.Node, symName string, symTable map[string]HoverRes
 
 	switch n := node.(type) {
 	case *ast.DefnDecl:
+		for _, p := range n.Params {
+			addParam(p, n.Pos().Line)
+		}
+		recAll(n.Body)
+	case *ast.MacroDecl:
 		for _, p := range n.Params {
 			addParam(p, n.Pos().Line)
 		}
@@ -578,8 +607,9 @@ func mergeLocalTypes(symTable map[string]HoverResult, localTypes map[string]stri
 }
 
 // extractTypeFromSig extracts the type from a hover sig string.
-//   "(defn area [s Circle] -> float64)" → "float64"
-//   "(def x int)" → "int"
+//
+//	"(defn area [s Circle] -> float64)" → "float64"
+//	"(def x int)" → "int"
 func extractTypeFromSig(sig string) string {
 	// defn/defmethod: look for " -> RetType)"
 	if idx := strings.Index(sig, " -> "); idx >= 0 {

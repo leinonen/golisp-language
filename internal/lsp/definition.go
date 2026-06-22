@@ -27,6 +27,8 @@ func FindDeclByName(source, name string) *Range {
 		switch n := node.(type) {
 		case *ast.DefnDecl:
 			pos, declName = n.Pos(), n.Name
+		case *ast.MacroDecl:
+			pos, declName = n.Pos(), n.Name
 		case *ast.DefDecl:
 			pos, declName = n.Pos(), n.Name
 		case *ast.StructDecl:

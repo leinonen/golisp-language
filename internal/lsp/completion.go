@@ -24,6 +24,8 @@ func FindCompletions(source string, line, col int) []CompletionItem {
 			switch n := node.(type) {
 			case *ast.DefnDecl:
 				label, detail, kind, doc = n.Name, formatDefnSig(n), 3, n.Doc
+			case *ast.MacroDecl:
+				label, detail, kind, doc = n.Name, formatMacroSig(n), 3, n.Doc
 			case *ast.DefDecl:
 				label, detail, kind = n.Name, formatDefSig(n), 6
 			case *ast.StructDecl:

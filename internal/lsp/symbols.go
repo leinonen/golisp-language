@@ -26,6 +26,8 @@ func DocumentSymbols(source string) []DocumentSymbol {
 			name, kind = n.Name, SymbolModule
 		case *ast.DefnDecl:
 			name, detail, kind = n.Name, formatDefnSig(n), SymbolFunction
+		case *ast.MacroDecl:
+			name, detail, kind = n.Name, formatMacroSig(n), SymbolFunction
 		case *ast.DefDecl:
 			name, detail, kind = n.Name, formatDefSig(n), SymbolVariable
 		case *ast.StructDecl:

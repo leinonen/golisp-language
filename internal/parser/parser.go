@@ -19,7 +19,6 @@ var didYouMean = map[string]string{
 	"func":      "fn or defn",
 	"begin":     "do",
 	"progn":     "do",
-	"defmacro":  "(macros not yet supported)",
 	"defvar":    "def",
 	"defrecord": "defstruct",
 	"setq":      "def",
@@ -536,6 +535,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseDef(pos)
 		case "defn":
 			return p.parseDefn(pos)
+		case "defmacro":
+			return p.parseDefmacro(pos)
 		case "deftype":
 			return p.parseDeftype(pos)
 		case "defstruct":
@@ -864,6 +865,31 @@ func (p *parser) parseDefn(pos ast.Position) (*ast.DefnDecl, error) {
 		p.clearPendingDoc() // consumed: not an orphan
 	}
 	return ast.NewDefnDecl(pos, nameTok.Text, params, retType, doc, body), nil
+}
+
+func (p *parser) parseDefmacro(pos ast.Position) (*ast.MacroDecl, error) {
+	p.advance() // "defmacro"
+	nameTok, err := p.expect(lexer.TokenSymbol)
+	if err != nil {
+		return nil, err
+	}
+	params, err := p.parseParamList()
+	if err != nil {
+		return nil, err
+	}
+	rawBody, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	doc, body := extractDoc(rawBody)
+	if p.pendingDoc != "" {
+		doc = p.pendingDoc
+		p.clearPendingDoc()
+	}
+	return ast.NewMacroDecl(pos, nameTok.Text, params, doc, body), nil
 }
 
 func (p *parser) parseDeftype(pos ast.Position) (*ast.DefTypeDecl, error) {

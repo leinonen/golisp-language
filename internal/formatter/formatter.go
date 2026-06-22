@@ -466,6 +466,8 @@ func (c *cfmt) format(n ast.Node, indent int) string {
 		return c.formatDef(v, indent)
 	case *ast.DefnDecl:
 		return c.formatDefn(v, indent)
+	case *ast.MacroDecl:
+		return c.formatMacro(v, indent)
 	case *ast.NSDecl:
 		return formatNS(v, indent)
 	case *ast.DefTypeDecl:
@@ -738,6 +740,13 @@ func inline(n ast.Node) string {
 		if v.ReturnType != nil {
 			head += " -> " + tt(v.ReturnType)
 		}
+		var bodyParts []string
+		for _, b := range v.Body {
+			bodyParts = append(bodyParts, inline(b))
+		}
+		return head + " " + strings.Join(bodyParts, " ") + ")"
+	case *ast.MacroDecl:
+		head := "(defmacro " + v.Name + " " + inlineParams(v.Params)
 		var bodyParts []string
 		for _, b := range v.Body {
 			bodyParts = append(bodyParts, inline(b))
@@ -1518,6 +1527,15 @@ func (c *cfmt) formatDefn(v *ast.DefnDecl, indent int) string {
 	if v.ReturnType != nil {
 		sb.WriteString(" -> " + tt(v.ReturnType))
 	}
+	c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
+	sb.WriteString(")")
+	return sb.String()
+}
+
+func (c *cfmt) formatMacro(v *ast.MacroDecl, indent int) string {
+	var sb strings.Builder
+	sb.WriteString(formatDoc(v.Doc, indent))
+	sb.WriteString(ind(indent) + "(defmacro " + v.Name + " " + inlineParams(v.Params))
 	c.emitForms(&sb, v.Body, indent+1, v.Pos().Line)
 	sb.WriteString(")")
 	return sb.String()

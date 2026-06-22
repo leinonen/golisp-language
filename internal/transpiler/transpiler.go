@@ -8,6 +8,7 @@ import (
 
 	"golisp/internal/ast"
 	"golisp/internal/lexer"
+	"golisp/internal/macro"
 	"golisp/internal/parser"
 )
 
@@ -185,6 +186,10 @@ func transpileWith(src string, cfg transpileConfig) (out string, imports map[str
 	}
 	if parseErr != nil {
 		return "", nil, &ParseError{Err: parseErr}
+	}
+	nodes, mErr := macro.Expand(nodes)
+	if mErr != nil {
+		return "", nil, &TranspileError{Err: mErr}
 	}
 	e := newEmitter()
 	e.emitRuntime = cfg.runtime

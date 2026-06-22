@@ -28,6 +28,13 @@ func Format(src string) (string, error) {
 	return formatFile(result.Nodes, result.Comments), nil
 }
 
+// FormatNodes formats an already-parsed list of top-level nodes (no comment
+// information). Used for rendering machine-produced forms such as
+// macro-expansion output, where there are no source comments to preserve.
+func FormatNodes(nodes []ast.Node) string {
+	return formatFile(nodes, nil)
+}
+
 // cfmt carries comment state through the recursive formatters so that ; and ;;
 // comments inside forms are emitted in place rather than relocated to the next
 // top-level form or the end of the file. Comments are consumed depth-first; the

@@ -155,6 +155,38 @@ func TestExpandCrossFile(t *testing.T) {
 	}
 }
 
+func TestExpandOnceSingleStep(t *testing.T) {
+	// macroexpand-1 over top-level forms: outermost macro expands one step only,
+	// the nested macro call is left intact.
+	src := "(defmacro twice [x] `(do ~x ~x))\n" +
+		"(defmacro unless [c b] `(if ~c nil ~b))\n" +
+		"(unless x (twice y))"
+	nodes, err := parser.ParseString(src)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	out, err := ExpandOnce(nodes, nil)
+	if err != nil {
+		t.Fatalf("expand-once: %v", err)
+	}
+	// the macro defs are removed, leaving the one expanded form
+	if len(out) != 1 {
+		t.Fatalf("expected 1 form, got %d", len(out))
+	}
+	iff, ok := out[0].(*ast.IfExpr)
+	if !ok {
+		t.Fatalf("outermost not expanded to if: %T", out[0])
+	}
+	// the inner (twice y) must still be an unexpanded call, not a do
+	call, ok := iff.Else.(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("inner should remain a call, got %T", iff.Else)
+	}
+	if sym, ok := call.Head.(*ast.Symbol); !ok || sym.Name != "twice" {
+		t.Errorf("inner macro should be unexpanded `twice`, got %v", call.Head)
+	}
+}
+
 func TestExpandNoMacrosPassthrough(t *testing.T) {
 	nodes, err := parser.ParseString("(defn f [] (+ 1 2))")
 	if err != nil {

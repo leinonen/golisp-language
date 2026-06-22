@@ -21,37 +21,16 @@ const maxExpandDepth = 200
 // carries the package-wide macro definitions collected by the dir-build pre-pass
 // (the DeclSet); pass nil for a standalone single-file transpile.
 func Expand(nodes []ast.Node, external []*ast.MacroDecl) ([]ast.Node, error) {
-	// Fast path: nothing to do unless a macro is in scope (defined here or in a
-	// sibling file).
-	hasLocalMacro := false
-	for _, n := range nodes {
-		if _, ok := n.(*ast.MacroDecl); ok {
-			hasLocalMacro = true
-			break
-		}
+	ex, active, err := newExpander(nodes, external)
+	if err != nil {
+		return nil, err
 	}
-	if !hasLocalMacro && len(external) == 0 {
+	if !active {
 		return nodes, nil
-	}
-
-	ex := &expander{macros: map[string]*Closure{}, env: NewGlobalEnv()}
-	// Register external (sibling-file) macros first; a same-named macro in this
-	// file then takes precedence.
-	for _, md := range external {
-		clo, err := makeClosureFromParts(md.Params, md.Body, ex.env, md.Name, md.Pos())
-		if err != nil {
-			return nil, err
-		}
-		ex.macros[md.Name] = clo
 	}
 	out := make([]ast.Node, 0, len(nodes))
 	for _, n := range nodes {
-		if md, ok := n.(*ast.MacroDecl); ok {
-			clo, err := makeClosureFromParts(md.Params, md.Body, ex.env, md.Name, md.Pos())
-			if err != nil {
-				return nil, err
-			}
-			ex.macros[md.Name] = clo
+		if _, ok := n.(*ast.MacroDecl); ok {
 			continue
 		}
 		en, err := ex.expand(n, 0)
@@ -63,6 +42,70 @@ func Expand(nodes []ast.Node, external []*ast.MacroDecl) ([]ast.Node, error) {
 	return out, nil
 }
 
+// ExpandOnce expands the outermost macro call of each top-level form a single
+// step (macroexpand-1 semantics applied per top-level form): no recursion into
+// children and no re-expansion of the result. It is a debugging aid (see the
+// `glisp macroexpand --once` command); the build path uses Expand. MacroDecls
+// are removed from the result.
+func ExpandOnce(nodes []ast.Node, external []*ast.MacroDecl) ([]ast.Node, error) {
+	ex, active, err := newExpander(nodes, external)
+	if err != nil {
+		return nil, err
+	}
+	if !active {
+		return nodes, nil
+	}
+	out := make([]ast.Node, 0, len(nodes))
+	for _, n := range nodes {
+		if _, ok := n.(*ast.MacroDecl); ok {
+			continue
+		}
+		en, _, err := ex.expandTopOnce(n)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, en)
+	}
+	return out, nil
+}
+
+// newExpander builds the expander with every in-scope macro registered (external
+// sibling-file macros first, then this file's own, so a local definition wins on
+// a name clash). active is false when no macro is in scope — the caller then
+// returns the nodes unchanged (zero-cost fast path).
+func newExpander(nodes []ast.Node, external []*ast.MacroDecl) (*expander, bool, error) {
+	hasLocalMacro := false
+	for _, n := range nodes {
+		if _, ok := n.(*ast.MacroDecl); ok {
+			hasLocalMacro = true
+			break
+		}
+	}
+	if !hasLocalMacro && len(external) == 0 {
+		return nil, false, nil
+	}
+	ex := &expander{macros: map[string]*Closure{}, env: NewGlobalEnv()}
+	for _, md := range external {
+		clo, err := makeClosureFromParts(md.Params, md.Body, ex.env, md.Name, md.Pos())
+		if err != nil {
+			return nil, false, err
+		}
+		ex.macros[md.Name] = clo
+	}
+	for _, n := range nodes {
+		md, ok := n.(*ast.MacroDecl)
+		if !ok {
+			continue
+		}
+		clo, err := makeClosureFromParts(md.Params, md.Body, ex.env, md.Name, md.Pos())
+		if err != nil {
+			return nil, false, err
+		}
+		ex.macros[md.Name] = clo
+	}
+	return ex, true, nil
+}
+
 type expander struct {
 	macros map[string]*Closure
 	env    *Env
@@ -72,33 +115,53 @@ type expander struct {
 // a macro call, it is expanded and the result re-expanded (fixed point); depth
 // guards that recursion. Otherwise n's children are expanded in place.
 func (ex *expander) expand(n ast.Node, depth int) (ast.Node, error) {
-	if call, ok := n.(*ast.CallExpr); ok {
-		if sym, ok := call.Head.(*ast.Symbol); ok {
-			if macro, ok := ex.macros[sym.Name]; ok {
-				if depth > maxExpandDepth {
-					return nil, fmt.Errorf("macro expansion of %q did not terminate (at %s)", sym.Name, n.Pos())
-				}
-				argData := make([]Value, 0, len(call.Args))
-				for _, a := range call.Args {
-					v, err := nodeToValue(a)
-					if err != nil {
-						return nil, fmt.Errorf("macro %s: %w", sym.Name, err)
-					}
-					argData = append(argData, v)
-				}
-				result, err := applyClosure(macro, argData)
-				if err != nil {
-					return nil, fmt.Errorf("expanding macro %s (at %s): %w", sym.Name, n.Pos(), err)
-				}
-				node, err := valueToNode(result, n.Pos())
-				if err != nil {
-					return nil, fmt.Errorf("macro %s produced an invalid form (at %s): %w", sym.Name, n.Pos(), err)
-				}
-				return ex.expand(node, depth+1)
-			}
-		}
+	if depth > maxExpandDepth {
+		return nil, fmt.Errorf("macro expansion did not terminate (at %s)", n.Pos())
+	}
+	node, fired, err := ex.expandTopOnce(n)
+	if err != nil {
+		return nil, err
+	}
+	if fired {
+		// Re-expand the result (fixed point), then descend into its children.
+		return ex.expand(node, depth+1)
 	}
 	return ex.expandChildren(n)
+}
+
+// expandTopOnce expands node's outermost macro call exactly once: if node is a
+// macro call it is expanded a single step (no children walked, no re-expansion);
+// otherwise it is returned unchanged. The bool reports whether expansion fired.
+func (ex *expander) expandTopOnce(n ast.Node) (ast.Node, bool, error) {
+	call, ok := n.(*ast.CallExpr)
+	if !ok {
+		return n, false, nil
+	}
+	sym, ok := call.Head.(*ast.Symbol)
+	if !ok {
+		return n, false, nil
+	}
+	macro, ok := ex.macros[sym.Name]
+	if !ok {
+		return n, false, nil
+	}
+	argData := make([]Value, 0, len(call.Args))
+	for _, a := range call.Args {
+		v, err := nodeToValue(a)
+		if err != nil {
+			return nil, false, fmt.Errorf("macro %s: %w", sym.Name, err)
+		}
+		argData = append(argData, v)
+	}
+	result, err := applyClosure(macro, argData)
+	if err != nil {
+		return nil, false, fmt.Errorf("expanding macro %s (at %s): %w", sym.Name, n.Pos(), err)
+	}
+	node, err := valueToNode(result, n.Pos())
+	if err != nil {
+		return nil, false, fmt.Errorf("macro %s produced an invalid form (at %s): %w", sym.Name, n.Pos(), err)
+	}
+	return node, true, nil
 }
 
 // expandChildren expands the expression children of a container node in place

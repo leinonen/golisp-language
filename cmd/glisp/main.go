@@ -18,10 +18,13 @@ import (
 	"sort"
 	"strings"
 
+	"golisp/internal/ast"
 	"golisp/internal/compiler"
 	"golisp/internal/formatter"
 	"golisp/internal/lsp"
+	"golisp/internal/macro"
 	"golisp/internal/module"
+	"golisp/internal/parser"
 	"golisp/internal/repl"
 	"golisp/internal/transpiler"
 	"golisp/internal/version"
@@ -46,6 +49,8 @@ func main() {
 		testCmd(os.Args[2:])
 	case "fmt":
 		fmtCmd(os.Args[2:])
+	case "macroexpand":
+		macroexpandCmd(os.Args[2:])
 	case "repl":
 		repl.Run(os.Stdin, os.Stdout)
 	case "doc":
@@ -104,6 +109,43 @@ func buildCmd(args []string) {
 		fmt.Fprintln(os.Stderr, buildErr)
 		os.Exit(1)
 	}
+}
+
+// macroexpandCmd prints the macro-expanded source of a file — a debugging aid
+// for macro authors. By default it fully expands (what the transpiler sees);
+// --once expands each top-level form's outermost macro a single step.
+func macroexpandCmd(args []string) {
+	fs := flag.NewFlagSet("macroexpand", flag.ExitOnError)
+	once := fs.Bool("once", false, "expand each top-level form's outermost macro a single step")
+	if err := fs.Parse(args); err != nil {
+		os.Exit(1)
+	}
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "macroexpand: requires <file.glsp>")
+		os.Exit(1)
+	}
+	path := fs.Arg(0)
+	src, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	nodes, err := parser.ParseString(string(src))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
+		os.Exit(1)
+	}
+	var out []ast.Node
+	if *once {
+		out, err = macro.ExpandOnce(nodes, nil)
+	} else {
+		out, err = macro.Expand(nodes, nil)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
+		os.Exit(1)
+	}
+	fmt.Print(formatter.FormatNodes(out))
 }
 
 func runCmd(args []string) {
@@ -382,6 +424,7 @@ Usage:
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
   glisp fmt     [--check]      <file.glsp>   format source in-place (- = stdin→stdout)
+  glisp macroexpand [--once]   <file.glsp>   show the macro-expanded source
   glisp doc     [name]                       show built-in docs (all if no name)
   glisp get     [-go] <module>[@version]     fetch a glisp module, or a Go package (-go / auto)
   glisp mod     init [module-path]           create glisp.mod for a new module/app

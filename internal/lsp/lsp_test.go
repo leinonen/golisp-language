@@ -138,6 +138,45 @@ func TestHover_defn(t *testing.T) {
 	}
 }
 
+func TestHover_defmacro(t *testing.T) {
+	// "unless" starts at col 10
+	src := "(defmacro unless [c b] `(if ~c nil ~b))"
+	result := FindHover(src, 0, 10)
+	if result == nil {
+		t.Fatal("expected hover for 'unless'")
+	}
+	want := "(defmacro unless [c b])"
+	if result.Sig != want {
+		t.Errorf("want %q, got %q", want, result.Sig)
+	}
+}
+
+func TestDocumentSymbols_defmacro(t *testing.T) {
+	src := "(defmacro unless [c b] `(if ~c nil ~b))"
+	syms := DocumentSymbols(src)
+	if len(syms) != 1 {
+		t.Fatalf("expected 1 symbol, got %d", len(syms))
+	}
+	if syms[0].Name != "unless" || syms[0].Kind != SymbolFunction {
+		t.Errorf("got (%q,%d), want (unless,%d)", syms[0].Name, syms[0].Kind, SymbolFunction)
+	}
+	if syms[0].Detail == "" {
+		t.Errorf("expected a signature detail for defmacro")
+	}
+}
+
+func TestDefinition_defmacro(t *testing.T) {
+	src := "(defmacro unless [c b] `(if ~c nil ~b))\n(defn f [] (unless x y))"
+	// "unless" use is on line 1; find its definition on line 0
+	loc := FindDefinition(src, 1, 12)
+	if loc == nil {
+		t.Fatal("expected a definition location for 'unless'")
+	}
+	if loc.Start.Line != 0 {
+		t.Errorf("definition line = %d, want 0", loc.Start.Line)
+	}
+}
+
 func TestHover_defnDocString(t *testing.T) {
 	src := `(defn greet [name] "Greet a person by name." (str "Hi " name))`
 	result := FindHover(src, 0, 6)

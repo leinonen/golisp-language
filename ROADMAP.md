@@ -74,13 +74,17 @@ ADR-017 for the design rationale.
 - [x] **Tooling parity** (13.6) — `glisp fmt` round-trips `defmacro` and the
   reader forms; the LSP gives `defmacro` hover / completion / outline /
   jump-to-definition; the REPL/CLI gain `macroexpand`.
-- [~] **Validation milestone** (13.7, in progress) — the auto-loaded `core`
-  prelude exists (`internal/macro/core.glsp`, macros written in glisp, available
-  in every file), proven with additive macros (`when-not`, `if-not`). Still to
-  do (13.7b): port pure-rewrite forms (`->`, `->>`, `as->`, …) to `core` macros
-  and retire their bespoke emitters where it simplifies the compiler — the
-  "shrink the compiler" half. (Forms that must touch Go's type system or
-  statement/expression placement stay built-in.)
+- [x] **Validation milestone** (13.7) — the auto-loaded `core` prelude
+  (`internal/macro/core.glsp`, macros written in glisp, available in every file):
+  additive macros `when-not`/`if-not` (13.7a), and the threading macros `->`/`->>`
+  **ported from hand-coded emitters** (13.7b) — emitters retired, output proven
+  byte-identical against the golden suite. Porting forced the expander's
+  container walk to be **complete** (a macro call buried in a `let-or`/`go`/etc.
+  body now expands), which the emitter-based forms got for free. The "library
+  grows, compiler shrinks" thesis is demonstrated end-to-end. Remaining
+  candidates (`as->`, `tap->`, `for`, `assert`, …) can follow the same pattern;
+  forms that must touch Go's type system or statement/expression placement stay
+  built-in.
 
 > **Open design question tracked here, not yet decided:** whether the
 > compile-time evaluator should also back a fast **interpreted execution mode**

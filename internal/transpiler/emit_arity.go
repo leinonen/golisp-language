@@ -24,8 +24,7 @@ var builtinArity = map[string][2]int{
 	"<": {2, 2}, ">": {2, 2}, "<=": {2, 2}, ">=": {2, 2},
 	"and": {2, -1}, "or": {2, -1}, "not": {1, 1},
 
-	// threading
-	"->": {2, -1}, "->>": {2, -1},
+	// threading (-> and ->> are core macros, validated by the expander)
 	"as->": {2, -1}, "tap->": {2, -1}, "tap->>": {2, -1},
 
 	// debugging helpers

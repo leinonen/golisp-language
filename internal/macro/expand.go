@@ -11,27 +11,39 @@ import (
 const maxExpandDepth = 200
 
 // Expand runs the macroexpansion pass over a parsed file: it registers every
-// top-level (defmacro …), expands all macro call-sites (to a fixed point, and
+// top-level (defmacro …) — both this file's and any from sibling files of the
+// same package (external) — expands all macro call-sites (to a fixed point, and
 // recursively through the tree), and returns the node list with the macro
-// definitions removed. Files with no macros and no macro call-sites pass through
-// unchanged.
+// definitions removed. Files with no in-scope macros and no macro call-sites
+// pass through unchanged.
 //
-// This is the single pass inserted between parse and emit (ADR-017). Macros are
-// file-local in this slice; cross-file macro visibility is Phase 13.4.
-func Expand(nodes []ast.Node) ([]ast.Node, error) {
-	// Fast path: nothing to do unless the file defines a macro.
-	hasMacro := false
+// This is the single pass inserted between parse and emit (ADR-017). external
+// carries the package-wide macro definitions collected by the dir-build pre-pass
+// (the DeclSet); pass nil for a standalone single-file transpile.
+func Expand(nodes []ast.Node, external []*ast.MacroDecl) ([]ast.Node, error) {
+	// Fast path: nothing to do unless a macro is in scope (defined here or in a
+	// sibling file).
+	hasLocalMacro := false
 	for _, n := range nodes {
 		if _, ok := n.(*ast.MacroDecl); ok {
-			hasMacro = true
+			hasLocalMacro = true
 			break
 		}
 	}
-	if !hasMacro {
+	if !hasLocalMacro && len(external) == 0 {
 		return nodes, nil
 	}
 
 	ex := &expander{macros: map[string]*Closure{}, env: NewGlobalEnv()}
+	// Register external (sibling-file) macros first; a same-named macro in this
+	// file then takes precedence.
+	for _, md := range external {
+		clo, err := makeClosureFromParts(md.Params, md.Body, ex.env, md.Name, md.Pos())
+		if err != nil {
+			return nil, err
+		}
+		ex.macros[md.Name] = clo
+	}
 	out := make([]ast.Node, 0, len(nodes))
 	for _, n := range nodes {
 		if md, ok := n.(*ast.MacroDecl); ok {

@@ -187,7 +187,18 @@ func transpileWith(src string, cfg transpileConfig) (out string, imports map[str
 	if parseErr != nil {
 		return "", nil, &ParseError{Err: parseErr}
 	}
-	nodes, mErr := macro.Expand(nodes)
+	// Cross-file macros: a (defmacro …) in a sibling file of the same package is
+	// in scope here. The dir-build pre-pass collected every file's top-level
+	// nodes into cfg.external; pull the macro definitions out for the expander.
+	var externalMacros []*ast.MacroDecl
+	if cfg.external != nil {
+		for _, n := range cfg.external.nodes {
+			if md, ok := n.(*ast.MacroDecl); ok {
+				externalMacros = append(externalMacros, md)
+			}
+		}
+	}
+	nodes, mErr := macro.Expand(nodes, externalMacros)
 	if mErr != nil {
 		return "", nil, &TranspileError{Err: mErr}
 	}

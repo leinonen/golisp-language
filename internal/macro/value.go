@@ -118,48 +118,12 @@ func nodeToValue(n ast.Node) (Value, error) {
 		}
 		items = append(items, rest...)
 		return &List{Items: items}, nil
-	case *ast.QuoteExpr:
-		return listOf(n.Pos(), "quote", v.Form)
-	case *ast.IfExpr:
-		parts := []ast.Node{v.Cond, v.Then}
-		if v.Else != nil {
-			parts = append(parts, v.Else)
-		}
-		return listOf(n.Pos(), "if", parts...)
-	case *ast.WhenExpr:
-		return listOf(n.Pos(), "when", append([]ast.Node{v.Cond}, v.Body...)...)
-	case *ast.DoExpr:
-		return listOf(n.Pos(), "do", v.Body...)
-	case *ast.CondExpr:
-		var parts []ast.Node
-		for _, c := range v.Clauses {
-			parts = append(parts, c.Test, c.Body)
-		}
-		if v.Default != nil {
-			parts = append(parts, ast.NewKeywordLit(n.Pos(), "else"), v.Default)
-		}
-		return listOf(n.Pos(), "cond", parts...)
-	case *ast.LetExpr:
-		bindVec := &ast.VectorLit{Pos_: n.Pos()}
-		for _, b := range v.Bindings {
-			bindVec.Elements = append(bindVec.Elements, b.Pattern, b.Value)
-		}
-		parts := append([]ast.Node{bindVec}, v.Body...)
-		return listOf(n.Pos(), "let", parts...)
-	case *ast.FnExpr:
-		paramVec := &ast.VectorLit{Pos_: n.Pos()}
-		for _, p := range v.Params {
-			if p.IsRest {
-				paramVec.Elements = append(paramVec.Elements, ast.NewSymbol(n.Pos(), "&"))
-			}
-			if p.Pattern != nil {
-				return nil, fmt.Errorf("cannot quote a fn with a destructured parameter (at %s)", n.Pos())
-			}
-			paramVec.Elements = append(paramVec.Elements, ast.NewSymbol(n.Pos(), p.Name))
-		}
-		parts := append([]ast.Node{paramVec}, v.Body...)
-		return listOf(n.Pos(), "fn", parts...)
 	default:
+		// Parser-specialized forms (if/when/do/cond/let/loop/fn/quote) are
+		// un-parsed to their generic list shape, then converted.
+		if g, ok := unparse(n); ok {
+			return nodeToValue(g)
+		}
 		return nil, fmt.Errorf("cannot use %T as quoted macro data yet (at %s)", n, n.Pos())
 	}
 }
@@ -174,21 +138,6 @@ func nodesToValues(ns []ast.Node) ([]Value, error) {
 		out = append(out, v)
 	}
 	return out, nil
-}
-
-// listOf builds a List value whose head is the symbol `head` followed by the
-// converted forms.
-func listOf(pos ast.Position, head string, forms ...ast.Node) (Value, error) {
-	items := make([]Value, 0, len(forms)+1)
-	items = append(items, &Sym{Name: head, Pos: pos})
-	for _, f := range forms {
-		v, err := nodeToValue(f)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, v)
-	}
-	return &List{Items: items}, nil
 }
 
 // ---------- Value -> AST ----------

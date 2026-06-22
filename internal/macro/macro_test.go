@@ -240,8 +240,8 @@ func TestEvalErrors(t *testing.T) {
 	if err := evalErr(t, "(fmt/println 1)"); err == nil {
 		t.Error("expected qualified-symbol error")
 	}
-	if err := evalErr(t, "`(a b)"); err == nil {
-		t.Error("expected syntax-quote-not-implemented error")
+	if err := evalErr(t, "~x"); err == nil {
+		t.Error("expected unquote-outside-syntax-quote error")
 	}
 }
 

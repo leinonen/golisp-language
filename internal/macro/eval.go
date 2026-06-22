@@ -207,14 +207,21 @@ func evalCall(n *ast.CallExpr, env *Env) (Value, error) {
 }
 
 func makeClosure(fn *ast.FnExpr, env *Env, name string) (*Closure, error) {
-	c := &Closure{Body: fn.Body, Env: env, Name: name}
-	for i, p := range fn.Params {
+	return makeClosureFromParts(fn.Params, fn.Body, env, name, fn.Pos())
+}
+
+// makeClosureFromParts builds a Closure from a parameter list and body. Shared
+// by fn evaluation and defmacro (a macro is a closure invoked on unevaluated
+// argument forms).
+func makeClosureFromParts(params []ast.Param, body []ast.Node, env *Env, name string, pos ast.Position) (*Closure, error) {
+	c := &Closure{Body: body, Env: env, Name: name}
+	for i, p := range params {
 		if p.Pattern != nil {
-			return nil, fmt.Errorf("destructuring is not supported in a macro fn parameter yet (at %s)", fn.Pos())
+			return nil, fmt.Errorf("destructuring is not supported in a macro fn/defmacro parameter yet (at %s)", pos)
 		}
 		if p.IsRest {
-			if i != len(fn.Params)-1 {
-				return nil, fmt.Errorf("& rest parameter must be last (at %s)", fn.Pos())
+			if i != len(params)-1 {
+				return nil, fmt.Errorf("& rest parameter must be last (at %s)", pos)
 			}
 			c.Rest = p.Name
 			continue

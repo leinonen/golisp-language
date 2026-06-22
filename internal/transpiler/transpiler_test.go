@@ -1072,6 +1072,29 @@ func TestDotoErrors(t *testing.T) {
 	}
 }
 
+// TestDefmacroExpansion locks the Phase 13.3 end-to-end path: a (defmacro …)
+// is registered, removed from output, and its call-sites are expanded into real
+// AST before emission (here, to a Go if/else).
+func TestDefmacroExpansion(t *testing.T) {
+	src := "(defmacro unless [c b] `(if ~c nil ~b))\n" +
+		"(defn f [x bool] (unless x (println \"hi\")))"
+	got, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+	// The macro expands to an if/else (the source had no if); the defmacro
+	// itself emits nothing.
+	if !strings.Contains(got, "} else {") || !strings.Contains(got, `fmt.Println("hi")`) {
+		t.Errorf("expected expanded if/else from macro, got:\n%s", got)
+	}
+	if strings.Contains(got, "unless") {
+		t.Errorf("defmacro/macro name leaked into Go output:\n%s", got)
+	}
+	if strings.Contains(got, "func unless") {
+		t.Errorf("defmacro should not emit a function:\n%s", got)
+	}
+}
+
 // TestReaderMacroErrors locks the Phase 13.0 behavior: reader-macro forms
 // parse and format, but without the macro engine (Phase 13.3+) they produce a
 // clean, position-tagged transpile error rather than a generic "unsupported

@@ -241,6 +241,23 @@ func NewDefnDecl(pos Position, name string, params []Param, ret *TypeExpr, doc s
 	return &DefnDecl{Pos_: pos, Name: name, Params: params, ReturnType: ret, Doc: doc, Body: body}
 }
 
+// MacroDecl: (defmacro name [params] body...) — a compile-time macro. Like a
+// defn with no return type; it is consumed by the macroexpansion pass and never
+// reaches the Go emitter.
+type MacroDecl struct {
+	Pos_   Position
+	Name   string
+	Params []Param
+	Doc    string
+	Body   []Node
+}
+
+func (n *MacroDecl) nodeMarker()   {}
+func (n *MacroDecl) Pos() Position { return n.Pos_ }
+func NewMacroDecl(pos Position, name string, params []Param, doc string, body []Node) *MacroDecl {
+	return &MacroDecl{Pos_: pos, Name: name, Params: params, Doc: doc, Body: body}
+}
+
 // StructDecl: (defstruct Name ^T1 field1 ^T2 field2 ...)
 type StructDecl struct {
 	Pos_   Position

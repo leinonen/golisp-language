@@ -190,6 +190,14 @@ func valueToNode(v Value, pos ast.Position) (ast.Node, error) {
 		if len(x.Items) == 0 {
 			return nil, fmt.Errorf("cannot convert an empty list to a node (at %s)", pos)
 		}
+		// Re-recognize the special forms the parser specializes (the inverse of
+		// unparse), so a macro expanding to (if …) yields a real *ast.IfExpr the
+		// transpiler can emit — not a CallExpr headed by "if".
+		if sym, ok := x.Items[0].(*Sym); ok {
+			if node, handled, err := specialFormNode(sym.Name, x.Items[1:], pos); handled || err != nil {
+				return node, err
+			}
+		}
 		head, err := valueToNode(x.Items[0], pos)
 		if err != nil {
 			return nil, err

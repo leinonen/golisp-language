@@ -56,29 +56,31 @@ The keystone of v2; everything downstream leans on it. This is the single
 largest piece of engineering on the roadmap and the highest-leverage. See
 ADR-017 for the design rationale.
 
-- [ ] **Reader support** — syntax-quote `` ` ``, unquote `~`, unquote-splice
-  `~@`, `'` quote as a real data-producing form, and auto-gensym (`name#`).
-- [ ] **Homoiconic compile-time data** — forms (symbols, keywords, lists,
-  vectors, maps) are first-class *values* the macro evaluator can construct and
-  destructure. `quote` yields data, not a string.
-- [ ] **Compile-time evaluator** — a tree-walking interpreter over the macro
-  subset of glisp, sufficient to run macro bodies. Runs in a **macroexpansion
-  pass inserted between parse and transpile** (same architectural shape as the
-  ADR-013 cross-file `DeclSet` pre-pass — an enrichment, not a second product).
-- [ ] **`defmacro`** plus `macroexpand` / `macroexpand-1`.
-- [ ] **Hygiene model** — non-hygienic with syntax-quote symbol qualification +
-  `gensym`, i.e. Clojure's model. Documented explicitly (this was ADR-005's
-  central worry; it is now a conscious, bounded tradeoff).
-- [ ] **Tooling parity** — formatter and LSP degrade gracefully on user macro
-  call-sites (treat unknown heads via the generic call-form path); REPL gains
-  `macroexpand`.
-- [ ] **Validation milestone** — reimplement a batch of existing special forms
-  (`when`, `when-not`, `->`, `->>`, `as->`, `cond`, `if-let`, `when-let`,
-  `doto`, `assert`, `for`) as `core` **macros**, retiring their bespoke
-  transpiler emitters where it simplifies the compiler. If the language can
-  define its own control flow, the macro system is real. (Forms that must touch
-  Go's type system or statement/expression placement may stay built-in — the
-  goal is to *prove and shrink*, not to dogmatically move everything.)
+- [x] **Reader support** (13.0) — syntax-quote `` ` ``, unquote `~`,
+  unquote-splice `~@`, `'` quote, and auto-gensym (`name#`).
+- [x] **Homoiconic compile-time data** (13.1) — forms (symbols, keywords, lists,
+  vectors, maps) are first-class *values* the macro evaluator constructs and
+  destructures (`internal/macro`); the AST↔Value bridge un-parses specialized
+  forms to generic list data and re-recognizes them on the way out.
+- [x] **Compile-time evaluator** (13.1–13.2) — a tree-walking interpreter over
+  the macro subset of glisp, plus syntax-quote expansion. Runs in a
+  **macroexpansion pass between parse and emit** (`transpileWith`), the same
+  shape as the ADR-013 `DeclSet` pre-pass.
+- [x] **`defmacro`** (13.3) plus `macroexpand` / `macroexpand-1` (13.5, the
+  `glisp macroexpand [--once]` command). Cross-file macro visibility (13.4).
+- [x] **Hygiene model** (13.2) — non-hygienic with `gensym` / auto-gensym
+  (`name#`), i.e. Clojure's model. (Syntax-quote symbol *qualification* is
+  staged to land with `core` in Phase 14.)
+- [x] **Tooling parity** (13.6) — `glisp fmt` round-trips `defmacro` and the
+  reader forms; the LSP gives `defmacro` hover / completion / outline /
+  jump-to-definition; the REPL/CLI gain `macroexpand`.
+- [~] **Validation milestone** (13.7, in progress) — the auto-loaded `core`
+  prelude exists (`internal/macro/core.glsp`, macros written in glisp, available
+  in every file), proven with additive macros (`when-not`, `if-not`). Still to
+  do (13.7b): port pure-rewrite forms (`->`, `->>`, `as->`, …) to `core` macros
+  and retire their bespoke emitters where it simplifies the compiler — the
+  "shrink the compiler" half. (Forms that must touch Go's type system or
+  statement/expression placement stay built-in.)
 
 > **Open design question tracked here, not yet decided:** whether the
 > compile-time evaluator should also back a fast **interpreted execution mode**

@@ -1095,6 +1095,22 @@ func TestDefmacroExpansion(t *testing.T) {
 	}
 }
 
+// TestCorePrelude locks Phase 13.7a: core macros (when-not/if-not) are
+// available with no import and expand into real control flow.
+func TestCorePrelude(t *testing.T) {
+	src := "(defn f [n int] (when-not (= n 0) (println n)))"
+	got, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+	if !strings.Contains(got, "if ") || !strings.Contains(got, "fmt.Println(n)") {
+		t.Errorf("when-not did not expand to an if/println, got:\n%s", got)
+	}
+	if strings.Contains(got, "when-not") || strings.Contains(got, "whenNot") {
+		t.Errorf("when-not leaked into Go output:\n%s", got)
+	}
+}
+
 // TestReaderMacroErrors locks the Phase 13.0 behavior: reader-macro forms
 // parse and format, but without the macro engine (Phase 13.3+) they produce a
 // clean, position-tagged transpile error rather than a generic "unsupported

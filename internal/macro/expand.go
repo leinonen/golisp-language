@@ -69,39 +69,41 @@ func ExpandOnce(nodes []ast.Node, external []*ast.MacroDecl) ([]ast.Node, error)
 	return out, nil
 }
 
-// newExpander builds the expander with every in-scope macro registered (external
-// sibling-file macros first, then this file's own, so a local definition wins on
-// a name clash). active is false when no macro is in scope — the caller then
-// returns the nodes unchanged (zero-cost fast path).
+// newExpander builds the expander with every in-scope macro registered, in
+// priority order (later registrations shadow earlier ones): the core prelude
+// first, then external sibling-file macros, then this file's own. active is
+// always true because the core prelude is always present; the bool is retained
+// for the call sites' fast-path shape.
 func newExpander(nodes []ast.Node, external []*ast.MacroDecl) (*expander, bool, error) {
-	hasLocalMacro := false
-	for _, n := range nodes {
-		if _, ok := n.(*ast.MacroDecl); ok {
-			hasLocalMacro = true
-			break
-		}
-	}
-	if !hasLocalMacro && len(external) == 0 {
-		return nil, false, nil
-	}
 	ex := &expander{macros: map[string]*Closure{}, env: NewGlobalEnv()}
-	for _, md := range external {
-		clo, err := makeClosureFromParts(md.Params, md.Body, ex.env, md.Name, md.Pos())
-		if err != nil {
-			return nil, false, err
-		}
-		ex.macros[md.Name] = clo
+	core, err := CoreMacros()
+	if err != nil {
+		return nil, false, err
 	}
+	register := func(mds []*ast.MacroDecl) error {
+		for _, md := range mds {
+			clo, err := makeClosureFromParts(md.Params, md.Body, ex.env, md.Name, md.Pos())
+			if err != nil {
+				return err
+			}
+			ex.macros[md.Name] = clo
+		}
+		return nil
+	}
+	if err := register(core); err != nil {
+		return nil, false, err
+	}
+	if err := register(external); err != nil {
+		return nil, false, err
+	}
+	var local []*ast.MacroDecl
 	for _, n := range nodes {
-		md, ok := n.(*ast.MacroDecl)
-		if !ok {
-			continue
+		if md, ok := n.(*ast.MacroDecl); ok {
+			local = append(local, md)
 		}
-		clo, err := makeClosureFromParts(md.Params, md.Body, ex.env, md.Name, md.Pos())
-		if err != nil {
-			return nil, false, err
-		}
-		ex.macros[md.Name] = clo
+	}
+	if err := register(local); err != nil {
+		return nil, false, err
 	}
 	return ex, true, nil
 }

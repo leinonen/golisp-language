@@ -13,7 +13,7 @@ func expandStr(t *testing.T, src string) []ast.Node {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	out, err := Expand(nodes)
+	out, err := Expand(nodes, nil)
 	if err != nil {
 		t.Fatalf("expand: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestExpandArityError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if _, err := Expand(nodes); err == nil {
+	if _, err := Expand(nodes, nil); err == nil {
 		t.Error("expected arity error for macro called with too few args")
 	}
 }
@@ -109,8 +109,49 @@ func TestExpandNonTerminating(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if _, err := Expand(nodes); err == nil {
+	if _, err := Expand(nodes, nil); err == nil {
 		t.Error("expected non-termination error")
+	}
+}
+
+func TestExpandCrossFile(t *testing.T) {
+	// A macro defined in a sibling file (external) is in scope when expanding a
+	// file that does not define it locally.
+	libNodes, err := parser.ParseString("(defmacro double [x] `(* ~x 2))")
+	if err != nil {
+		t.Fatalf("parse lib: %v", err)
+	}
+	var external []*ast.MacroDecl
+	for _, n := range libNodes {
+		if md, ok := n.(*ast.MacroDecl); ok {
+			external = append(external, md)
+		}
+	}
+
+	appNodes, err := parser.ParseString("(defn f [] (double 5))")
+	if err != nil {
+		t.Fatalf("parse app: %v", err)
+	}
+	out, err := Expand(appNodes, external)
+	if err != nil {
+		t.Fatalf("expand: %v", err)
+	}
+	call, ok := firstDefnBody(t, out)[0].(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("cross-file macro not expanded: %T", firstDefnBody(t, out)[0])
+	}
+	if sym, ok := call.Head.(*ast.Symbol); !ok || sym.Name != "*" {
+		t.Errorf("expanded head = %v, want *", call.Head)
+	}
+
+	// Without the external macro it stays an unexpanded call to `double`.
+	appNodes2, _ := parser.ParseString("(defn f [] (double 5))")
+	out2, err := Expand(appNodes2, nil)
+	if err != nil {
+		t.Fatalf("expand (no external): %v", err)
+	}
+	if sym, ok := firstDefnBody(t, out2)[0].(*ast.CallExpr).Head.(*ast.Symbol); !ok || sym.Name != "double" {
+		t.Errorf("without external macro, call should stay `double`, got %v", firstDefnBody(t, out2)[0])
 	}
 }
 
@@ -119,7 +160,7 @@ func TestExpandNoMacrosPassthrough(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	out, err := Expand(nodes)
+	out, err := Expand(nodes, nil)
 	if err != nil {
 		t.Fatalf("expand: %v", err)
 	}

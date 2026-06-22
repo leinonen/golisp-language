@@ -6,20 +6,55 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"golisp/internal/formatter"
+	"golisp/internal/transpiler"
 )
 
 // Server holds document state and handles JSON-RPC messages.
 type Server struct {
 	docs     map[string]string
 	shutdown bool
+
+	// goSigCache memoizes loaded Go package signatures (ADR-015 / Phase 12f)
+	// keyed by directory + the set of import paths, so hover/completion don't
+	// re-shell the Go toolchain on every keystroke.
+	goSigCache map[string]*transpiler.GoSignatures
 }
 
 // NewServer creates an initialised Server.
 func NewServer() *Server {
-	return &Server{docs: make(map[string]string)}
+	return &Server{
+		docs:       make(map[string]string),
+		goSigCache: make(map[string]*transpiler.GoSignatures),
+	}
+}
+
+// goSignatures returns loaded Go package signatures for the document at uri,
+// memoized by directory + the document's referenced import paths. Best-effort:
+// when nothing loads the returned value yields no hits, so callers can use it
+// unconditionally.
+func (s *Server) goSignatures(uri, source string) *transpiler.GoSignatures {
+	dir := filepath.Dir(strings.TrimPrefix(uri, "file://"))
+	ds, err := transpiler.CollectDecls(nil, source, "")
+	if err != nil {
+		return transpiler.LoadGoSignatures(dir, nil)
+	}
+	paths := ds.GoImportPaths()
+	keys := make([]string, 0, len(paths))
+	for q, p := range paths {
+		keys = append(keys, q+"="+p)
+	}
+	sort.Strings(keys)
+	cacheKey := dir + "\x00" + strings.Join(keys, ",")
+	if g, ok := s.goSigCache[cacheKey]; ok {
+		return g
+	}
+	g := transpiler.LoadGoSignatures(dir, paths)
+	s.goSigCache[cacheKey] = g
+	return g
 }
 
 // Handle processes one JSON-RPC message.
@@ -136,6 +171,16 @@ func (s *Server) handleHover(req *Request) *Response {
 	}
 	result := FindHover(source, p.Position.Line, p.Position.Character)
 	if result == nil {
+		// No local/builtin match — if the cursor is on a `pkg/fn` interop
+		// symbol, show its real Go signature loaded from the toolchain (12f).
+		name := symbolAtPosition(source, p.Position.Line, p.Position.Character)
+		if strings.Contains(name, "/") {
+			if sig, ok := s.goSignatures(p.TextDocument.URI, source).Signature(name); ok {
+				return s.ok(req, Hover{
+					Contents: MarkupContent{Kind: "markdown", Value: "```go\n" + sig + "\n```"},
+				})
+			}
+		}
 		return s.ok(req, nil)
 	}
 	value := "```clojure\n" + result.Sig + "\n```"
@@ -305,6 +350,19 @@ func (s *Server) handleCompletion(req *Request) *Response {
 	items := FindCompletions(source, p.Position.Line, p.Position.Character)
 	if items == nil {
 		items = []CompletionItem{}
+	}
+	// When the cursor follows a `pkg/` qualifier, offer the imported Go
+	// package's exported functions with their signatures (12f).
+	if prefix := prefixAtPosition(source, p.Position.Line, p.Position.Character); strings.Contains(prefix, "/") {
+		slash := strings.Index(prefix, "/")
+		qualifier, partial := prefix[:slash], prefix[slash+1:]
+		for _, c := range s.goSignatures(p.TextDocument.URI, source).Completions(qualifier, partial) {
+			items = append(items, CompletionItem{
+				Label:  qualifier + "/" + c.Name,
+				Kind:   3, // Function
+				Detail: c.Sig,
+			})
+		}
 	}
 	return s.ok(req, items)
 }

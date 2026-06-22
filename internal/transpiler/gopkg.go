@@ -2,6 +2,7 @@ package transpiler
 
 import (
 	"go/types"
+	"sort"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -16,6 +17,7 @@ type goFunc struct {
 	variadic bool
 	ret      string   // single return Go type; "" if none, void, or multi-return
 	results  []string // every return Go type (len >= 2 marks a multi-return fn)
+	sig      string   // full Go signature for hover, e.g. "func strings.ToUpper(s string) string"
 }
 
 // goPkgIndex maps a package qualifier (the call-site prefix in `pkg/fn`) to its
@@ -150,7 +152,13 @@ func LoadGoPackages(dir string, paths map[string]string) goPkgIndex {
 			if len(results) == 1 {
 				ret = results[0]
 			}
-			fns[name] = goFunc{params: ptypes, variadic: sig.Variadic(), ret: ret, results: results}
+			fns[name] = goFunc{
+				params:   ptypes,
+				variadic: sig.Variadic(),
+				ret:      ret,
+				results:  results,
+				sig:      types.ObjectString(fn, qualifier),
+			}
 		}
 		if len(fns) > 0 {
 			idx[qual] = fns
@@ -160,4 +168,68 @@ func LoadGoPackages(dir string, paths map[string]string) goPkgIndex {
 		return nil
 	}
 	return idx
+}
+
+// GoSignatures is an exported, read-only view of loaded Go package signatures
+// for editor tooling (the LSP — ADR-015 / Phase 12f). It wraps the unexported
+// index so hover and completion can reuse the same loader the transpiler uses,
+// without exposing its internals.
+type GoSignatures struct {
+	idx goPkgIndex
+}
+
+// GoCompletion is one completion candidate from an imported Go package: the
+// exported function name and its full Go signature (for the item detail).
+type GoCompletion struct {
+	Name string
+	Sig  string
+}
+
+// LoadGoSignatures loads the signatures of the given Go packages (qualifier →
+// import path) for use by editor tooling. Returns a usable (possibly empty)
+// value even when nothing loads, so callers needn't nil-check.
+func LoadGoSignatures(dir string, paths map[string]string) *GoSignatures {
+	return &GoSignatures{idx: LoadGoPackages(dir, paths)}
+}
+
+// Signature returns the full Go signature for a `pkg/fn` call symbol (e.g.
+// "strings/to-upper" → "func strings.ToUpper(s string) string"), converting the
+// part after the slash to its Go name exactly as emission does. ok is false for
+// an unqualified symbol or one whose package/function wasn't loaded.
+func (g *GoSignatures) Signature(glispSym string) (sig string, ok bool) {
+	slash := strings.Index(glispSym, "/")
+	if slash <= 0 {
+		return "", false
+	}
+	fn, found := g.idx.lookup(glispSym[:slash], fnToGo(glispSym[slash+1:]))
+	if !found {
+		return "", false
+	}
+	return fn.sig, true
+}
+
+// Completions returns the exported functions of the package named by qualifier
+// whose Go name loosely matches partial (case-insensitive, hyphens ignored, so
+// a kebab-case glisp prefix like "to-up" matches "ToUpper"). Results are sorted
+// by name.
+func (g *GoSignatures) Completions(qualifier, partial string) []GoCompletion {
+	fns, ok := g.idx[qualifier]
+	if !ok {
+		return nil
+	}
+	want := normalizeGoMatch(partial)
+	var out []GoCompletion
+	for name, fn := range fns {
+		if strings.HasPrefix(normalizeGoMatch(name), want) {
+			out = append(out, GoCompletion{Name: name, Sig: fn.sig})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// normalizeGoMatch lowercases and strips hyphens so a kebab-case glisp prefix
+// matches a PascalCase Go name (to-upper ↔ ToUpper).
+func normalizeGoMatch(s string) string {
+	return strings.ReplaceAll(strings.ToLower(s), "-", "")
 }

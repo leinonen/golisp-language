@@ -1,0 +1,17 @@
+;;; glisp core prelude
+;;;
+;;; Macros that are part of the language itself — available in every file with
+;;; no import. They are written in glisp and expanded at compile time by the
+;;; macro engine (Phase 13 / ADR-017), the first step of the v2 thesis: the
+;;; library grows, the compiler stays small. A user defmacro of the same name
+;;; shadows the core one.
+
+;;; (when-not test body...) — evaluate body when test is falsy; nil otherwise.
+;;; The complement of when.
+(defmacro when-not [test & body]
+  `(if ~test nil (do ~@body)))
+
+;;; (if-not test then else?) — like if with the test negated. else is optional
+;;; (nil when omitted).
+(defmacro if-not [test then & else]
+  `(if ~test ~(if (empty? else) nil (first else)) ~then))

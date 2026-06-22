@@ -499,10 +499,16 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	// so cross-file struct field access and method dispatch resolve; only the
 	// current file's nodes are emitted below.
 	declNodes := nodes
-	if len(e.externalDecls) > 0 {
-		declNodes = make([]ast.Node, 0, len(nodes)+len(e.externalDecls))
+	// Seed the pre-pass type tables with sibling-file decls (multi-file builds)
+	// and the core library (Phase 14), so cross-file/struct resolution and core
+	// call signatures (arity + arg coercion) are known. Only `nodes` (this file)
+	// are emitted below; externals and core seed types only.
+	coreSeed := allCoreDecls()
+	if len(e.externalDecls) > 0 || len(coreSeed) > 0 {
+		declNodes = make([]ast.Node, 0, len(nodes)+len(e.externalDecls)+len(coreSeed))
 		declNodes = append(declNodes, nodes...)
 		declNodes = append(declNodes, e.externalDecls...)
+		declNodes = append(declNodes, coreSeed...)
 	}
 	symbols := map[string]*fnSig{}
 	structs := map[string]*structInfo{}
@@ -550,6 +556,35 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			return err
 		}
 		declEmitter.nl()
+	}
+
+	// Core library (Phase 14): in single-file builds this file owns core emission
+	// — append the functions of every used core namespace (their imports/builtins
+	// are discovered here). Multi-file builds emit core once in glisp_core.go
+	// (the compiler), so they skip this. The loop runs to a fixpoint because a
+	// core function may itself use another core namespace.
+	if e.emitRuntime {
+		emitted := map[string]bool{}
+		for {
+			pending := NeededCoreNamespaces(declEmitter.builtinImports)
+			progressed := false
+			for _, ns := range sortedStringSet(pending) {
+				if emitted[ns] {
+					continue
+				}
+				emitted[ns] = true
+				progressed = true
+				for _, d := range coreDeclsFor(map[string]bool{ns: true}) {
+					if err := declEmitter.emitTopLevel(d); err != nil {
+						return err
+					}
+					declEmitter.nl()
+				}
+			}
+			if !progressed {
+				break
+			}
+		}
 	}
 
 	// Pass 2: emit header into main buffer
@@ -788,6 +823,13 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 	case *ast.KeywordLit:
 		e.writef("%q", v.Value)
 	case *ast.Symbol:
+		// Core library symbol used as a value (e.g. passed to a HOF): resolve to
+		// the mangled helper name and mark the namespace needed.
+		if mangled, ns, ok := resolveCoreCall(v.Name); ok {
+			e.needImport(coreNeededKey(ns))
+			e.write(mangled)
+			return nil
+		}
 		goName := identToGo(v.Name)
 		// Track packages used directly via qualified names (math/Pi, os/exit, etc.).
 		// Skip aliases that resolve to module imports (e.g. "web" → "golisp/web").

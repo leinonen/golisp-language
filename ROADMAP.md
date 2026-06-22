@@ -96,16 +96,26 @@ ADR-017 for the design rationale.
 ## Phase 14 — `core`: the standard vocabulary
 
 Give the language its own names; Go becomes the backend. This is where "feels
-like a Lisp, not like Go" is actually delivered. Wherever practical, `core` is
-**written in glisp** (dogfooding the Phase 13 macros and fns); only the leaves
-that must touch Go are transpiler-known.
+like a Lisp, not like Go" is actually delivered. `core` is **written in glisp**
+(`internal/core/*.glsp`), compiled into each program as mangled `_gcore_<ns>_*`
+helpers injected like the runtime (single-file inline, dir builds via
+`glisp_core.go`) — namespaces live only at the glisp level, so they never
+collide with Go's `string` type / stdlib packages. See
+[docs/design/phase-14-core.md](design/phase-14-core.md). **14a (the mechanism +
+`str/`) is done.**
 
-- [ ] **`core` prelude, auto-referred** — `println`/`print`/`pr`/`prn`/`str`/
-  `format`/`assert`/… available unqualified (`println` and `print` already are).
-- [ ] **`string` namespace** (shaped like `clojure.string`) — `(string/upper s)`,
-  `(string/lower s)`, `(string/split s re)`, `(string/join sep coll)`,
-  `(string/replace s a b)`, `(string/trim s)`, `(string/blank? s)`, … over Go's
-  `strings`, but `string/*` is *the* surface.
+- [x] **The `core` mechanism** (14a) — glisp-authored, mangled-and-injected,
+  gated on use, with call-site resolution + arg coercion via the existing
+  param-hint path; user defns shadow `core`; works in single-file and dir builds.
+- [x] **`str` namespace** (14a) — `(str/upper s)`, `lower`, `trim`, `blank?`,
+  `starts-with?`, `ends-with?`, `includes?`, `index-of`, `join`, `split`,
+  `replace`, `repeat`, over Go's `strings`. (`str/` is distinct from the bare
+  `str` concat built-in.) Grows as real code asks.
+- [ ] **`core` prelude, auto-referred** — `slurp`/`spit`/`pr`/`prn`/… bare names
+  (clojure.core style); `println`/`print`/`str`/`format`/`assert` already are.
+- [ ] **`math` namespace** — native-named over Go `math` (`(math/sqrt x)`,
+  `(math/floor x)`, `math/pi`, …). Already partly present; make it the canonical
+  name, not a raw Go passthrough.
 - [ ] **`math` namespace** — native-named over Go `math` (`(math/sqrt x)`,
   `(math/floor x)`, `math/pi`, …). Already partly present; make it the canonical
   name, not a raw Go passthrough.

@@ -1630,6 +1630,17 @@ func (e *Emitter) emitDoExprReturn(n *ast.DoExpr) error {
 
 // emitCallExpr emits a function or operator call.
 func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
+	// Core library resolution (Phase 14): a (str/upper …) call whose qualifier
+	// is a core namespace is rewritten to its mangled helper name and proceeds
+	// through the normal user-fn path (so arity + arg coercion apply). User defns
+	// are checked first below — but a user defn shadows core only by bare name,
+	// and core calls are always qualified, so there is no conflict here.
+	if sym, ok := n.Head.(*ast.Symbol); ok {
+		if mangled, ns, ok := resolveCoreCall(sym.Name); ok {
+			e.needImport(coreNeededKey(ns))
+			n = ast.NewCallExpr(n.Pos_, ast.NewSymbol(sym.Pos_, mangled), n.Args)
+		}
+	}
 	// Handle built-in operators
 	if sym, ok := n.Head.(*ast.Symbol); ok {
 		// Front-gate every built-in against the canonical arity table so a

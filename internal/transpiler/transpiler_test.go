@@ -1095,6 +1095,37 @@ func TestDefmacroExpansion(t *testing.T) {
 	}
 }
 
+// TestCoreStr locks Phase 14a: the str/ core namespace resolves to injected
+// mangled helper functions, with arg coercion at the call site.
+func TestCoreStr(t *testing.T) {
+	src := "(defn f [m] -> string (str/upper (get m \"k\")))"
+	got, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+	if !strings.Contains(got, "_gcore_str_upper(_glispToString(") {
+		t.Errorf("expected coerced core call, got:\n%s", got)
+	}
+	if !strings.Contains(got, "func _gcore_str_upper(s string) string") ||
+		!strings.Contains(got, "strings.ToUpper(s)") {
+		t.Errorf("expected injected str/upper helper, got:\n%s", got)
+	}
+	if strings.Contains(got, "str.Upper") || strings.Contains(got, "str/upper") {
+		t.Errorf("glisp-native name leaked into Go:\n%s", got)
+	}
+}
+
+// TestCoreStrUnusedNotInjected confirms a namespace is only injected when used.
+func TestCoreStrUnusedNotInjected(t *testing.T) {
+	got, err := Transpile("(defn f [] -> int 1)")
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+	if strings.Contains(got, "_gcore_str_") {
+		t.Errorf("core str injected without use:\n%s", got)
+	}
+}
+
 // TestCorePrelude locks Phase 13.7a: core macros (when-not/if-not) are
 // available with no import and expand into real control flow.
 func TestCorePrelude(t *testing.T) {

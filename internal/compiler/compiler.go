@@ -424,6 +424,19 @@ func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 		}
 	}
 
+	// Core library (Phase 14): if any file used a core namespace, emit the core
+	// functions ONCE into glisp_core.go (rather than inline per file, which would
+	// redeclare them). Fold the core functions' own builtin needs into
+	// mergedBuiltins so the shared runtime covers them.
+	coreNamespaces := transpiler.NeededCoreNamespaces(mergedBuiltins)
+	coreSrc, coreBuiltins, err := transpiler.CoreSource(pkgName, coreNamespaces)
+	if err != nil {
+		return fmt.Errorf("core library: %w", err)
+	}
+	for k := range coreBuiltins {
+		mergedBuiltins[k] = true
+	}
+
 	// Write per-file Go sources
 	for _, r := range results {
 		if err := os.WriteFile(r.goPath, []byte(r.goSrc), 0644); err != nil {
@@ -445,6 +458,19 @@ func compileDir(srcDir string, outBin string, build bool, opts Options) error {
 	if cmd := exec.Command("gofmt", "-w", runtimePath); cmd != nil {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			fmt.Fprintf(os.Stderr, "gofmt warning: %v\n%s\n", err, out)
+		}
+	}
+
+	// Write the shared core-library file (if any core namespace was used).
+	if coreSrc != "" {
+		corePath := filepath.Join(srcDir, "glisp_core.go")
+		if err := os.WriteFile(corePath, []byte(coreSrc), 0644); err != nil {
+			return fmt.Errorf("write %s: %w", corePath, err)
+		}
+		if cmd := exec.Command("gofmt", "-w", corePath); cmd != nil {
+			if out, err := cmd.CombinedOutput(); err != nil {
+				fmt.Fprintf(os.Stderr, "gofmt warning: %v\n%s\n", err, out)
+			}
 		}
 	}
 

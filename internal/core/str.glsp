@@ -1,0 +1,43 @@
+;;; glisp core — the str/ namespace: glisp-native string operations.
+;;;
+;;; These wrap Go's strings package (the host), so everyday glisp code says
+;;; (str/upper s) instead of (strings/to-upper s). Authored in glisp; compiled
+;;; into each program as mangled helper functions (see docs/design/phase-14-core.md).
+
+(ns str)
+
+(defn upper [s string] -> string
+  (strings/to-upper s))
+
+(defn lower [s string] -> string
+  (strings/to-lower s))
+
+(defn trim [s string] -> string
+  (strings/trim-space s))
+
+(defn blank? [s string] -> bool
+  (= "" (strings/trim-space s)))
+
+(defn starts-with? [s string prefix string] -> bool
+  (strings/has-prefix s prefix))
+
+(defn ends-with? [s string suffix string] -> bool
+  (strings/has-suffix s suffix))
+
+(defn includes? [s string sub string] -> bool
+  (strings/contains s sub))
+
+(defn index-of [s string sub string] -> int
+  (strings/index s sub))
+
+(defn join [sep string xs []string] -> string
+  (strings/join xs sep))
+
+(defn split [s string sep string] -> []string
+  (strings/split s sep))
+
+(defn replace [s string old string new string] -> string
+  (strings/replace-all s old new))
+
+(defn repeat [s string n int] -> string
+  (strings/repeat s n))

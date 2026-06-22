@@ -33,6 +33,21 @@ func TestFormat(t *testing.T) {
 			want:  "8.5\n",
 		},
 		{
+			name:  "quote",
+			input: "'(a b c)",
+			want:  "'(a b c)\n",
+		},
+		{
+			name:  "syntax-quote with unquote and splice",
+			input: "`(when ~cond ~@body)",
+			want:  "`(when ~cond ~@body)\n",
+		},
+		{
+			name:  "quoted symbol",
+			input: "'x",
+			want:  "'x\n",
+		},
+		{
 			name:  "whole-number float keeps .0 suffix",
 			input: "8.0",
 			want:  "8.0\n",

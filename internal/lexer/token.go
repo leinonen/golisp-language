@@ -7,13 +7,13 @@ type TokenType int
 
 const (
 	// Delimiters
-	TokenLParen   TokenType = iota // (
-	TokenRParen                    // )
-	TokenLBracket                  // [
-	TokenRBracket                  // ]
-	TokenLBrace                    // {
-	TokenRBrace                    // }
-	TokenHashLBrace                // #{
+	TokenLParen     TokenType = iota // (
+	TokenRParen                      // )
+	TokenLBracket                    // [
+	TokenRBracket                    // ]
+	TokenLBrace                      // {
+	TokenRBrace                      // }
+	TokenHashLBrace                  // #{
 
 	// Literals
 	TokenNil
@@ -22,37 +22,43 @@ const (
 	TokenInt
 	TokenFloat
 	TokenString
-	TokenKeyword  // :foo
-	TokenSymbol   // any identifier
+	TokenKeyword // :foo
+	TokenSymbol  // any identifier
 
 	// Special
-	TokenQuote      // '
-	TokenDocComment // ;;; doc comment
-	TokenComment    // ; or ;; regular comment
+	TokenQuote         // '
+	TokenSyntaxQuote   // `
+	TokenUnquote       // ~
+	TokenUnquoteSplice // ~@
+	TokenDocComment    // ;;; doc comment
+	TokenComment       // ; or ;; regular comment
 
 	TokenEOF
 )
 
 var tokenTypeNames = map[TokenType]string{
-	TokenLParen:    "(",
-	TokenRParen:    ")",
-	TokenLBracket:  "[",
-	TokenRBracket:  "]",
-	TokenLBrace:    "{",
-	TokenRBrace:    "}",
-	TokenHashLBrace:  "#{",
-	TokenNil:       "nil",
-	TokenTrue:      "true",
-	TokenFalse:     "false",
-	TokenInt:       "int",
-	TokenFloat:     "float",
-	TokenString:    "string",
-	TokenKeyword:   "keyword",
-	TokenSymbol:    "symbol",
-	TokenQuote:      "'",
-	TokenDocComment: "doc-comment",
-	TokenComment:    "comment",
-	TokenEOF:        "EOF",
+	TokenLParen:        "(",
+	TokenRParen:        ")",
+	TokenLBracket:      "[",
+	TokenRBracket:      "]",
+	TokenLBrace:        "{",
+	TokenRBrace:        "}",
+	TokenHashLBrace:    "#{",
+	TokenNil:           "nil",
+	TokenTrue:          "true",
+	TokenFalse:         "false",
+	TokenInt:           "int",
+	TokenFloat:         "float",
+	TokenString:        "string",
+	TokenKeyword:       "keyword",
+	TokenSymbol:        "symbol",
+	TokenQuote:         "'",
+	TokenSyntaxQuote:   "`",
+	TokenUnquote:       "~",
+	TokenUnquoteSplice: "~@",
+	TokenDocComment:    "doc-comment",
+	TokenComment:       "comment",
+	TokenEOF:           "EOF",
 }
 
 func (t TokenType) String() string {
@@ -64,10 +70,10 @@ func (t TokenType) String() string {
 
 // Token is a single lexed unit.
 type Token struct {
-	Type    TokenType
-	Text    string // raw text from source
-	Line    int
-	Column  int
+	Type   TokenType
+	Text   string // raw text from source
+	Line   int
+	Column int
 }
 
 func (t Token) String() string {

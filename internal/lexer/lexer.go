@@ -167,6 +167,19 @@ func (l *lexer) nextToken() (Token, error) {
 		l.advance()
 		return Token{Type: TokenQuote, Text: "'", Line: line, Column: col}, nil
 
+	case ch == '`':
+		l.advance()
+		return Token{Type: TokenSyntaxQuote, Text: "`", Line: line, Column: col}, nil
+
+	case ch == '~' && l.peekAt(1) == '@':
+		l.advance()
+		l.advance()
+		return Token{Type: TokenUnquoteSplice, Text: "~@", Line: line, Column: col}, nil
+
+	case ch == '~':
+		l.advance()
+		return Token{Type: TokenUnquote, Text: "~", Line: line, Column: col}, nil
+
 	case ch == '"':
 		return l.readString(line, col)
 
@@ -221,7 +234,6 @@ func (l *lexer) readString(line, col int) (Token, error) {
 	}
 	return Token{}, l.errorfAt(line, col, "unterminated string literal (opened here, missing closing \")")
 }
-
 
 func (l *lexer) readKeyword(line, col int) (Token, error) {
 	l.advance() // consume :
@@ -339,7 +351,10 @@ func isSymbolChar(ch rune) bool {
 		return true
 	}
 	switch ch {
-	case '-', '_', '+', '*', '/', '?', '!', '=', '<', '>', '.', '&', '#', '%', '|', '~', '$':
+	// Note: '~' is intentionally excluded — it is the unquote reader token
+	// (and '~@' unquote-splice) for syntax-quote (Phase 13). '`' is the
+	// syntax-quote token. Neither is a valid symbol character.
+	case '-', '_', '+', '*', '/', '?', '!', '=', '<', '>', '.', '&', '#', '%', '|', '$':
 		return true
 	}
 	return false

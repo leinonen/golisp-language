@@ -30,8 +30,8 @@ type TypeExpr struct {
 	Text string
 }
 
-func (t *TypeExpr) nodeMarker()    {}
-func (t *TypeExpr) Pos() Position  { return t.Pos_ }
+func (t *TypeExpr) nodeMarker()   {}
+func (t *TypeExpr) Pos() Position { return t.Pos_ }
 func NewTypeExpr(pos Position, text string) *TypeExpr {
 	return &TypeExpr{Pos_: pos, Text: text}
 }
@@ -41,8 +41,8 @@ func NewTypeExpr(pos Position, text string) *TypeExpr {
 type Param struct {
 	Name      string
 	TypeAnnot *TypeExpr
-	IsRest    bool    // true for & variadic params
-	Pattern   Node    // non-nil for destructured params
+	IsRest    bool // true for & variadic params
+	Pattern   Node // non-nil for destructured params
 }
 
 // MapPair is a key-value pair inside a map literal.
@@ -127,24 +127,24 @@ type KeywordLit struct {
 	Value string // without leading ":"
 }
 
-func (n *NilLit) nodeMarker()      {}
-func (n *NilLit) Pos() Position    { return n.Pos_ }
-func (n *BoolLit) nodeMarker()     {}
-func (n *BoolLit) Pos() Position   { return n.Pos_ }
-func (n *IntLit) nodeMarker()      {}
-func (n *IntLit) Pos() Position    { return n.Pos_ }
-func (n *FloatLit) nodeMarker()    {}
-func (n *FloatLit) Pos() Position  { return n.Pos_ }
-func (n *StringLit) nodeMarker()   {}
-func (n *StringLit) Pos() Position { return n.Pos_ }
-func (n *KeywordLit) nodeMarker()  {}
+func (n *NilLit) nodeMarker()       {}
+func (n *NilLit) Pos() Position     { return n.Pos_ }
+func (n *BoolLit) nodeMarker()      {}
+func (n *BoolLit) Pos() Position    { return n.Pos_ }
+func (n *IntLit) nodeMarker()       {}
+func (n *IntLit) Pos() Position     { return n.Pos_ }
+func (n *FloatLit) nodeMarker()     {}
+func (n *FloatLit) Pos() Position   { return n.Pos_ }
+func (n *StringLit) nodeMarker()    {}
+func (n *StringLit) Pos() Position  { return n.Pos_ }
+func (n *KeywordLit) nodeMarker()   {}
 func (n *KeywordLit) Pos() Position { return n.Pos_ }
 
-func NewNilLit(pos Position) *NilLit              { return &NilLit{pos} }
-func NewBoolLit(pos Position, v bool) *BoolLit    { return &BoolLit{pos, v} }
-func NewIntLit(pos Position, v int64) *IntLit     { return &IntLit{pos, v} }
-func NewFloatLit(pos Position, v float64) *FloatLit { return &FloatLit{pos, v} }
-func NewStringLit(pos Position, v string) *StringLit { return &StringLit{pos, v} }
+func NewNilLit(pos Position) *NilLit                   { return &NilLit{pos} }
+func NewBoolLit(pos Position, v bool) *BoolLit         { return &BoolLit{pos, v} }
+func NewIntLit(pos Position, v int64) *IntLit          { return &IntLit{pos, v} }
+func NewFloatLit(pos Position, v float64) *FloatLit    { return &FloatLit{pos, v} }
+func NewStringLit(pos Position, v string) *StringLit   { return &StringLit{pos, v} }
 func NewKeywordLit(pos Position, v string) *KeywordLit { return &KeywordLit{pos, v} }
 
 // ---------- Symbol ----------
@@ -155,8 +155,8 @@ type Symbol struct {
 	TypeAnnot *TypeExpr // nil if no annotation
 }
 
-func (n *Symbol) nodeMarker()    {}
-func (n *Symbol) Pos() Position  { return n.Pos_ }
+func (n *Symbol) nodeMarker()                     {}
+func (n *Symbol) Pos() Position                   { return n.Pos_ }
 func NewSymbol(pos Position, name string) *Symbol { return &Symbol{Pos_: pos, Name: name} }
 
 // ---------- Collections ----------
@@ -178,12 +178,12 @@ type SetLit struct {
 	Elements []Node
 }
 
-func (n *VectorLit) nodeMarker()    {}
-func (n *VectorLit) Pos() Position  { return n.Pos_ }
-func (n *MapLit) nodeMarker()       {}
-func (n *MapLit) Pos() Position     { return n.Pos_ }
-func (n *SetLit) nodeMarker()       {}
-func (n *SetLit) Pos() Position     { return n.Pos_ }
+func (n *VectorLit) nodeMarker()   {}
+func (n *VectorLit) Pos() Position { return n.Pos_ }
+func (n *MapLit) nodeMarker()      {}
+func (n *MapLit) Pos() Position    { return n.Pos_ }
+func (n *SetLit) nodeMarker()      {}
+func (n *SetLit) Pos() Position    { return n.Pos_ }
 
 func NewVectorLit(pos Position, elems []Node) *VectorLit {
 	return &VectorLit{Pos_: pos, Elements: elems}
@@ -219,8 +219,8 @@ type DefDecl struct {
 	Value     Node
 }
 
-func (n *DefDecl) nodeMarker()    {}
-func (n *DefDecl) Pos() Position  { return n.Pos_ }
+func (n *DefDecl) nodeMarker()   {}
+func (n *DefDecl) Pos() Position { return n.Pos_ }
 func NewDefDecl(pos Position, name string, annot *TypeExpr, val Node) *DefDecl {
 	return &DefDecl{Pos_: pos, Name: name, TypeAnnot: annot, Value: val}
 }
@@ -248,8 +248,8 @@ type StructDecl struct {
 	Fields []StructField
 }
 
-func (n *StructDecl) nodeMarker()    {}
-func (n *StructDecl) Pos() Position  { return n.Pos_ }
+func (n *StructDecl) nodeMarker()   {}
+func (n *StructDecl) Pos() Position { return n.Pos_ }
 func NewStructDecl(pos Position, name string, fields []StructField) *StructDecl {
 	return &StructDecl{Pos_: pos, Name: name, Fields: fields}
 }
@@ -261,8 +261,8 @@ type InterfaceDecl struct {
 	Methods []InterfaceMethod
 }
 
-func (n *InterfaceDecl) nodeMarker()    {}
-func (n *InterfaceDecl) Pos() Position  { return n.Pos_ }
+func (n *InterfaceDecl) nodeMarker()   {}
+func (n *InterfaceDecl) Pos() Position { return n.Pos_ }
 func NewInterfaceDecl(pos Position, name string, methods []InterfaceMethod) *InterfaceDecl {
 	return &InterfaceDecl{Pos_: pos, Name: name, Methods: methods}
 }
@@ -305,13 +305,13 @@ func NewMethodDecl(pos Position, recvType *TypeExpr, recvName, name string,
 
 // CallExpr: (f arg1 arg2 ...)
 type CallExpr struct {
-	Pos_  Position
-	Head  Node
-	Args  []Node
+	Pos_ Position
+	Head Node
+	Args []Node
 }
 
-func (n *CallExpr) nodeMarker()    {}
-func (n *CallExpr) Pos() Position  { return n.Pos_ }
+func (n *CallExpr) nodeMarker()   {}
+func (n *CallExpr) Pos() Position { return n.Pos_ }
 func NewCallExpr(pos Position, head Node, args []Node) *CallExpr {
 	return &CallExpr{Pos_: pos, Head: head, Args: args}
 }
@@ -324,8 +324,8 @@ type FnExpr struct {
 	Body       []Node
 }
 
-func (n *FnExpr) nodeMarker()    {}
-func (n *FnExpr) Pos() Position  { return n.Pos_ }
+func (n *FnExpr) nodeMarker()   {}
+func (n *FnExpr) Pos() Position { return n.Pos_ }
 func NewFnExpr(pos Position, params []Param, ret *TypeExpr, body []Node) *FnExpr {
 	return &FnExpr{Pos_: pos, Params: params, ReturnType: ret, Body: body}
 }
@@ -337,48 +337,48 @@ type LetExpr struct {
 	Body     []Node
 }
 
-func (n *LetExpr) nodeMarker()    {}
-func (n *LetExpr) Pos() Position  { return n.Pos_ }
+func (n *LetExpr) nodeMarker()   {}
+func (n *LetExpr) Pos() Position { return n.Pos_ }
 func NewLetExpr(pos Position, bindings []LetBinding, body []Node) *LetExpr {
 	return &LetExpr{Pos_: pos, Bindings: bindings, Body: body}
 }
 
 // IfExpr: (if cond then else?)
 type IfExpr struct {
-	Pos_  Position
-	Cond  Node
-	Then  Node
-	Else  Node // nil if absent
+	Pos_ Position
+	Cond Node
+	Then Node
+	Else Node // nil if absent
 }
 
-func (n *IfExpr) nodeMarker()    {}
-func (n *IfExpr) Pos() Position  { return n.Pos_ }
+func (n *IfExpr) nodeMarker()   {}
+func (n *IfExpr) Pos() Position { return n.Pos_ }
 func NewIfExpr(pos Position, cond, then, els Node) *IfExpr {
 	return &IfExpr{Pos_: pos, Cond: cond, Then: then, Else: els}
 }
 
 // WhenExpr: (when cond body...)
 type WhenExpr struct {
-	Pos_  Position
-	Cond  Node
-	Body  []Node
+	Pos_ Position
+	Cond Node
+	Body []Node
 }
 
-func (n *WhenExpr) nodeMarker()    {}
-func (n *WhenExpr) Pos() Position  { return n.Pos_ }
+func (n *WhenExpr) nodeMarker()   {}
+func (n *WhenExpr) Pos() Position { return n.Pos_ }
 func NewWhenExpr(pos Position, cond Node, body []Node) *WhenExpr {
 	return &WhenExpr{Pos_: pos, Cond: cond, Body: body}
 }
 
 // CondExpr: (cond test1 val1 ... :else default)
 type CondExpr struct {
-	Pos_     Position
-	Clauses  []CondClause
-	Default  Node
+	Pos_    Position
+	Clauses []CondClause
+	Default Node
 }
 
-func (n *CondExpr) nodeMarker()    {}
-func (n *CondExpr) Pos() Position  { return n.Pos_ }
+func (n *CondExpr) nodeMarker()   {}
+func (n *CondExpr) Pos() Position { return n.Pos_ }
 func NewCondExpr(pos Position, clauses []CondClause, def Node) *CondExpr {
 	return &CondExpr{Pos_: pos, Clauses: clauses, Default: def}
 }
@@ -409,45 +409,84 @@ func NewSwitchExpr(pos Position, head string, expr Node, cases []SwitchCase, def
 
 // DoExpr: (do body...)
 type DoExpr struct {
-	Pos_  Position
-	Body  []Node
+	Pos_ Position
+	Body []Node
 }
 
-func (n *DoExpr) nodeMarker()    {}
-func (n *DoExpr) Pos() Position  { return n.Pos_ }
+func (n *DoExpr) nodeMarker()   {}
+func (n *DoExpr) Pos() Position { return n.Pos_ }
 func NewDoExpr(pos Position, body []Node) *DoExpr {
 	return &DoExpr{Pos_: pos, Body: body}
 }
 
-// QuoteExpr: 'x — not transpiled, only for data literals
+// QuoteExpr: 'x — quote a form as data
 type QuoteExpr struct {
-	Pos_  Position
-	Form  Node
+	Pos_ Position
+	Form Node
 }
 
-func (n *QuoteExpr) nodeMarker()    {}
-func (n *QuoteExpr) Pos() Position  { return n.Pos_ }
+func (n *QuoteExpr) nodeMarker()   {}
+func (n *QuoteExpr) Pos() Position { return n.Pos_ }
+
+func NewQuoteExpr(pos Position, form Node) *QuoteExpr { return &QuoteExpr{pos, form} }
+
+// SyntaxQuoteExpr: `x — syntax-quote template (consumed by the macro engine)
+type SyntaxQuoteExpr struct {
+	Pos_ Position
+	Form Node
+}
+
+func (n *SyntaxQuoteExpr) nodeMarker()   {}
+func (n *SyntaxQuoteExpr) Pos() Position { return n.Pos_ }
+
+func NewSyntaxQuoteExpr(pos Position, form Node) *SyntaxQuoteExpr {
+	return &SyntaxQuoteExpr{pos, form}
+}
+
+// UnquoteExpr: ~x — unquote inside a syntax-quote (macro engine only)
+type UnquoteExpr struct {
+	Pos_ Position
+	Form Node
+}
+
+func (n *UnquoteExpr) nodeMarker()   {}
+func (n *UnquoteExpr) Pos() Position { return n.Pos_ }
+
+func NewUnquoteExpr(pos Position, form Node) *UnquoteExpr { return &UnquoteExpr{pos, form} }
+
+// UnquoteSpliceExpr: ~@x — unquote-splice inside a syntax-quote (macro engine only)
+type UnquoteSpliceExpr struct {
+	Pos_ Position
+	Form Node
+}
+
+func (n *UnquoteSpliceExpr) nodeMarker()   {}
+func (n *UnquoteSpliceExpr) Pos() Position { return n.Pos_ }
+
+func NewUnquoteSpliceExpr(pos Position, form Node) *UnquoteSpliceExpr {
+	return &UnquoteSpliceExpr{pos, form}
+}
 
 // ReturnExpr: (return a b?) explicit return
 type ReturnExpr struct {
-	Pos_  Position
-	Args  []Node
+	Pos_ Position
+	Args []Node
 }
 
-func (n *ReturnExpr) nodeMarker()    {}
-func (n *ReturnExpr) Pos() Position  { return n.Pos_ }
+func (n *ReturnExpr) nodeMarker()   {}
+func (n *ReturnExpr) Pos() Position { return n.Pos_ }
 func NewReturnExpr(pos Position, args []Node) *ReturnExpr {
 	return &ReturnExpr{Pos_: pos, Args: args}
 }
 
 // ValuesExpr: (values a b) — multi-return in tail position
 type ValuesExpr struct {
-	Pos_  Position
-	Args  []Node
+	Pos_ Position
+	Args []Node
 }
 
-func (n *ValuesExpr) nodeMarker()    {}
-func (n *ValuesExpr) Pos() Position  { return n.Pos_ }
+func (n *ValuesExpr) nodeMarker()   {}
+func (n *ValuesExpr) Pos() Position { return n.Pos_ }
 func NewValuesExpr(pos Position, args []Node) *ValuesExpr {
 	return &ValuesExpr{Pos_: pos, Args: args}
 }
@@ -456,24 +495,24 @@ func NewValuesExpr(pos Position, args []Node) *ValuesExpr {
 
 // GoStmt: (go body...) → go func() { body }()
 type GoStmt struct {
-	Pos_  Position
-	Body  []Node
+	Pos_ Position
+	Body []Node
 }
 
-func (n *GoStmt) nodeMarker()    {}
-func (n *GoStmt) Pos() Position  { return n.Pos_ }
+func (n *GoStmt) nodeMarker()   {}
+func (n *GoStmt) Pos() Position { return n.Pos_ }
 func NewGoStmt(pos Position, body []Node) *GoStmt {
 	return &GoStmt{Pos_: pos, Body: body}
 }
 
 // DeferStmt: (defer expr)
 type DeferStmt struct {
-	Pos_  Position
-	Expr  Node
+	Pos_ Position
+	Expr Node
 }
 
-func (n *DeferStmt) nodeMarker()    {}
-func (n *DeferStmt) Pos() Position  { return n.Pos_ }
+func (n *DeferStmt) nodeMarker()   {}
+func (n *DeferStmt) Pos() Position { return n.Pos_ }
 func NewDeferStmt(pos Position, expr Node) *DeferStmt {
 	return &DeferStmt{Pos_: pos, Expr: expr}
 }
@@ -485,45 +524,45 @@ type ChanExpr struct {
 	Cap      Node // nil = unbuffered
 }
 
-func (n *ChanExpr) nodeMarker()    {}
-func (n *ChanExpr) Pos() Position  { return n.Pos_ }
+func (n *ChanExpr) nodeMarker()   {}
+func (n *ChanExpr) Pos() Position { return n.Pos_ }
 func NewChanExpr(pos Position, elem *TypeExpr, cap Node) *ChanExpr {
 	return &ChanExpr{Pos_: pos, ElemType: elem, Cap: cap}
 }
 
 // SendStmt: (send! ch val)
 type SendStmt struct {
-	Pos_  Position
-	Chan  Node
-	Val   Node
+	Pos_ Position
+	Chan Node
+	Val  Node
 }
 
-func (n *SendStmt) nodeMarker()    {}
-func (n *SendStmt) Pos() Position  { return n.Pos_ }
+func (n *SendStmt) nodeMarker()   {}
+func (n *SendStmt) Pos() Position { return n.Pos_ }
 func NewSendStmt(pos Position, ch, val Node) *SendStmt {
 	return &SendStmt{Pos_: pos, Chan: ch, Val: val}
 }
 
 // RecvExpr: (recv! ch)
 type RecvExpr struct {
-	Pos_  Position
-	Chan  Node
+	Pos_ Position
+	Chan Node
 }
 
-func (n *RecvExpr) nodeMarker()    {}
-func (n *RecvExpr) Pos() Position  { return n.Pos_ }
+func (n *RecvExpr) nodeMarker()   {}
+func (n *RecvExpr) Pos() Position { return n.Pos_ }
 func NewRecvExpr(pos Position, ch Node) *RecvExpr {
 	return &RecvExpr{Pos_: pos, Chan: ch}
 }
 
 // CloseStmt: (close! ch)
 type CloseStmt struct {
-	Pos_  Position
-	Chan  Node
+	Pos_ Position
+	Chan Node
 }
 
-func (n *CloseStmt) nodeMarker()    {}
-func (n *CloseStmt) Pos() Position  { return n.Pos_ }
+func (n *CloseStmt) nodeMarker()   {}
+func (n *CloseStmt) Pos() Position { return n.Pos_ }
 func NewCloseStmt(pos Position, ch Node) *CloseStmt {
 	return &CloseStmt{Pos_: pos, Chan: ch}
 }
@@ -534,8 +573,8 @@ type SelectStmt struct {
 	Cases []SelectCase
 }
 
-func (n *SelectStmt) nodeMarker()    {}
-func (n *SelectStmt) Pos() Position  { return n.Pos_ }
+func (n *SelectStmt) nodeMarker()   {}
+func (n *SelectStmt) Pos() Position { return n.Pos_ }
 func NewSelectStmt(pos Position, cases []SelectCase) *SelectStmt {
 	return &SelectStmt{Pos_: pos, Cases: cases}
 }
@@ -686,20 +725,20 @@ type LoopExpr struct {
 	Body     []Node
 }
 
-func (n *LoopExpr) nodeMarker()    {}
-func (n *LoopExpr) Pos() Position  { return n.Pos_ }
+func (n *LoopExpr) nodeMarker()   {}
+func (n *LoopExpr) Pos() Position { return n.Pos_ }
 func NewLoopExpr(pos Position, bindings []LetBinding, body []Node) *LoopExpr {
 	return &LoopExpr{Pos_: pos, Bindings: bindings, Body: body}
 }
 
 // RecurExpr: (recur args...)
 type RecurExpr struct {
-	Pos_  Position
-	Args  []Node
+	Pos_ Position
+	Args []Node
 }
 
-func (n *RecurExpr) nodeMarker()    {}
-func (n *RecurExpr) Pos() Position  { return n.Pos_ }
+func (n *RecurExpr) nodeMarker()   {}
+func (n *RecurExpr) Pos() Position { return n.Pos_ }
 func NewRecurExpr(pos Position, args []Node) *RecurExpr {
 	return &RecurExpr{Pos_: pos, Args: args}
 }
@@ -708,27 +747,27 @@ func NewRecurExpr(pos Position, args []Node) *RecurExpr {
 
 // MethodCallExpr: (.Method obj args...)
 type MethodCallExpr struct {
-	Pos_    Position
-	Method  string
-	Object  Node
-	Args    []Node
+	Pos_   Position
+	Method string
+	Object Node
+	Args   []Node
 }
 
-func (n *MethodCallExpr) nodeMarker()    {}
-func (n *MethodCallExpr) Pos() Position  { return n.Pos_ }
+func (n *MethodCallExpr) nodeMarker()   {}
+func (n *MethodCallExpr) Pos() Position { return n.Pos_ }
 func NewMethodCallExpr(pos Position, method string, obj Node, args []Node) *MethodCallExpr {
 	return &MethodCallExpr{Pos_: pos, Method: method, Object: obj, Args: args}
 }
 
 // FieldAccessExpr: (.-Field obj)
 type FieldAccessExpr struct {
-	Pos_    Position
-	Field   string
-	Object  Node
+	Pos_   Position
+	Field  string
+	Object Node
 }
 
-func (n *FieldAccessExpr) nodeMarker()    {}
-func (n *FieldAccessExpr) Pos() Position  { return n.Pos_ }
+func (n *FieldAccessExpr) nodeMarker()   {}
+func (n *FieldAccessExpr) Pos() Position { return n.Pos_ }
 func NewFieldAccessExpr(pos Position, field string, obj Node) *FieldAccessExpr {
 	return &FieldAccessExpr{Pos_: pos, Field: field, Object: obj}
 }
@@ -740,8 +779,8 @@ type StructLitExpr struct {
 	Fields   []MapPair
 }
 
-func (n *StructLitExpr) nodeMarker()    {}
-func (n *StructLitExpr) Pos() Position  { return n.Pos_ }
+func (n *StructLitExpr) nodeMarker()   {}
+func (n *StructLitExpr) Pos() Position { return n.Pos_ }
 func NewStructLitExpr(pos Position, typeName string, fields []MapPair) *StructLitExpr {
 	return &StructLitExpr{Pos_: pos, TypeName: typeName, Fields: fields}
 }
@@ -753,8 +792,8 @@ type TypeAssertExpr struct {
 	Value Node
 }
 
-func (n *TypeAssertExpr) nodeMarker()    {}
-func (n *TypeAssertExpr) Pos() Position  { return n.Pos_ }
+func (n *TypeAssertExpr) nodeMarker()   {}
+func (n *TypeAssertExpr) Pos() Position { return n.Pos_ }
 func NewTypeAssertExpr(pos Position, ty *TypeExpr, val Node) *TypeAssertExpr {
 	return &TypeAssertExpr{Pos_: pos, Type: ty, Value: val}
 }
@@ -779,13 +818,13 @@ func NewAtomExpr(pos Position, elem *TypeExpr, init Node) *AtomExpr {
 // DefTestDecl: (deftest name body...)
 // Body contains assert= / assert-true / assert-false / assert-nil / assert-err forms.
 type DefTestDecl struct {
-	Pos_  Position
-	Name  string
-	Body  []Node
+	Pos_ Position
+	Name string
+	Body []Node
 }
 
-func (n *DefTestDecl) nodeMarker()    {}
-func (n *DefTestDecl) Pos() Position  { return n.Pos_ }
+func (n *DefTestDecl) nodeMarker()   {}
+func (n *DefTestDecl) Pos() Position { return n.Pos_ }
 func NewDefTestDecl(pos Position, name string, body []Node) *DefTestDecl {
 	return &DefTestDecl{Pos_: pos, Name: name, Body: body}
 }
@@ -802,8 +841,8 @@ type IfErrExpr struct {
 	OnOk    Node
 }
 
-func (n *IfErrExpr) nodeMarker()    {}
-func (n *IfErrExpr) Pos() Position  { return n.Pos_ }
+func (n *IfErrExpr) nodeMarker()   {}
+func (n *IfErrExpr) Pos() Position { return n.Pos_ }
 func NewIfErrExpr(pos Position, val, errName string, expr, onErr, onOk Node) *IfErrExpr {
 	return &IfErrExpr{Pos_: pos, ValName: val, ErrName: errName, Expr: expr, OnErr: onErr, OnOk: onOk}
 }

@@ -1072,6 +1072,34 @@ func TestDotoErrors(t *testing.T) {
 	}
 }
 
+// TestReaderMacroErrors locks the Phase 13.0 behavior: reader-macro forms
+// parse and format, but without the macro engine (Phase 13.3+) they produce a
+// clean, position-tagged transpile error rather than a generic "unsupported
+// expression" or a panic.
+func TestReaderMacroErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"quote", `(defn f [] '(1 2 3))`, "quote ('):"},
+		{"syntax-quote", "(defn f [] `(a b))", "syntax-quote (`)"},
+		{"unquote", `(defn f [] ~x)`, "unquote (~)"},
+		{"unquote-splice", `(defn f [] ~@xs)`, "unquote-splice (~@)"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Transpile(tc.src)
+			if err == nil {
+				t.Fatalf("expected an error, got none")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not contain %q", err.Error(), tc.want)
+			}
+		})
+	}
+}
+
 // TestVariadicSpread covers the `& xs` call-position spread marker:
 // (f a & xs) → f(a, xs...). The marker is the glisp spelling for Go's
 // variadic-spread call (Phase 12b / ADR-015).

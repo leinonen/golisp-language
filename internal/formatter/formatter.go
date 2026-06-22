@@ -391,6 +391,12 @@ func (c *cfmt) format(n ast.Node, indent int) string {
 	case *ast.QuoteExpr:
 		il := "'" + inline(v.Form)
 		return ind(indent) + il
+	case *ast.SyntaxQuoteExpr:
+		return ind(indent) + "`" + inline(v.Form)
+	case *ast.UnquoteExpr:
+		return ind(indent) + "~" + inline(v.Form)
+	case *ast.UnquoteSpliceExpr:
+		return ind(indent) + "~@" + inline(v.Form)
 	case *ast.ReturnExpr:
 		il := inline(n)
 		if fits(il, indent) {
@@ -632,6 +638,12 @@ func inline(n ast.Node) string {
 		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.QuoteExpr:
 		return "'" + inline(v.Form)
+	case *ast.SyntaxQuoteExpr:
+		return "`" + inline(v.Form)
+	case *ast.UnquoteExpr:
+		return "~" + inline(v.Form)
+	case *ast.UnquoteSpliceExpr:
+		return "~@" + inline(v.Form)
 	case *ast.ReturnExpr:
 		parts := []string{"return"}
 		for _, a := range v.Args {
@@ -914,7 +926,7 @@ func formatRawArgs(parts []string, indent int) string {
 	}
 	var sb strings.Builder
 	sb.WriteString(ind(indent) + head + " " + parts[1])
-	argIndent := ind(indent+1)
+	argIndent := ind(indent + 1)
 	for _, p := range parts[2:] {
 		sb.WriteString("\n" + argIndent + p)
 	}

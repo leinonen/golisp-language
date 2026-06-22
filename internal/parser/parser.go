@@ -366,6 +366,12 @@ func (p *parser) parseExprInner() (ast.Node, error) {
 		return p.parseSet()
 	case lexer.TokenQuote:
 		return p.parseQuote()
+	case lexer.TokenSyntaxQuote:
+		return p.parseReaderWrap(lexer.TokenSyntaxQuote)
+	case lexer.TokenUnquote:
+		return p.parseReaderWrap(lexer.TokenUnquote)
+	case lexer.TokenUnquoteSplice:
+		return p.parseReaderWrap(lexer.TokenUnquoteSplice)
 	case lexer.TokenNil:
 		tok := p.advance()
 		return ast.NewNilLit(p.mkpos(tok)), nil
@@ -424,11 +430,33 @@ func (p *parser) parseFloat() (ast.Node, error) {
 
 func (p *parser) parseQuote() (ast.Node, error) {
 	tok := p.advance() // '
-	_, err := p.parseExpr()
+	form, err := p.parseExpr()
 	if err != nil {
 		return nil, err
 	}
-	return nil, fmt.Errorf("%d:%d: quote not supported in transpiler", tok.Line, tok.Column)
+	return ast.NewQuoteExpr(p.mkpos(tok), form), nil
+}
+
+// parseReaderWrap parses a reader-macro prefix (`, ~, ~@) and the single form
+// that follows, wrapping it in the matching AST node. The leading token has
+// already been peeked; this advances past it and reads one form.
+func (p *parser) parseReaderWrap(kind lexer.TokenType) (ast.Node, error) {
+	tok := p.advance() // ` ~ ~@
+	form, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	pos := p.mkpos(tok)
+	switch kind {
+	case lexer.TokenSyntaxQuote:
+		return ast.NewSyntaxQuoteExpr(pos, form), nil
+	case lexer.TokenUnquote:
+		return ast.NewUnquoteExpr(pos, form), nil
+	case lexer.TokenUnquoteSplice:
+		return ast.NewUnquoteSpliceExpr(pos, form), nil
+	default:
+		return nil, fmt.Errorf("%d:%d: internal: unexpected reader token %v", tok.Line, tok.Column, kind)
+	}
 }
 
 // ---------- collections ----------

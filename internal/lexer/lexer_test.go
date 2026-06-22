@@ -19,6 +19,9 @@ func TestTokenizeBasic(t *testing.T) {
 		{"}", TokenRBrace, "}"},
 		{"#{", TokenHashLBrace, "#{"},
 		{"'", TokenQuote, "'"},
+		{"`", TokenSyntaxQuote, "`"},
+		{"~", TokenUnquote, "~"},
+		{"~@", TokenUnquoteSplice, "~@"},
 		{"nil", TokenNil, "nil"},
 		{"true", TokenTrue, "true"},
 		{"false", TokenFalse, "false"},
@@ -85,6 +88,41 @@ func TestTokenizeSequence(t *testing.T) {
 		if types[i] != want[i] {
 			t.Errorf("token[%d]: got %v, want %v", i, types[i], want[i])
 		}
+	}
+}
+
+func TestTokenizeReaderMacros(t *testing.T) {
+	// `(a ~b ~@c) — backtick, then unquote/unquote-splice must NOT glue to the
+	// following symbol, and ~@ must be munched before ~.
+	toks, err := Tokenize("`(a ~b ~@c)")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var types []TokenType
+	for _, tok := range toks {
+		if tok.Type == TokenEOF {
+			break
+		}
+		types = append(types, tok.Type)
+	}
+	want := []TokenType{
+		TokenSyntaxQuote, TokenLParen,
+		TokenSymbol, // a
+		TokenUnquote, TokenSymbol, // ~b
+		TokenUnquoteSplice, TokenSymbol, // ~@c
+		TokenRParen,
+	}
+	if len(types) != len(want) {
+		t.Fatalf("token count: got %d, want %d\ntokens: %v", len(types), len(want), toks)
+	}
+	for i := range want {
+		if types[i] != want[i] {
+			t.Errorf("token[%d]: got %v, want %v", i, types[i], want[i])
+		}
+	}
+	// The symbol after ~ should be exactly "b", not "~b".
+	if toks[4].Text != "b" {
+		t.Errorf("unquoted symbol: got %q, want %q", toks[4].Text, "b")
 	}
 }
 

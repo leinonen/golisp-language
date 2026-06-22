@@ -88,6 +88,46 @@ func TestParseLiterals(t *testing.T) {
 	}
 }
 
+func TestParseReaderMacros(t *testing.T) {
+	// quote
+	q := mustParse(t, "'x")
+	if _, ok := q[0].(*ast.QuoteExpr); !ok {
+		t.Fatalf("'x: got %T, want *ast.QuoteExpr", q[0])
+	}
+	// syntax-quote
+	sq := mustParse(t, "`x")
+	if _, ok := sq[0].(*ast.SyntaxQuoteExpr); !ok {
+		t.Fatalf("`x: got %T, want *ast.SyntaxQuoteExpr", sq[0])
+	}
+	// unquote
+	uq := mustParse(t, "~x")
+	if _, ok := uq[0].(*ast.UnquoteExpr); !ok {
+		t.Fatalf("~x: got %T, want *ast.UnquoteExpr", uq[0])
+	}
+	// unquote-splice
+	us := mustParse(t, "~@xs")
+	if _, ok := us[0].(*ast.UnquoteSpliceExpr); !ok {
+		t.Fatalf("~@xs: got %T, want *ast.UnquoteSpliceExpr", us[0])
+	}
+
+	// Nested: `(a ~b ~@c) — a syntax-quote wrapping a list with an unquote and a splice.
+	nested := mustParse(t, "`(a ~b ~@c)")
+	sqn, ok := nested[0].(*ast.SyntaxQuoteExpr)
+	if !ok {
+		t.Fatalf("nested: got %T, want *ast.SyntaxQuoteExpr", nested[0])
+	}
+	list, ok := sqn.Form.(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("nested form: got %T, want *ast.CallExpr", sqn.Form)
+	}
+	if _, ok := list.Args[0].(*ast.UnquoteExpr); !ok {
+		t.Errorf("nested arg 0: got %T, want *ast.UnquoteExpr", list.Args[0])
+	}
+	if _, ok := list.Args[1].(*ast.UnquoteSpliceExpr); !ok {
+		t.Errorf("nested arg 1: got %T, want *ast.UnquoteSpliceExpr", list.Args[1])
+	}
+}
+
 func TestParseDefn(t *testing.T) {
 	nodes := mustParse(t, `(defn add [a int b int] -> int (+ a b))`)
 	if len(nodes) != 1 {

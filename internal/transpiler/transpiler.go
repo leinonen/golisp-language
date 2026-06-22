@@ -874,6 +874,14 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitTypeAssertExpr(v)
 	case *ast.AtomExpr:
 		return e.emitAtomExpr(v)
+	case *ast.QuoteExpr:
+		return fmt.Errorf("quote ('): runtime quoted data is not yet emittable; quote is currently only meaningful inside a macro body (at %s)", n.Pos())
+	case *ast.SyntaxQuoteExpr:
+		return fmt.Errorf("syntax-quote (`) requires the macro engine and is only valid inside a (defmacro ...) body (at %s)", n.Pos())
+	case *ast.UnquoteExpr:
+		return fmt.Errorf("unquote (~) is only valid inside a syntax-quote (`) template (at %s)", n.Pos())
+	case *ast.UnquoteSpliceExpr:
+		return fmt.Errorf("unquote-splice (~@) is only valid inside a syntax-quote (`) template (at %s)", n.Pos())
 	default:
 		return fmt.Errorf("unsupported expression: %T at %s", n, n.Pos())
 	}

@@ -187,6 +187,62 @@ func TestExpandOnceSingleStep(t *testing.T) {
 	}
 }
 
+// TestExpandWalksAllContainers guards against the walker missing a container
+// node: a macro call buried in a let-or / when / threading nest must still
+// expand (a missing container would silently leave the call unexpanded).
+func TestExpandWalksAllContainers(t *testing.T) {
+	src := "(defn f [m] (let-or [x (get m :x) {}] (when-not (= x 0) (-> x (+ 1)))))"
+	out := expandStr(t, src)
+	lo, ok := firstDefnBody(t, out)[0].(*ast.LetOrExpr)
+	if !ok {
+		t.Fatalf("expected let-or, got %T", firstDefnBody(t, out)[0])
+	}
+	// the when-not in the let-or body must have expanded to an if
+	if _, ok := lo.Body[0].(*ast.IfExpr); !ok {
+		t.Fatalf("when-not inside let-or body not expanded: %T", lo.Body[0])
+	}
+	// and the -> inside that must have expanded to (+ x 1)
+	iff := lo.Body[0].(*ast.IfExpr)
+	do, ok := iff.Else.(*ast.DoExpr)
+	if !ok {
+		t.Fatalf("expected do in when-not body, got %T", iff.Else)
+	}
+	call, ok := do.Body[0].(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("-> not expanded inside nested body: %T", do.Body[0])
+	}
+	if sym, ok := call.Head.(*ast.Symbol); !ok || sym.Name != "+" {
+		t.Errorf("-> expansion head = %v, want +", call.Head)
+	}
+}
+
+func TestExpandThreadingMacros(t *testing.T) {
+	// -> threads first, ->> threads last; both are core macros now.
+	first := expandTop(t, "(-> x (f a) (g b))")
+	if Print(nodeToValueMust(t, first)) != "(g (f x a) b)" {
+		t.Errorf("-> = %s, want (g (f x a) b)", Print(nodeToValueMust(t, first)))
+	}
+	last := expandTop(t, "(->> x (f a) (g b))")
+	if Print(nodeToValueMust(t, last)) != "(g b (f a x))" {
+		t.Errorf("->> = %s, want (g b (f a x))", Print(nodeToValueMust(t, last)))
+	}
+	// bare-symbol form: (-> x f) => (f x)
+	bare := expandTop(t, "(-> x f)")
+	if Print(nodeToValueMust(t, bare)) != "(f x)" {
+		t.Errorf("-> bare = %s, want (f x)", Print(nodeToValueMust(t, bare)))
+	}
+}
+
+// nodeToValueMust converts a node back to a value for readable assertions.
+func nodeToValueMust(t *testing.T, n ast.Node) Value {
+	t.Helper()
+	v, err := nodeToValue(n)
+	if err != nil {
+		t.Fatalf("nodeToValue: %v", err)
+	}
+	return v
+}
+
 func TestExpandNoMacrosPassthrough(t *testing.T) {
 	nodes, err := parser.ParseString("(defn f [] (+ 1 2))")
 	if err != nil {

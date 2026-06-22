@@ -15,3 +15,26 @@
 ;;; (nil when omitted).
 (defmacro if-not [test then & else]
   `(if ~test ~(if (empty? else) nil (first else)) ~then))
+
+;;; (-> x form...) — thread-first. Insert x as the first argument of the next
+;;; form, then thread that result through the rest. (-> x (f a) (g b)) becomes
+;;; (g (f x a) b); a bare symbol form f becomes (f x).
+(defmacro -> [x & forms]
+  (reduce
+    (fn [acc form]
+      (if (list? form)
+        `(~(first form) ~acc ~@(rest form))
+        `(~form ~acc)))
+    x
+    forms))
+
+;;; (->> x form...) — thread-last. Like -> but x is inserted as the *last*
+;;; argument of each form. (->> x (map f) (filter g)) becomes (filter g (map f x)).
+(defmacro ->> [x & forms]
+  (reduce
+    (fn [acc form]
+      (if (list? form)
+        `(~(first form) ~@(rest form) ~acc)
+        `(~form ~acc)))
+    x
+    forms))

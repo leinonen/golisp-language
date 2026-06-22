@@ -244,10 +244,98 @@ func (ex *expander) expandChildren(n ast.Node) (ast.Node, error) {
 			v.Pairs[i].Key = ev(v.Pairs[i].Key)
 			v.Pairs[i].Value = ev(v.Pairs[i].Value)
 		}
+
+	// conditional-binding forms
+	case *ast.IfLetExpr:
+		v.Expr = ev(v.Expr)
+		v.Then = ev(v.Then)
+		v.Else = ev(v.Else)
+	case *ast.WhenLetExpr:
+		v.Expr = ev(v.Expr)
+		evList(v.Body)
+	case *ast.LetOrExpr:
+		for i := range v.Bindings {
+			v.Bindings[i].Expr = ev(v.Bindings[i].Expr)
+			v.Bindings[i].Fallback = ev(v.Bindings[i].Fallback)
+		}
+		evList(v.Body)
+	case *ast.IfErrExpr:
+		v.Expr = ev(v.Expr)
+		v.OnErr = ev(v.OnErr)
+		v.OnOk = ev(v.OnOk)
+
+	// concurrency / resource forms
+	case *ast.GoStmt:
+		evList(v.Body)
+	case *ast.GoValExpr:
+		evList(v.Body)
+	case *ast.ParStmt:
+		evList(v.Bodies)
+	case *ast.DeferStmt:
+		v.Expr = ev(v.Expr)
+	case *ast.SendStmt:
+		v.Chan = ev(v.Chan)
+		v.Val = ev(v.Val)
+	case *ast.RecvExpr:
+		v.Chan = ev(v.Chan)
+	case *ast.RecvOkExpr:
+		v.Chan = ev(v.Chan)
+	case *ast.CloseStmt:
+		v.Chan = ev(v.Chan)
+	case *ast.SelectStmt:
+		for i := range v.Cases {
+			v.Cases[i].ChanExpr = ev(v.Cases[i].ChanExpr)
+			v.Cases[i].SendVal = ev(v.Cases[i].SendVal)
+			v.Cases[i].TimeoutMs = ev(v.Cases[i].TimeoutMs)
+			evList(v.Cases[i].Body)
+		}
+	case *ast.ForChanStmt:
+		v.Chan = ev(v.Chan)
+		evList(v.Body)
+	case *ast.WithLockExpr:
+		v.Mutex = ev(v.Mutex)
+		evList(v.Body)
+	case *ast.WithOpenExpr:
+		for i := range v.Bindings {
+			v.Bindings[i].Value = ev(v.Bindings[i].Value)
+		}
+		evList(v.Body)
+	case *ast.DotoExpr:
+		v.Object = ev(v.Object)
+		evList(v.Steps)
+	case *ast.PipelineExpr:
+		v.Source = ev(v.Source)
+		evList(v.Stages)
+	case *ast.FanOutStmt:
+		v.N = ev(v.N)
+		v.Chan = ev(v.Chan)
+		evList(v.Body)
+	case *ast.FanInExpr:
+		evList(v.Chans)
+	case *ast.RecurExpr:
+		evList(v.Args)
+
+	// interop / misc expression forms
+	case *ast.MethodCallExpr:
+		v.Object = ev(v.Object)
+		evList(v.Args)
+	case *ast.FieldAccessExpr:
+		v.Object = ev(v.Object)
+	case *ast.StructLitExpr:
+		for i := range v.Fields {
+			v.Fields[i].Key = ev(v.Fields[i].Key)
+			v.Fields[i].Value = ev(v.Fields[i].Value)
+		}
+	case *ast.TypeAssertExpr:
+		v.Value = ev(v.Value)
+	case *ast.AtomExpr:
+		v.Init = ev(v.Init)
+
 	case *ast.QuoteExpr:
 		// quoted data is not expanded
 	}
-	// Note: containers not listed here (e.g. some concurrency forms) do not yet
-	// have their children walked for macro calls; tracked for a follow-up.
+	// Leaf nodes (literals, symbols, keywords) and reader nodes have no
+	// expression children to walk. Every container that can hold an expression
+	// is handled above so a macro call is expanded wherever it appears.
 	return n, err
 }

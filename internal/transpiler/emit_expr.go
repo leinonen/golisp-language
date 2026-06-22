@@ -1698,10 +1698,8 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return e.emitIntConv(n.Args)
 		case "float64":
 			return e.emitFloat64Conv(n.Args)
-		case "->":
-			return e.emitThreadFirst(n.Args)
-		case "->>":
-			return e.emitThreadLast(n.Args)
+		// -> and ->> are core macros (internal/macro/core.glsp); they are
+		// expanded before emission and never reach here.
 		case "as->":
 			return e.emitAsThread(n.Args)
 		case "tap->":
@@ -2848,48 +2846,6 @@ func (e *Emitter) emitFloat64Conv(args []ast.Node) error {
 	}
 	e.write(")")
 	return nil
-}
-
-// emitThreadFirst: (-> x f1 f2) → f2(f1(x))
-func (e *Emitter) emitThreadFirst(args []ast.Node) error {
-	if len(args) < 2 {
-		return fmt.Errorf("-> requires at least 2 forms")
-	}
-	node := args[0]
-	for _, form := range args[1:] {
-		switch f := form.(type) {
-		case *ast.Symbol:
-			// (-> x f) → f(x)
-			node = ast.NewCallExpr(f.Pos_, f, []ast.Node{node})
-		case *ast.CallExpr:
-			// (-> x (f a b)) → f(x, a, b)
-			newArgs := append([]ast.Node{node}, f.Args...)
-			node = ast.NewCallExpr(f.Pos_, f.Head, newArgs)
-		default:
-			return fmt.Errorf("-> form must be a symbol or call, got %T", form)
-		}
-	}
-	return e.emitExpr(node)
-}
-
-// emitThreadLast: (->> x f1 f2) → f2(f1(x)) but x is inserted last
-func (e *Emitter) emitThreadLast(args []ast.Node) error {
-	if len(args) < 2 {
-		return fmt.Errorf("->> requires at least 2 forms")
-	}
-	node := args[0]
-	for _, form := range args[1:] {
-		switch f := form.(type) {
-		case *ast.Symbol:
-			node = ast.NewCallExpr(f.Pos_, f, []ast.Node{node})
-		case *ast.CallExpr:
-			newArgs := append(f.Args, node)
-			node = ast.NewCallExpr(f.Pos_, f.Head, newArgs)
-		default:
-			return fmt.Errorf("->> form must be a symbol or call, got %T", form)
-		}
-	}
-	return e.emitExpr(node)
 }
 
 // emitAsThread: (as-> x $ form1 form2 ...) threads x through each form with the

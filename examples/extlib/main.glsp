@@ -1,0 +1,39 @@
+; extlib — using an external Go library from glisp, no bridge code.
+;
+; Demonstrates the Phase 12 interop story (ADR-015) against
+; github.com/google/uuid: a Go package becomes a glisp library through the
+; ordinary call/interop forms, because the compiler reads the package's real
+; signatures from the Go toolchain.
+;
+; Showcased:
+;   - (:import [github.com/google/uuid])   external dependency, declared once
+;   - uuid/new-string                      kebab-case → uuid.NewString()
+;   - if-err over uuid/parse               multi-return (uuid.UUID, error)
+;   - (.String id)                         method on the external Go type
+;   - (fmt/printf fmt & args)              variadic spread into a Go ...any API
+;   - (strings/to-upper (first ids))       any→string arg coercion at the boundary
+(ns main (:import [github.com/google/uuid]))
+
+;;; Returns n freshly generated random UUID strings.
+(defn generate [n int] -> []any
+  (map (fn [_] (uuid/new-string)) (range n)))
+
+;;; Parses s as a UUID, returning its canonical string form or an error note.
+;;; uuid/parse returns (uuid.UUID, error) — bound with if-err, no bridge code.
+(defn canonical [s string] -> string
+  (if-err [id err] (uuid/parse s) (str "invalid (" err ")") (.String id)))
+
+;;; Forwards a runtime slice into Go's variadic fmt.Printf via the & spread marker.
+(defn logf [format string & args] -> void
+  (fmt/printf format & args))
+
+(defn main [] -> void
+  ; Generate a few IDs and print each by spreading args into fmt.Printf.
+  (let [ids (generate 3)] (doseq [id ids] (logf "generated: %s\n" id)))
+  ; Round-trip a valid UUID through the external type's String() method,
+  ; and show the if-err error path for an invalid one.
+  (println "canonical:" (canonical "550e8400-e29b-41d4-a716-446655440000"))
+  (println "rejected: " (canonical "not-a-uuid"))
+  ; (first ids) is `any`; it is coerced to string at the strings.ToUpper boundary.
+  (let [sample (generate 1)]
+    (println "upper:    " (strings/to-upper (first sample)))))

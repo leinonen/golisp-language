@@ -130,4 +130,11 @@ glisp run examples/cli/main.glsp 3 1 4   # CLI stats tool — os/args, no build 
 ./examples/inventory/inventory  # gradual struct typing: map literals + (:field x) → typed structs
 ./examples/movienight/movienight # sets, threading macros, partial/comp/juxt, ctx deadlines
 ./examples/todos/todos          # server-rendered todos: hiccup + htmx + SSE live stats + websocket chat
+./examples/extlib/extlib        # external Go library (github.com/google/uuid) in pure glisp — no bridge code
 ```
+
+The `extlib` example shows that any Go package is a glisp library: declare it
+once with `(:import …)` and the compiler reads its real signatures from the Go
+toolchain, so `uuid/new-string`, `if-err` over the `(uuid.UUID, error)` return,
+`(.String id)`, variadic spread, and `any`→`string` arg coercion all work with
+no hand-written `bridge.go` (ADR-015).

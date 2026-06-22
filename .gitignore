@@ -6,6 +6,7 @@ examples/*/*
 !examples/*/static/
 !examples/*/static/*
 !examples/**/*.mod
+!examples/**/go.sum
 !examples/**/Makefile
 !examples/**/Dockerfile
 !examples/**/docker-compose.yml

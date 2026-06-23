@@ -52,6 +52,14 @@ func FindCompletions(source string, line, col int) []CompletionItem {
 		}
 	}
 
+	// Core library (Phase 14): namespaced (str/upper) and bare (slurp) names.
+	for name, cd := range CoreDocs() {
+		if !seen[name] && strings.HasPrefix(name, prefix) {
+			seen[name] = true
+			items = append(items, CompletionItem{Label: name, Kind: 3, Detail: cd.Sig, Documentation: cd.Doc})
+		}
+	}
+
 	sort.Slice(items, func(i, j int) bool { return items[i].Label < items[j].Label })
 	return items
 }

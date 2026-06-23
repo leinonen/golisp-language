@@ -2252,3 +2252,29 @@ func TestLineDirectives(t *testing.T) {
 		t.Error("Transpile without filename must not emit //line directives")
 	}
 }
+
+// TestCoreCallStaticPredicates checks that the static-type predicates resolve
+// core fns (registered under mangled names) when they run on the original call
+// node — the audit fix behind exprIsAny/isVoidCall/multiReturnCall/isBoolExpr.
+func TestCoreCallStaticPredicates(t *testing.T) {
+	// multiReturnCall: a core multi-return fn (slurp -> [string error]) used as a
+	// single value is a clean diagnostic, not a raw Go "multiple values" error.
+	if _, err := Transpile("(ns main)\n(defn f [] -> any (let [x (slurp \"p\")] x))"); err == nil {
+		t.Error("expected a multi-return diagnostic for slurp as a single value")
+	} else if !strings.Contains(err.Error(), "multiple values") {
+		t.Errorf("error %q should mention 'multiple values'", err.Error())
+	}
+
+	// isBoolExpr: a core -> bool fn (str/blank?) in a condition emits without the
+	// _glispTruthy wrapper.
+	out, err := Transpile("(ns main)\n(defn f [s string] -> void (when (str/blank? s) (println \"y\")))")
+	if err != nil {
+		t.Fatalf("transpile: %v", err)
+	}
+	if !strings.Contains(out, "if _gcore_str_isBlank(s)") {
+		t.Errorf("str/blank? condition should emit a bare bool, got:\n%s", out)
+	}
+	if strings.Contains(out, "_glispTruthy(_gcore_str_isBlank") {
+		t.Error("str/blank? in a condition should not be wrapped in _glispTruthy")
+	}
+}

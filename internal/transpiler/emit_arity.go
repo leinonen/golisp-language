@@ -172,8 +172,9 @@ func (e *Emitter) multiReturnCall(n ast.Node) (name, shape string, ok bool) {
 	if !isSym {
 		return "", "", false
 	}
-	if sig, found := e.symbols[sym.Name]; found {
-		// typeExprToGo renders a multi-return [T1 T2] as "(T1, T2)"
+	if sig, found := e.symbols[e.coreResolvedName(sym.Name)]; found {
+		// typeExprToGo renders a multi-return [T1 T2] as "(T1, T2)" — so a core fn
+		// like slurp (-> [string error]) used as a single value is caught here.
 		if strings.HasPrefix(sig.retType, "(") {
 			return sym.Name, sig.retType, true
 		}

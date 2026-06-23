@@ -111,6 +111,25 @@ func resolveCoreBare(name string) (mangled, ns string, ok bool) {
 	return "", "", false
 }
 
+// coreResolvedName maps a call name to the mangled helper name under which a
+// core function is registered in e.symbols — for a qualified core call
+// (str/upper) or an un-shadowed bare core call (slurp). It returns the name
+// unchanged otherwise. This lets the static-type predicates (exprIsAny,
+// isVoidCall, multiReturnCall, callNumericKind, isBoolExpr, inferValueStructType)
+// see core signatures, which are keyed by the mangled name — they run on the
+// original call node, before emitCallExpr rewrites the head to the mangled name.
+func (e *Emitter) coreResolvedName(name string) string {
+	if mangled, _, ok := resolveCoreCall(name); ok {
+		return mangled
+	}
+	if !e.coreBareShadowed(name) {
+		if mangled, _, ok := resolveCoreBare(name); ok {
+			return mangled
+		}
+	}
+	return name
+}
+
 // coreBareShadowed reports whether a bare name is bound by something that must
 // win over a bare core function: a user top-level defn, an in-scope local
 // binding (let/loop/param/…), or a def global. (Built-ins are handled ahead of

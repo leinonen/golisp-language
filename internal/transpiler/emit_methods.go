@@ -109,7 +109,14 @@ func goFuncToSig(fn goFunc) *fnSig {
 	}
 	pt := make([]string, fixed)
 	copy(pt, fn.params[:fixed])
-	return &fnSig{minArity: fixed, variadic: fn.variadic, paramTypes: pt, retType: fn.ret}
+	ret := fn.ret
+	// Render a multi-return method as "(T1, T2)" so multiReturnCall gates a
+	// dot-free external method used in single-value position (use if-err), the
+	// same as a multi-return user fn or built-in.
+	if len(fn.results) >= 2 {
+		ret = "(" + strings.Join(fn.results, ", ") + ")"
+	}
+	return &fnSig{minArity: fixed, variadic: fn.variadic, paramTypes: pt, retType: ret}
 }
 
 // methodSig looks up a method on a declared type: defmethod receivers first,

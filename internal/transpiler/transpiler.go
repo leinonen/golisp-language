@@ -42,7 +42,7 @@ type DeclSet struct {
 // dispatched by name before the general interop path, so loading the package
 // would be wasted work — skip them when resolving referenced qualifiers.
 var builtinNamespaces = map[string]bool{
-	"json": true, "re": true, "ctx": true, "log": true, "http": true,
+	"json": true, "re": true, "ctx": true, "log": true, "http": true, "proc": true,
 }
 
 // GoImportPaths returns the Go packages whose signatures should be loaded for
@@ -636,6 +636,10 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			e.needImport("context")
 			e.needImport("time")
 		}
+		if e.builtinImports["_proc"] {
+			e.needImport("bytes")
+			e.needImport("os/exec")
+		}
 	}
 	if err := e.emitImports(); err != nil {
 		return err
@@ -699,6 +703,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["_ctx"] {
 			e.write(glispCtxRuntime)
 		}
+		if e.builtinImports["_proc"] {
+			e.write(glispProcRuntime)
+		}
 	}
 	return nil
 }
@@ -718,8 +725,8 @@ func (e *Emitter) emitImports() error {
 	// Add built-in imports that were actually needed during emission.
 	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
 	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
-	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true, "regexp": true}
-	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context"} {
+	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true, "regexp": true, "bytes": true, "os/exec": true}
+	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context", "bytes", "os/exec"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
 				continue

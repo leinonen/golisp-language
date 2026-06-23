@@ -378,6 +378,10 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"re/replace":  {Sig: "(re/replace pattern s repl)    →  string", Doc: "Replace all matches of pattern in s with repl."},
 	"re/split":    {Sig: "(re/split pattern s)           →  []any", Doc: "Split s into substrings separated by matches of pattern."},
 
+	// Subprocess execution
+	"proc/run": {Sig: "(proc/run cmd & args)          →  map", Doc: "Run cmd with args (no shell). Returns {:out :err :exit :ok} — captured stdout/stderr strings, exit code, and ok=true when exit 0."},
+	"proc/sh":  {Sig: "(proc/sh command)              →  map", Doc: "Run command via sh -c (shell features: pipes, globs, redirection). Returns {:out :err :exit :ok}."},
+
 	// Context propagation
 	"ctx/background":   {Sig: "(ctx/background)              →  ctx", Doc: "Return context.Background() — the root context for explicit propagation."},
 	"ctx/todo":         {Sig: "(ctx/todo)                    →  ctx", Doc: "Return context.TODO() — a placeholder context."},

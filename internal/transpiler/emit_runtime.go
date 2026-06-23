@@ -63,6 +63,10 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 		addImport("context")
 		addImport("time")
 	}
+	if builtins["_proc"] {
+		addImport("bytes")
+		addImport("os/exec")
+	}
 	// "_set" is a pseudo-package marker for set algebra helpers (no real import needed)
 	// "_file" is a pseudo-package marker for file I/O helpers (real imports: os, fmt)
 	// "_atom" is a pseudo-package marker for atom helpers (real import: sync)
@@ -120,6 +124,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["_ctx"] {
 		s += glispCtxRuntime
+	}
+	if builtins["_proc"] {
+		s += glispProcRuntime
 	}
 	return s
 }
@@ -1985,5 +1992,55 @@ func _glispCtxDone(ctx any) bool {
 
 func _glispCtxErr(ctx any) error {
 	return ctx.(context.Context).Err()
+}
+`
+
+// glispProcRuntime is appended when proc/* built-ins are used (real imports:
+// bytes, os/exec). Each helper runs a command, capturing stdout/stderr and the
+// exit code into a map {"out" "err" "exit" "ok"} so glisp gets plain data — the
+// unsafe *exec.ExitError type assertion stays in Go.
+const glispProcRuntime = `
+// --- proc/* subprocess helpers (generated) ---
+
+func _glispExec(cmd *exec.Cmd) map[string]any {
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	exit := int64(0)
+	ok := true
+	if err != nil {
+		ok = false
+		if ee, isExit := err.(*exec.ExitError); isExit {
+			exit = int64(ee.ExitCode())
+		} else {
+			exit = int64(-1)
+			if stderr.Len() == 0 {
+				stderr.WriteString(err.Error())
+			}
+		}
+	}
+	return map[string]any{
+		"out":  stdout.String(),
+		"err":  stderr.String(),
+		"exit": exit,
+		"ok":   ok,
+	}
+}
+
+func _glispProcRun(args ...any) map[string]any {
+	if len(args) == 0 {
+		return map[string]any{"out": "", "err": "proc/run: no command", "exit": int64(-1), "ok": false}
+	}
+	name := _glispToString(args[0])
+	rest := make([]string, 0, len(args)-1)
+	for _, a := range args[1:] {
+		rest = append(rest, _glispToString(a))
+	}
+	return _glispExec(exec.Command(name, rest...))
+}
+
+func _glispProcSh(cmd any) map[string]any {
+	return _glispExec(exec.Command("sh", "-c", _glispToString(cmd)))
 }
 `

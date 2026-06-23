@@ -130,6 +130,31 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 
+	t.Run("proc run", func(t *testing.T) {
+		src := `(ns main)
+(defn main [] -> void
+  (let [r (proc/run "echo" "hi" "there")]
+    (fmt/println "out" (str/trim (:out r)) "exit" (:exit r) "ok" (:ok r)))
+  (let [f (proc/run "false")]
+    (fmt/println "false-exit" (:exit f) "false-ok" (:ok f))))
+`
+		path := filepath.Join(dir, "proc.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		got := out.String()
+		for _, want := range []string{"out hi there", "exit 0", "ok true", "false-exit 1", "false-ok false"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout %q missing %q", got, want)
+			}
+		}
+	})
+
 	t.Run("cli parse-opts", func(t *testing.T) {
 		src := `(ns main)
 (def specs []any

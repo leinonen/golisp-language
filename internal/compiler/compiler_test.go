@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -264,6 +265,45 @@ func TestRunWithIO(t *testing.T) {
 		got := out.String()
 		// squares >5, first 2: 9 (3²), 16 (4²) → seq [9 16], sum 25
 		for _, want := range []string{"seq [9 16]", "sum 25", "into [2 3 4]"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout %q missing %q", got, want)
+			}
+		}
+	})
+
+	t.Run("line-oriented io", func(t *testing.T) {
+		lf := filepath.Join(dir, "nums.txt")
+		var sb strings.Builder
+		for i := 1; i <= 100; i++ {
+			sb.WriteString(strconv.Itoa(i))
+			sb.WriteByte('\n')
+		}
+		if err := os.WriteFile(lf, []byte(sb.String()), 0644); err != nil {
+			t.Fatal(err)
+		}
+		src := `(ns main)
+(defn main [] -> void
+  (let [p (nth (sys/args) 1)]
+    (if-err [ls e] (read-lines p)
+      (fmt/println "rerr" e)
+      (fmt/println "count" (count ls) "first" (first ls)))
+    (if-err [r e] (transduce-lines
+                    (comp (map (fn [l] (int l))) (filter (fn [n] (> n 5))) (take 3))
+                    (fn [acc x] (conj acc x)) [] p)
+      (fmt/println "terr" e)
+      (fmt/println "streamed" r))))
+`
+		path := filepath.Join(dir, "lines.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, []string{lf}, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		got := out.String()
+		for _, want := range []string{"count 100", "first 1", "streamed [6 7 8]"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("stdout %q missing %q", got, want)
 			}

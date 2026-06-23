@@ -253,11 +253,16 @@ needs. Eager throughout (no lazy seqs — see open questions).
   (header = first row's keys, sorted). Built-in forms over `encoding/csv` (the
   `json/` pattern); both return `(value, error)` for `if-err`. Composes with
   `slurp`/`spit`/`walk` for read→transform→write.
-- [ ] **Streaming JSON / line-oriented IO** — process large inputs without
-  loading them whole; `lines` + transduce.
-- [ ] **Pipeline ergonomics** — make the `read → transform → write` shape a
-  first-class, documented idiom (the data-domain analog of the web
-  validation-handler idiom).
+- [x] **Line-oriented IO** (17c) — `(read-lines path)` reads a file's lines into
+  a vector; `(transduce-lines xform rf init path)` streams the lines through a
+  transducer pipeline in **constant memory** (`bufio.Scanner`), honoring the
+  `Reduced` sentinel so `take`/`take-while` stop reading early. Both return
+  `(value, error)` for `if-err`. (Streaming JSON — per-object decode of a large
+  array — remains a possible follow-up.)
+- [x] **Pipeline ergonomics** (17c) — the `read → transform → write` idiom is now
+  first-class and documented (`docs/builtins.md`): `transduce-lines` (or
+  `slurp`/`csv/parse`) → transducer pipeline → `spit`/`csv/write`, the
+  data-domain analog of the web validation-handler idiom.
 
 ---
 

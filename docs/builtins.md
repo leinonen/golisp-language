@@ -560,6 +560,28 @@ throughout (ADR-003); `take`/`take-while` terminate early.
 (into [] (map (fn [x] (+ x 1))) [1 2 3]) ; → [2 3 4]
 ```
 
+## Line-oriented IO
+
+Read a file by lines. `transduce-lines` streams the file through a transducer
+pipeline in **constant memory** — `take`/`take-while` stop reading early, so it
+handles arbitrarily large inputs. Both return `(value, error)` — use with
+`if-err`. No import declaration needed.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(read-lines path)` | `[[]any error]` | A file's lines as a vector |
+| `(transduce-lines xform rf init path)` | `[any error]` | Stream the file's lines through xform + rf, in constant memory |
+
+```clojure
+; the read → transform → write pipeline, streaming the input
+(if-err [errs e] (transduce-lines
+                   (comp (filter (fn [l] (str/includes? l "ERROR")))
+                         (take 100))
+                   (fn [acc l] (conj acc l)) [] "app.log")
+  (log/error "read failed" "err" e)
+  (spit "errors.log" (str/join "\n" errs)))
+```
+
 ## Context
 
 Pass `context.Context` to Go APIs that support cancellation and deadlines. No import declaration needed.

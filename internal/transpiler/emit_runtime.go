@@ -79,6 +79,10 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 		addImport("path/filepath")
 		addImport("io/fs")
 	}
+	if builtins["_lines"] {
+		addImport("bufio")
+		addImport("os")
+	}
 	// "_set" is a pseudo-package marker for set algebra helpers (no real import needed)
 	// "_file" is a pseudo-package marker for file I/O helpers (real imports: os, fmt)
 	// "_atom" is a pseudo-package marker for atom helpers (real import: sync)
@@ -109,6 +113,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["_xf"] {
 		s += glispXfRuntime
+	}
+	if builtins["_lines"] {
+		s += glispLineRuntime
 	}
 	if builtins["net/http"] {
 		s += glispHttpRuntime
@@ -2332,5 +2339,48 @@ func _glispSequence(xform, coll any) []any {
 func _glispIntoXf(to, xform, coll any) any {
 	rf := func(acc any, x any) any { return _glispConj(acc, x) }
 	return _glispXfReduce(xform, any(rf), to, coll)
+}
+`
+
+// glispLineRuntime is appended when read-lines or transduce-lines are used (real
+// imports: bufio, os). transduce-lines streams a file's lines through a
+// transducer pipeline in constant memory, honoring _glispReduced (so (take n)
+// stops reading early). It references _glispReduced from glispXfRuntime, so the
+// dispatch pulls "_xf" alongside "_lines".
+const glispLineRuntime = `
+// --- line-oriented IO (generated) ---
+
+func _glispReadLines(path any) ([]any, error) {
+	f, err := os.Open(_glispToString(path))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	out := []any{}
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	for sc.Scan() {
+		out = append(out, sc.Text())
+	}
+	return out, sc.Err()
+}
+
+func _glispTransduceLines(xform, rf, init, path any) (any, error) {
+	f, err := os.Open(_glispToString(path))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	step := xform.(func(any) any)(rf).(func(any, any) any)
+	acc := init
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	for sc.Scan() {
+		acc = step(acc, sc.Text())
+		if r, ok := acc.(_glispReduced); ok {
+			return r.val, nil
+		}
+	}
+	return acc, sc.Err()
 }
 `

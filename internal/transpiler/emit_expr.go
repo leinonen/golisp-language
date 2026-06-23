@@ -1770,6 +1770,14 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "sequence":
 			e.needImport("_xf")
 			return e.emitRuntimeCall("_glispSequence", n.Args, 2)
+		case "read-lines":
+			e.needImport("_lines")
+			e.needImport("_xf") // _glispReduced lives in glispXfRuntime
+			return e.emitRuntimeCall("_glispReadLines", n.Args, 1)
+		case "transduce-lines":
+			e.needImport("_lines")
+			e.needImport("_xf")
+			return e.emitRuntimeCall("_glispTransduceLines", n.Args, 4)
 		case "reverse":
 			return e.emitRuntimeCall("_glispReverse", n.Args, 1)
 		case "contains?":

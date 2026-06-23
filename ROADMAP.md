@@ -202,8 +202,10 @@ not blockers.
 Make glisp a first-class scripting and automation language. Single static
 binary + a real Lisp + (optionally) skip-the-build is a strong niche.
 
-- [ ] **Shebang support** — `#!/usr/bin/env glisp` lines tolerated by the lexer
-  so `.glsp` files are directly executable.
+- [x] **Shebang support** (16a) — a leading `#!` line is skipped by the lexer
+  (only at file start; `#` keeps its meaning elsewhere) and preserved across
+  `glisp fmt`, and `glisp <file.glsp> [args]` runs a file directly, so
+  `#!/usr/bin/env glisp` scripts are executable (`chmod +x foo.glsp; ./foo.glsp`).
 - [ ] **Fast `glisp run`** — and **`glisp run --watch`** (re-run on save,
   carried over from Phase 11).
 - [ ] **Interpreted fast-path (stretch)** — reuse the Phase 13 evaluator to run

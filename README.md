@@ -43,6 +43,7 @@ make install        # go install ./cmd/glisp ./cmd/glisp-lsp
 glisp build   file.glsp         # compile to binary
 glisp build   dir/              # compile all .glsp in dir to binary
 glisp run     file.glsp [args]  # compile and run, no artifacts left behind
+glisp         file.glsp [args]  # run a script directly (enables #! shebang)
 glisp fmt     file.glsp         # format in-place
 glisp fmt     --check file.glsp # exit 1 if not formatted
 glisp compile file.glsp         # write file.go
@@ -137,9 +138,26 @@ Handlers are `Request → Response` (both aliases for `map[string]any`).
 ```
 make examples
 ./examples/tour/tour            # language tour: fib, strings, goroutines, JSON
-glisp run examples/cli/main.glsp 3 1 4   # CLI stats tool — os/args, no build step
+glisp run examples/cli/main.glsp 3 1 4   # CLI stats tool — (sys/args), no build step
 ./examples/api/api              # REST API with routing, middleware, auth
 ./examples/inventory/inventory  # gradual struct typing: map literals + (:field x) → typed structs
 ./examples/movienight/movienight # sets, threading macros, partial/comp/juxt, ctx deadlines
 ./examples/todos/todos          # server-rendered todos: hiccup + htmx + SSE live stats + websocket chat
+```
+
+### Scripting
+
+A `.glsp` file with a shebang is directly executable — no separate build step:
+
+```clojure
+#!/usr/bin/env glisp
+(ns main)
+
+(defn main [] -> void
+  (println "args:" (rest (sys/args))))
+```
+
+```
+chmod +x hello.glsp
+./hello.glsp one two        # → args: [one two]
 ```

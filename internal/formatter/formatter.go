@@ -21,11 +21,22 @@ const maxLine = 80
 
 // Format parses src and returns the canonically formatted glisp source.
 func Format(src string) (string, error) {
+	// A leading "#!" shebang line is not glisp — the lexer skips it. Preserve it
+	// verbatim across formatting (re-prepended) so `glisp fmt` round-trips
+	// executable scripts instead of stripping the line that makes them run.
+	shebang := ""
+	if strings.HasPrefix(src, "#!") {
+		if nl := strings.IndexByte(src, '\n'); nl >= 0 {
+			shebang, src = src[:nl+1], src[nl+1:]
+		} else {
+			shebang, src = src+"\n", ""
+		}
+	}
 	result, err := parser.ParseWithComments(src)
 	if err != nil {
 		return "", err
 	}
-	return formatFile(result.Nodes, result.Comments), nil
+	return shebang + formatFile(result.Nodes, result.Comments), nil
 }
 
 // FormatNodes formats an already-parsed list of top-level nodes (no comment

@@ -73,6 +73,39 @@ func (e *Emitter) namedTypeHint(goType string) (string, bool) {
 	return "", false
 }
 
+// externalTypeHint reports whether a Go type string names a loaded external Go
+// type with an exported method set (optionally behind a single pointer),
+// returning its qualified type key (e.g. "*pgx.Conn" → "pgx.Conn"). This is the
+// interop analog of namedTypeHint for types the transpiler reads from the Go
+// toolchain rather than declares itself.
+func (e *Emitter) externalTypeHint(goType string) (string, bool) {
+	key := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(goType), "*"))
+	if e.goPkgs.hasType(key) {
+		return key, true
+	}
+	return "", false
+}
+
+// goMethodSet returns the loaded method set of an external Go type, or nil.
+func (e *Emitter) goMethodSet(typeKey string) map[string]goFunc {
+	return e.goPkgs.methodSet(typeKey)
+}
+
+// goFuncToSig adapts a loaded Go method signature to the *fnSig that method
+// dispatch emission uses. Only the fixed parameters carry type hints; a variadic
+// method's trailing args emit bare (they are `any`/interface in practice), and a
+// multi-return method has an empty retType so it is not propagated as a value
+// type (it needs if-err, like any multi-return interop).
+func goFuncToSig(fn goFunc) *fnSig {
+	fixed := len(fn.params)
+	if fn.variadic && fixed > 0 {
+		fixed--
+	}
+	pt := make([]string, fixed)
+	copy(pt, fn.params[:fixed])
+	return &fnSig{minArity: fixed, variadic: fn.variadic, paramTypes: pt, retType: fn.ret}
+}
+
 // methodSig looks up a method on a declared type: defmethod receivers first,
 // then interface declarations.
 func (e *Emitter) methodSig(typeName, goMethod string) (*fnSig, bool) {
@@ -134,6 +167,18 @@ func (e *Emitter) resolveMethodCall(n *ast.CallExpr) (*methodCallInfo, bool) {
 	if typeName == "" {
 		return nil, false
 	}
+	// An external Go type (read from the toolchain) dispatches against its loaded
+	// method set; its name carries a package qualifier ("pgx.Conn") that no
+	// locally-declared type has, so the two tables never collide. A miss here
+	// falls through — the missing-method diagnostic is raised at the call site.
+	if mset := e.goMethodSet(typeName); mset != nil {
+		goMethod := fnToGo(name)
+		mfn, found := mset[goMethod]
+		if !found {
+			return nil, false
+		}
+		return &methodCallInfo{recv: recv, method: goMethod, typeName: typeName, sig: goFuncToSig(mfn)}, true
+	}
 	goMethod := fnToGo(name)
 	sig, found := e.methodSig(typeName, goMethod)
 	if !found {
@@ -148,6 +193,51 @@ func (e *Emitter) resolveMethodCall(n *ast.CallExpr) (*methodCallInfo, bool) {
 		typeName: typeName,
 		sig:      sig,
 	}, true
+}
+
+// checkExternalMethodTypo raises a position-tagged diagnostic when a call's head
+// is a dot-free method spelling (no built-in, user fn, or in-scope binding) and
+// its symbol receiver is statically known to hold an external Go type that has
+// no such method — a typo that would otherwise emit an invalid free call and
+// surface as an opaque Go error (ADR-015, Phase 12e). It fires only for symbol
+// receivers with a known external type, so it never false-flags ordinary calls.
+func (e *Emitter) checkExternalMethodTypo(n *ast.CallExpr) error {
+	sym, ok := n.Head.(*ast.Symbol)
+	if !ok || len(n.Args) == 0 {
+		return nil
+	}
+	name := sym.Name
+	if name == "" || strings.ContainsRune(name, '/') {
+		return nil
+	}
+	if _, builtin := builtinArity[name]; builtin {
+		return nil
+	}
+	if boolBuiltins[name] {
+		return nil
+	}
+	if _, userFn := e.symbols[name]; userFn {
+		return nil
+	}
+	if e.localVars[name] || e.defGlobals[name] {
+		return nil
+	}
+	rs, ok := n.Args[0].(*ast.Symbol)
+	if !ok {
+		return nil
+	}
+	typeName := e.localTypes[rs.Name]
+	if typeName == "" {
+		return nil
+	}
+	mset := e.goMethodSet(typeName)
+	if mset == nil {
+		return nil
+	}
+	if _, found := mset[fnToGo(name)]; found {
+		return nil
+	}
+	return fmt.Errorf("type %s has no exported method %s (at %s)", typeName, fnToGo(name), sym.Pos())
 }
 
 // emitMethodCall emits a resolved dot-free method call as recv.Method(args).

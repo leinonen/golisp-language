@@ -32,7 +32,7 @@ func (e *TranspileError) Unwrap() error { return e.Err }
 // emitted.
 type DeclSet struct {
 	nodes      []ast.Node
-	goPkgs     goPkgIndex      // loaded Go package signatures (ADR-015); may be nil
+	goPkgs     *goPackages     // loaded Go package signatures (ADR-015); may be nil
 	qualifiers map[string]bool // call-site qualifiers seen in `pkg/fn` symbols
 }
 
@@ -100,7 +100,7 @@ func (ds *DeclSet) GoImportPaths() map[string]string {
 // per-file transpiles seeded from it become type-aware of imported packages
 // (typed returns, arg coercion, variadic-spread validation). nil is fine —
 // calls then emit untyped, exactly as before.
-func (ds *DeclSet) SetGoPackages(idx goPkgIndex) {
+func (ds *DeclSet) SetGoPackages(idx *goPackages) {
 	if ds != nil {
 		ds.goPkgs = idx
 	}
@@ -353,9 +353,10 @@ type Emitter struct {
 	// methods/defGlobals) so cross-file types resolve; never emitted.
 	externalDecls []ast.Node
 	// goPkgs: exported signatures of imported Go packages, loaded from the Go
-	// toolchain (ADR-015, Phase 12a), keyed by call-site qualifier. Drives
-	// interop validation/typing; nil when unavailable (untyped fallback).
-	goPkgs goPkgIndex
+	// toolchain (ADR-015, Phase 12a) — package-level functions plus named-type
+	// method sets. Drives interop validation/typing and dot-free dispatch on
+	// interop values; nil when unavailable (untyped fallback).
+	goPkgs *goPackages
 }
 
 func (e *Emitter) needImport(pkg string) {

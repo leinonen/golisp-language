@@ -71,7 +71,7 @@ func TestMultiReturnInterop(t *testing.T) {
 		t.Fatal("failed to load os signatures")
 	}
 	// os.Create returns (*os.File, error); os.Getenv returns string.
-	if fn, ok := idx.lookup("os", "Create"); !ok || len(fn.results) != 2 {
+	if fn, ok := idx.lookupFunc("os", "Create"); !ok || len(fn.results) != 2 {
 		t.Fatalf("os.Create should have 2 results, got %+v (ok=%v)", fn, ok)
 	}
 
@@ -248,6 +248,58 @@ func TestGoCallArityValidation(t *testing.T) {
 	}
 }
 
+// TestGoMethodDispatch checks dot-free method dispatch on interop values
+// (ADR-015, Phase 12c/12e): a value whose external Go type is known — from a
+// type annotation or a typed interop return — calls that type's methods without
+// the (.Method o) form, and a non-existent method is a position-tagged error.
+func TestGoMethodDispatch(t *testing.T) {
+	idx := LoadGoPackages(".", map[string]string{"strings": "strings", "regexp": "regexp"})
+	if idx == nil {
+		t.Fatal("failed to load stdlib signatures")
+	}
+	if idx.methodSet("strings.Builder") == nil {
+		t.Fatal("strings.Builder method set not loaded")
+	}
+	emit := func(src string) (string, error) {
+		ds, err := CollectDecls(nil, src, "")
+		if err != nil {
+			return "", err
+		}
+		ds.SetGoPackages(idx)
+		out, _, err := TranspileNoRuntimeFileExt(src, "", ds, false)
+		return out, err
+	}
+
+	// 1. Dot-free dispatch on an annotated external-typed param.
+	out, err := emit(`(ns main)
+(defn f [b *strings/Builder] -> void (write-string b "hi"))`)
+	if err != nil {
+		t.Fatalf("dispatch on annotated param: %v", err)
+	}
+	if !strings.Contains(out, `b.WriteString("hi")`) {
+		t.Errorf("expected b.WriteString(\"hi\") in:\n%s", out)
+	}
+
+	// 2. Return-type propagation: an interop function's typed result dispatches.
+	out, err = emit(`(ns main)
+(defn f [s string] -> bool
+  (let [re (regexp/must-compile "x")] (match-string re s)))`)
+	if err != nil {
+		t.Fatalf("dispatch on interop return: %v", err)
+	}
+	if !strings.Contains(out, "re.MatchString(s)") {
+		t.Errorf("expected re.MatchString(s) in:\n%s", out)
+	}
+
+	// 3. A non-existent method on a known external type is a diagnostic.
+	if _, err := emit(`(ns main)
+(defn f [b *strings/Builder] -> void (frobnicate b))`); err == nil {
+		t.Error("expected error for non-existent method on strings.Builder")
+	} else if !strings.Contains(err.Error(), "has no exported method") {
+		t.Errorf("error %q should mention 'has no exported method'", err.Error())
+	}
+}
+
 // TestLoadGoPackages checks the go/packages signature extraction against the
 // standard library (always available offline). It is the foundation of
 // ADR-015 / Phase 12a: the transpiler reading Go signatures the way jank reads
@@ -262,14 +314,14 @@ func TestLoadGoPackages(t *testing.T) {
 	}
 
 	// fmt.Printf(format string, a ...any) — variadic.
-	if fn, ok := idx.lookup("fmt", "Printf"); !ok {
+	if fn, ok := idx.lookupFunc("fmt", "Printf"); !ok {
 		t.Error("fmt.Printf not found")
 	} else if !fn.variadic {
 		t.Errorf("fmt.Printf should be variadic, got %+v", fn)
 	}
 
 	// strings.ToUpper(s string) string — fixed arity, single return.
-	fn, ok := idx.lookup("strings", "ToUpper")
+	fn, ok := idx.lookupFunc("strings", "ToUpper")
 	if !ok {
 		t.Fatal("strings.ToUpper not found")
 	}
@@ -284,7 +336,7 @@ func TestLoadGoPackages(t *testing.T) {
 	}
 
 	// strings.Join([]string, string) string.
-	if fn, ok := idx.lookup("strings", "Join"); !ok {
+	if fn, ok := idx.lookupFunc("strings", "Join"); !ok {
 		t.Error("strings.Join not found")
 	} else if len(fn.params) != 2 || fn.params[0] != "[]string" {
 		t.Errorf("strings.Join params = %v, want [[]string string]", fn.params)
@@ -299,7 +351,7 @@ func TestLoadGoPackagesDegrades(t *testing.T) {
 	}
 	// A bogus import path must not panic or fail the caller; it is simply absent.
 	idx := LoadGoPackages(".", map[string]string{"nope": "example.com/does/not/exist/ever"})
-	if _, ok := idx.lookup("nope", "Anything"); ok {
+	if _, ok := idx.lookupFunc("nope", "Anything"); ok {
 		t.Error("bogus package should not appear in the index")
 	}
 }

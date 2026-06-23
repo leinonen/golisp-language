@@ -151,13 +151,26 @@ longer the default surface. Built directly on the Phase 12 typed-interop loader.
   in Clojure.
 - [ ] **Finish typed interop (Phase 12 remnants)** — 12c typed returns into
   dot-free dispatch and typed positions; 12e full glisp-level interop
-  diagnostics. **Arity diagnostics done** (15a): a wrong-arity call to a loaded
-  Go function is a position-tagged `.glsp` error (`arity error: pkg/fn called
-  with N arg(s), expected M`) instead of an opaque Go compile error — variadic
-  fixed-minimum and spread (`& xs`) aware; an unloaded package degrades to
-  untyped emission. Remaining: wrong-typed-arg and missing-field-or-method
-  diagnostics (need external method-set introspection), and 12c return-type
-  propagation (needs external method tables for dot-free dispatch on results).
+  diagnostics.
+  - **Arity diagnostics done** (15a): a wrong-arity call to a loaded Go function
+    is a position-tagged `.glsp` error (`arity error: pkg/fn called with N
+    arg(s), expected M`) instead of an opaque Go compile error — variadic
+    fixed-minimum and spread (`& xs`) aware; an unloaded package degrades to
+    untyped emission.
+  - **12c method dispatch + return types done** (15c): the loader now reads
+    exported named-type **method sets** (`go/packages`, pointer set for structs /
+    own set for interfaces). A value whose external Go type is known — from a
+    type annotation (`[c *pgx/Conn]`), a typed interop return (`(pkg/new …)`), or
+    a chained method result — dispatches that type's methods dot-free
+    (`(query c sql)` → `c.Query(sql)`) with arg-type hints, no `(.Method …)`
+    needed; the external type also propagates through `let` so results chain. A
+    **non-existent method on a known external type is a position-tagged error**
+    (`type pkg.T has no exported method M`). Verified end-to-end:
+    `(match-string (regexp/must-compile …) s)` → `re.MatchString(s)`.
+  - Remaining (12e): wrong-typed-arg diagnostics, and missing **field** access
+    (`.-Field`) — fields need named-type field enumeration, methods are done.
+    Multi-return Go *methods* in single-value position aren't yet gated (use the
+    `(.Method …)` + `if-err` form), unlike multi-return functions.
 - [ ] **Document the boundary** — "reach for interop when you need a Go library;
   otherwise stay in `core`." Wrapping a Go package is pure glisp (ADR-012 rule 4
   carries forward), but it's now clearly *interop*, not the everyday surface.

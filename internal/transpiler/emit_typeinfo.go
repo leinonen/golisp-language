@@ -247,6 +247,11 @@ func (e *Emitter) registerVarType(glispName, goType string) {
 	if e.localTypes != nil {
 		if name, ok := e.namedTypeHint(goType); ok {
 			e.localTypes[glispName] = name
+		} else if name, ok := e.externalTypeHint(goType); ok {
+			// An external Go type (e.g. a `[c *pgx/Conn]` param) records its
+			// qualified key so the value participates in dot-free method dispatch
+			// against the loaded method set, like a locally-declared type.
+			e.localTypes[glispName] = name
 		}
 	}
 	if k := numericGoKind(goType); k != "" {
@@ -331,9 +336,22 @@ func (e *Emitter) inferValueStructType(value ast.Node) string {
 			return name
 		}
 	case *ast.CallExpr:
-		if sym, ok := v.Head.(*ast.Symbol); ok && e.symbols != nil {
-			if sig, found := e.symbols[sym.Name]; found {
-				if name, ok := e.namedTypeHint(sig.retType); ok {
+		if sym, ok := v.Head.(*ast.Symbol); ok {
+			if e.symbols != nil {
+				if sig, found := e.symbols[sym.Name]; found {
+					if name, ok := e.namedTypeHint(sig.retType); ok {
+						return name
+					}
+					if name, ok := e.externalTypeHint(sig.retType); ok {
+						return name
+					}
+					return ""
+				}
+			}
+			// An imported Go function returning a named external type lets its
+			// result dispatch methods dot-free (e.g. (let [c (pkg/new …)] (m c))).
+			if fn, ok := e.lookupGoCall(sym.Name); ok {
+				if name, ok := e.externalTypeHint(fn.ret); ok {
 					return name
 				}
 				return ""
@@ -341,6 +359,10 @@ func (e *Emitter) inferValueStructType(value ast.Node) string {
 		}
 		if info, ok := e.resolveMethodCall(v); ok {
 			if name, ok := e.namedTypeHint(info.sig.retType); ok {
+				return name
+			}
+			// A method returning a named external type chains: (next (rows q)).
+			if name, ok := e.externalTypeHint(info.sig.retType); ok {
 				return name
 			}
 		}

@@ -27,6 +27,44 @@ type goFunc struct {
 // simply absent, so callers degrade to untyped emission (never a hard failure).
 type goPkgIndex map[string]map[string]goFunc
 
+// goTypeIndex maps an exported named Go type — keyed by its qualified type
+// string (e.g. "pgx.Conn", as Go renders it) — to its exported method set,
+// keyed by Go method name. It backs dot-free method dispatch and missing-method
+// diagnostics on interop values (ADR-015, Phase 12c/12e): a value statically
+// known to hold such a type can call its methods without the `(.Method o)` form.
+type goTypeIndex map[string]map[string]goFunc
+
+// goPackages bundles the loaded interop signatures the transpiler consults:
+// package-level functions (for `pkg/fn` calls) and the method sets of exported
+// named types (for dot-free dispatch on interop values). nil when nothing
+// loaded — every accessor is nil-safe so callers degrade to untyped emission.
+type goPackages struct {
+	funcs goPkgIndex
+	types goTypeIndex
+}
+
+// lookupFunc resolves a package-level function; nil-safe.
+func (p *goPackages) lookupFunc(qualifier, goName string) (goFunc, bool) {
+	if p == nil {
+		return goFunc{}, false
+	}
+	return p.funcs.lookup(qualifier, goName)
+}
+
+// methodSet returns the exported method set of a named Go type (keyed by its
+// qualified type string, pointer stripped), or nil if unknown; nil-safe.
+func (p *goPackages) methodSet(typeKey string) map[string]goFunc {
+	if p == nil || p.types == nil {
+		return nil
+	}
+	return p.types[typeKey]
+}
+
+// hasType reports whether typeKey names a loaded external type with methods.
+func (p *goPackages) hasType(typeKey string) bool {
+	return p.methodSet(typeKey) != nil
+}
+
 // lookup resolves a `pkg/fn` call against the loaded index. qualifier is the
 // part before the slash; goName is the exported Go name (fnToGo of the part
 // after the slash). ok is false when the package wasn't loaded or has no such
@@ -52,7 +90,7 @@ func (e *Emitter) lookupGoCall(name string) (goFunc, bool) {
 	if slash <= 0 {
 		return goFunc{}, false
 	}
-	return e.goPkgs.lookup(name[:slash], fnToGo(name[slash+1:]))
+	return e.goPkgs.lookupFunc(name[:slash], fnToGo(name[slash+1:]))
 }
 
 // paramHintsFor returns a per-argument Go-type hint slice for a call with n
@@ -91,7 +129,36 @@ func paramHintsFor(fn goFunc, n int) []string {
 // unresolved dependency, a build error in the dependency — is omitted from the
 // result, and its calls emit exactly as they do today (untyped). Typed interop
 // is an enhancement layered on top, never a build dependency (ADR-015).
-func LoadGoPackages(dir string, paths map[string]string) goPkgIndex {
+// buildGoFunc extracts a goFunc from a Go signature, rendering every type with
+// qualifier. Shared by package-level function and named-type method extraction.
+// The rendered type strings are only ever used as map keys and coercion hints —
+// never written to the generated Go — so cross-package qualification (e.g.
+// "context.Context") needs no import in the user's file.
+func buildGoFunc(sig *types.Signature, obj types.Object, qualifier types.Qualifier) goFunc {
+	params := sig.Params()
+	ptypes := make([]string, params.Len())
+	for i := 0; i < params.Len(); i++ {
+		ptypes[i] = types.TypeString(params.At(i).Type(), qualifier)
+	}
+	res := sig.Results()
+	results := make([]string, res.Len())
+	for i := 0; i < res.Len(); i++ {
+		results[i] = types.TypeString(res.At(i).Type(), qualifier)
+	}
+	ret := ""
+	if len(results) == 1 {
+		ret = results[0]
+	}
+	return goFunc{
+		params:   ptypes,
+		variadic: sig.Variadic(),
+		ret:      ret,
+		results:  results,
+		sig:      types.ObjectString(obj, qualifier),
+	}
+}
+
+func LoadGoPackages(dir string, paths map[string]string) *goPackages {
 	if len(paths) == 0 {
 		return nil
 	}
@@ -114,6 +181,7 @@ func LoadGoPackages(dir string, paths map[string]string) goPkgIndex {
 	}
 
 	idx := goPkgIndex{}
+	tidx := goTypeIndex{}
 	for _, p := range loaded {
 		if len(p.Errors) > 0 || p.Types == nil {
 			continue // degrade: this package stays untyped
@@ -130,44 +198,61 @@ func LoadGoPackages(dir string, paths map[string]string) goPkgIndex {
 			if !obj.Exported() {
 				continue
 			}
-			fn, ok := obj.(*types.Func)
-			if !ok {
-				continue
-			}
-			sig, ok := fn.Type().(*types.Signature)
-			if !ok || sig.Recv() != nil {
-				continue // methods are dispatched separately
-			}
-			params := sig.Params()
-			ptypes := make([]string, params.Len())
-			for i := 0; i < params.Len(); i++ {
-				ptypes[i] = types.TypeString(params.At(i).Type(), qualifier)
-			}
-			res := sig.Results()
-			results := make([]string, res.Len())
-			for i := 0; i < res.Len(); i++ {
-				results[i] = types.TypeString(res.At(i).Type(), qualifier)
-			}
-			ret := ""
-			if len(results) == 1 {
-				ret = results[0]
-			}
-			fns[name] = goFunc{
-				params:   ptypes,
-				variadic: sig.Variadic(),
-				ret:      ret,
-				results:  results,
-				sig:      types.ObjectString(fn, qualifier),
+			switch o := obj.(type) {
+			case *types.Func:
+				sig, ok := o.Type().(*types.Signature)
+				if !ok || sig.Recv() != nil {
+					continue // methods come from the named-type pass below
+				}
+				fns[name] = buildGoFunc(sig, o, qualifier)
+			case *types.TypeName:
+				named, ok := o.Type().(*types.Named)
+				if !ok {
+					continue
+				}
+				if set := methodSetOf(named, qualifier); len(set) > 0 {
+					tidx[types.TypeString(named, qualifier)] = set
+				}
 			}
 		}
 		if len(fns) > 0 {
 			idx[qual] = fns
 		}
 	}
-	if len(idx) == 0 {
+	if len(idx) == 0 && len(tidx) == 0 {
 		return nil
 	}
-	return idx
+	return &goPackages{funcs: idx, types: tidx}
+}
+
+// methodSetOf returns the exported method set of a named type keyed by Go method
+// name. Structs use the pointer method set (a superset of the value set, so
+// pointer- and value-typed receivers both resolve); interfaces use the type's
+// own method set (a pointer-to-interface has none).
+func methodSetOf(named *types.Named, qualifier types.Qualifier) map[string]goFunc {
+	var ms *types.MethodSet
+	if _, isIface := named.Underlying().(*types.Interface); isIface {
+		ms = types.NewMethodSet(named)
+	} else {
+		ms = types.NewMethodSet(types.NewPointer(named))
+	}
+	set := map[string]goFunc{}
+	for i := 0; i < ms.Len(); i++ {
+		obj := ms.At(i).Obj()
+		if !obj.Exported() {
+			continue
+		}
+		fn, ok := obj.(*types.Func)
+		if !ok {
+			continue
+		}
+		sig, ok := fn.Type().(*types.Signature)
+		if !ok {
+			continue
+		}
+		set[fn.Name()] = buildGoFunc(sig, fn, qualifier)
+	}
+	return set
 }
 
 // GoSignatures is an exported, read-only view of loaded Go package signatures
@@ -189,7 +274,11 @@ type GoCompletion struct {
 // import path) for use by editor tooling. Returns a usable (possibly empty)
 // value even when nothing loads, so callers needn't nil-check.
 func LoadGoSignatures(dir string, paths map[string]string) *GoSignatures {
-	return &GoSignatures{idx: LoadGoPackages(dir, paths)}
+	var idx goPkgIndex
+	if p := LoadGoPackages(dir, paths); p != nil {
+		idx = p.funcs
+	}
+	return &GoSignatures{idx: idx}
 }
 
 // Signature returns the full Go signature for a `pkg/fn` call symbol (e.g.

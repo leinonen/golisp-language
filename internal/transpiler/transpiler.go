@@ -651,6 +651,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			e.needImport("bufio")
 			e.needImport("os")
 		}
+		if e.builtinImports["_jsonstream"] {
+			e.needImport("os")
+		}
 		if e.builtinImports["encoding/csv"] {
 			// The csv helpers use the strings + sort packages; in single-file mode
 			// the whole runtime is inlined, so import them here (this also inlines
@@ -697,6 +700,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 		if e.builtinImports["_lines"] {
 			e.write(glispLineRuntime)
+		}
+		if e.builtinImports["_jsonstream"] {
+			e.write(glispJsonStreamRuntime)
 		}
 		if e.builtinImports["net/http"] {
 			e.write(glispHttpRuntime)

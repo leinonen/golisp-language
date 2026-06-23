@@ -339,6 +339,53 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 
+	t.Run("streaming json", func(t *testing.T) {
+		jf := filepath.Join(dir, "big.json")
+		var b strings.Builder
+		b.WriteByte('[')
+		for i := 1; i <= 50; i++ {
+			if i > 1 {
+				b.WriteByte(',')
+			}
+			b.WriteString(`{"id":`)
+			b.WriteString(strconv.Itoa(i))
+			b.WriteString(`,"v":`)
+			b.WriteString(strconv.Itoa(i * 10))
+			b.WriteByte('}')
+		}
+		b.WriteByte(']')
+		if err := os.WriteFile(jf, []byte(b.String()), 0644); err != nil {
+			t.Fatal(err)
+		}
+		src := `(ns main)
+(defn main [] -> void
+  (let [p (nth (sys/args) 1)]
+    (if-err [r e] (transduce-json
+                    (comp (filter (fn [o] (> (:id o) 5))) (map (fn [o] (:v o))) (take 3))
+                    (fn [acc x] (+ acc x)) 0 p)
+      (fmt/println "err" e)
+      (fmt/println "sum" r))
+    (if-err [n e] (transduce-json (map (fn [o] o)) (fn [acc x] (+ acc 1)) 0 p)
+      (fmt/println "cerr" e)
+      (fmt/println "count" n))))
+`
+		path := filepath.Join(dir, "sj.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, []string{jf}, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		got := out.String()
+		for _, want := range []string{"sum 210", "count 50"} { // 60+70+80, all 50 elems
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout %q missing %q", got, want)
+			}
+		}
+	})
+
 	t.Run("proc run", func(t *testing.T) {
 		src := `(ns main)
 (defn main [] -> void

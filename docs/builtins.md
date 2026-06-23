@@ -571,6 +571,7 @@ handles arbitrarily large inputs. Both return `(value, error)` — use with
 |---|---|---|
 | `(read-lines path)` | `[[]any error]` | A file's lines as a vector |
 | `(transduce-lines xform rf init path)` | `[any error]` | Stream the file's lines through xform + rf, in constant memory |
+| `(transduce-json xform rf init path)` | `[any error]` | Stream a top-level JSON array's elements through xform + rf, in constant memory |
 
 ```clojure
 ; the read → transform → write pipeline, streaming the input
@@ -580,6 +581,10 @@ handles arbitrarily large inputs. Both return `(value, error)` — use with
                    (fn [acc l] (conj acc l)) [] "app.log")
   (log/error "read failed" "err" e)
   (spit "errors.log" (str/join "\n" errs)))
+
+; transduce-json streams a large JSON array element-by-element (constant memory)
+(transduce-json (comp (filter (fn [o] (> (:score o) 90))) (take 10))
+                (fn [acc o] (conj acc o)) [] "events.json")
 ```
 
 ## Context

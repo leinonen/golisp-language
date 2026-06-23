@@ -83,6 +83,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 		addImport("bufio")
 		addImport("os")
 	}
+	if builtins["_jsonstream"] {
+		addImport("os")
+	}
 	// "_set" is a pseudo-package marker for set algebra helpers (no real import needed)
 	// "_file" is a pseudo-package marker for file I/O helpers (real imports: os, fmt)
 	// "_atom" is a pseudo-package marker for atom helpers (real import: sync)
@@ -116,6 +119,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["_lines"] {
 		s += glispLineRuntime
+	}
+	if builtins["_jsonstream"] {
+		s += glispJsonStreamRuntime
 	}
 	if builtins["net/http"] {
 		s += glispHttpRuntime
@@ -2382,5 +2388,42 @@ func _glispTransduceLines(xform, rf, init, path any) (any, error) {
 		}
 	}
 	return acc, sc.Err()
+}
+`
+
+// glispJsonStreamRuntime is appended when transduce-json is used (real import:
+// os; encoding/json comes from the encoding/json key). It streams a top-level
+// JSON array's elements one at a time through a transducer pipeline via
+// json.Decoder — constant memory, honoring _glispReduced for early termination.
+const glispJsonStreamRuntime = `
+// --- streaming JSON (generated) ---
+
+func _glispTransduceJson(xform, rf, init, path any) (any, error) {
+	f, err := os.Open(_glispToString(path))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	if d, ok := tok.(json.Delim); !ok || d != '[' {
+		return nil, fmt.Errorf("transduce-json: expected a top-level JSON array")
+	}
+	step := xform.(func(any) any)(rf).(func(any, any) any)
+	acc := init
+	for dec.More() {
+		var v any
+		if err := dec.Decode(&v); err != nil {
+			return acc, err
+		}
+		acc = step(acc, v)
+		if r, ok := acc.(_glispReduced); ok {
+			return r.val, nil
+		}
+	}
+	return acc, nil
 }
 `

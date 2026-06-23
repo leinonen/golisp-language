@@ -134,10 +134,12 @@ collide with Go's `string` type / stdlib packages. See
   `filepath/join`, which have no core form, remain as interop). Surfaced two
   core gaps, now fixed: `sys/env` takes an optional default (`(sys/env "PORT"
   "4000")`), and `str/join` accepts any sequence including sets.
-- [ ] **`math` namespace** — native-named over Go `math` (`(math/sqrt x)`,
-  `(math/floor x)`, `math/pi`, …). Make it the canonical name, not a raw Go
-  passthrough. (Deferred — Go's `math/*` names already read naturally; the
-  numeric domain was not chosen for v2.)
+- [x] **`math` namespace** (18b) — Go's `math/*` (sqrt, floor, round, pow, …, and
+  `math/pi`) already read naturally as stdlib interop, so the `math` **core**
+  namespace only adds the helpers Go omits: `clamp`, `sign`, `gcd`, `lcm`,
+  `round-to`. Partial-namespace resolution: names defined in `math.glsp` are
+  core, undefined ones fall through to stdlib `math.*` (and core helpers may call
+  stdlib `math/*` themselves — `round-to` uses `math/pow`/`math/round`).
 - [~] **Grow the vocabulary** — `str/` gained `capitalize`, `trim-start`,
   `trim-end`, `replace-first`, `last-index-of`, `pad-left`, `pad-right` (18a).
   More `str/`, data helpers, and bare `core` functions grow as demand drives.

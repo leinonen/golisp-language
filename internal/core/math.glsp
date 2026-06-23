@@ -1,0 +1,31 @@
+;;; glisp core — the math/ namespace: glisp-native helpers Go's math lacks.
+;;;
+;;; Functions Go's math package already provides (sqrt, floor, ceil, round, abs,
+;;; pow, sin, log, …, and the constant math/pi) are reached directly as stdlib
+;;; interop — (math/sqrt x) → math.Sqrt(x), no declaration needed. This namespace
+;;; only adds the everyday helpers Go omits. Sibling/stdlib calls are qualified
+;;; (math/gcd, math/pow); a name defined here shadows the stdlib one.
+
+(ns math)
+
+;;; Constrain x to the range [lo, hi]. Preserves the argument's type.
+(defn clamp [x any lo any hi any] -> any
+  (cond (< x lo) lo (> x hi) hi :else x))
+
+;;; -1, 0, or 1 according to the sign of x.
+(defn sign [x any] -> int
+  (cond (< x 0) -1 (> x 0) 1 :else 0))
+
+;;; Greatest common divisor of a and b (Euclid).
+(defn gcd [a int b int] -> int
+  (loop [x a y b]
+    (if (= y 0) x (recur y (mod x y)))))
+
+;;; Least common multiple of a and b.
+(defn lcm [a int b int] -> int
+  (if (or (= a 0) (= b 0)) 0 (/ (* a b) (math/gcd a b))))
+
+;;; Round x to the given number of decimal places.
+(defn round-to [x float64 places int] -> float64
+  (let [f (math/pow 10.0 (float64 places))]
+    (/ (math/round (* x f)) f)))

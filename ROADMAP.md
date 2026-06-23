@@ -151,8 +151,13 @@ longer the default surface. Built directly on the Phase 12 typed-interop loader.
   in Clojure.
 - [ ] **Finish typed interop (Phase 12 remnants)** — 12c typed returns into
   dot-free dispatch and typed positions; 12e full glisp-level interop
-  diagnostics (wrong arity / wrong-typed arg / missing field-or-method as
-  position-tagged `.glsp` errors).
+  diagnostics. **Arity diagnostics done** (15a): a wrong-arity call to a loaded
+  Go function is a position-tagged `.glsp` error (`arity error: pkg/fn called
+  with N arg(s), expected M`) instead of an opaque Go compile error — variadic
+  fixed-minimum and spread (`& xs`) aware; an unloaded package degrades to
+  untyped emission. Remaining: wrong-typed-arg and missing-field-or-method
+  diagnostics (need external method-set introspection), and 12c return-type
+  propagation (needs external method tables for dot-free dispatch on results).
 - [ ] **Document the boundary** — "reach for interop when you need a Go library;
   otherwise stay in `core`." Wrapping a Go package is pure glisp (ADR-012 rule 4
   carries forward), but it's now clearly *interop*, not the everyday surface.

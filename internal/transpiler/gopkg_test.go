@@ -198,6 +198,56 @@ func TestVariadicSpreadLoaderValidation(t *testing.T) {
 	}
 }
 
+// TestGoCallArityValidation checks that, with loaded signatures in scope, a
+// wrong-arity call to an imported Go function is a position-tagged transpile
+// error (ADR-015, Phase 12e) rather than an opaque Go compile error, while
+// correct arities — including variadic — pass through.
+func TestGoCallArityValidation(t *testing.T) {
+	idx := LoadGoPackages(".", map[string]string{"fmt": "fmt", "strings": "strings"})
+	if idx == nil {
+		t.Fatal("failed to load stdlib signatures")
+	}
+	transpile := func(body string) error {
+		src := "(ns main)\n(defn f [s string xs []any] -> any " + body + ")"
+		ds, err := CollectDecls(nil, src, "")
+		if err != nil {
+			return err
+		}
+		ds.SetGoPackages(idx)
+		_, _, err = TranspileNoRuntimeFileExt(src, "", ds, false)
+		return err
+	}
+
+	// Fixed-arity strings.ToUpper(string) string.
+	if err := transpile(`(strings/to-upper s)`); err != nil {
+		t.Errorf("correct arity should pass, got: %v", err)
+	}
+	if err := transpile(`(strings/to-upper s s)`); err == nil {
+		t.Error("expected arity error for strings/to-upper with 2 args")
+	} else if !strings.Contains(err.Error(), "expected 1") {
+		t.Errorf("error %q should say 'expected 1'", err.Error())
+	}
+
+	// Fixed-arity strings.Repeat(string, int) string — too few args.
+	if err := transpile(`(strings/repeat s)`); err == nil {
+		t.Error("expected arity error for strings/repeat with 1 arg")
+	} else if !strings.Contains(err.Error(), "expected 2") {
+		t.Errorf("error %q should say 'expected 2'", err.Error())
+	}
+
+	// Variadic fmt.Sprintf(string, ...any) string: zero args is below the fixed
+	// minimum (Sprintf has a single return, so the multi-return gate is silent).
+	if err := transpile(`(fmt/sprintf)`); err == nil {
+		t.Error("expected arity error for fmt/sprintf with no format arg")
+	} else if !strings.Contains(err.Error(), "at least 1") {
+		t.Errorf("error %q should say 'at least 1'", err.Error())
+	}
+	// Variadic with the format plus extra args is fine.
+	if err := transpile(`(fmt/sprintf s s s)`); err != nil {
+		t.Errorf("variadic call with extra args should pass, got: %v", err)
+	}
+}
+
 // TestLoadGoPackages checks the go/packages signature extraction against the
 // standard library (always available offline). It is the foundation of
 // ADR-015 / Phase 12a: the transpiler reading Go signatures the way jank reads

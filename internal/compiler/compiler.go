@@ -134,6 +134,30 @@ func Run(target string, opts Options, progArgs []string) (int, error) {
 	return RunWithIO(target, opts, progArgs, os.Stdin, os.Stdout, os.Stderr)
 }
 
+// BuildTarget compiles target (a .glsp file or a directory) to the binary path
+// bin. For a single file, a generated .go that did not exist beforehand is
+// removed afterward. It is the shared build step behind Run and `run --watch`.
+func BuildTarget(target, bin string, opts Options) error {
+	info, err := os.Stat(target)
+	if err != nil {
+		return fmt.Errorf("build %s: %w", target, err)
+	}
+	if info.IsDir() {
+		// Directory builds leave their .go files in place, same as `glisp build`.
+		return CompileDirWithOptions(target, bin, opts)
+	}
+	goPath := strings.TrimSuffix(target, filepath.Ext(target)) + ".go"
+	_, preErr := os.Stat(goPath)
+	goPreexisted := preErr == nil
+	if err := CompileAndBuildWithOptions(target, bin, opts); err != nil {
+		return err
+	}
+	if !goPreexisted {
+		os.Remove(goPath)
+	}
+	return nil
+}
+
 // RunWithIO is like Run but with explicit standard streams (for tests).
 func RunWithIO(target string, opts Options, progArgs []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
 	tmpDir, err := os.MkdirTemp("", "glisp-run-")
@@ -158,21 +182,8 @@ func RunWithIO(target string, opts Options, progArgs []string, stdin io.Reader, 
 	}
 	bin := filepath.Join(tmpDir, binName)
 
-	if info.IsDir() {
-		// Directory builds leave their .go files in place, same as `glisp build`.
-		if err := CompileDirWithOptions(target, bin, opts); err != nil {
-			return 1, err
-		}
-	} else {
-		goPath := strings.TrimSuffix(target, filepath.Ext(target)) + ".go"
-		_, preErr := os.Stat(goPath)
-		goPreexisted := preErr == nil
-		if err := CompileAndBuildWithOptions(target, bin, opts); err != nil {
-			return 1, err
-		}
-		if !goPreexisted {
-			os.Remove(goPath)
-		}
+	if err := BuildTarget(target, bin, opts); err != nil {
+		return 1, err
 	}
 
 	cmd := exec.Command(bin, progArgs...)

@@ -34,13 +34,21 @@ type goPkgIndex map[string]map[string]goFunc
 // known to hold such a type can call its methods without the `(.Method o)` form.
 type goTypeIndex map[string]map[string]goFunc
 
+// goTypeFields maps an exported named struct type (keyed by its qualified type
+// string) to its exported fields, keyed by Go field name with the field's Go
+// type as value. Backs dot-free field access (`(.-Field x)`, `(:field x)`) and
+// missing-field diagnostics on interop values (ADR-015, Phase 12e).
+type goTypeFields map[string]map[string]string
+
 // goPackages bundles the loaded interop signatures the transpiler consults:
-// package-level functions (for `pkg/fn` calls) and the method sets of exported
-// named types (for dot-free dispatch on interop values). nil when nothing
-// loaded — every accessor is nil-safe so callers degrade to untyped emission.
+// package-level functions (for `pkg/fn` calls), the method sets of exported
+// named types (for dot-free dispatch), and the field sets of exported struct
+// types (for dot-free field access). nil when nothing loaded — every accessor is
+// nil-safe so callers degrade to untyped emission.
 type goPackages struct {
-	funcs goPkgIndex
-	types goTypeIndex
+	funcs  goPkgIndex
+	types  goTypeIndex
+	fields goTypeFields
 }
 
 // lookupFunc resolves a package-level function; nil-safe.
@@ -60,9 +68,19 @@ func (p *goPackages) methodSet(typeKey string) map[string]goFunc {
 	return p.types[typeKey]
 }
 
-// hasType reports whether typeKey names a loaded external type with methods.
+// fieldSet returns the exported field set of a named struct type (Go field name
+// → field Go type), or nil if unknown; nil-safe.
+func (p *goPackages) fieldSet(typeKey string) map[string]string {
+	if p == nil || p.fields == nil {
+		return nil
+	}
+	return p.fields[typeKey]
+}
+
+// hasType reports whether typeKey names a loaded external type the transpiler
+// can dispatch against — one with methods or exported fields.
 func (p *goPackages) hasType(typeKey string) bool {
-	return p.methodSet(typeKey) != nil
+	return p.methodSet(typeKey) != nil || p.fieldSet(typeKey) != nil
 }
 
 // lookup resolves a `pkg/fn` call against the loaded index. qualifier is the
@@ -182,6 +200,7 @@ func LoadGoPackages(dir string, paths map[string]string) *goPackages {
 
 	idx := goPkgIndex{}
 	tidx := goTypeIndex{}
+	fidx := goTypeFields{}
 	for _, p := range loaded {
 		if len(p.Errors) > 0 || p.Types == nil {
 			continue // degrade: this package stays untyped
@@ -210,8 +229,12 @@ func LoadGoPackages(dir string, paths map[string]string) *goPackages {
 				if !ok {
 					continue
 				}
+				key := types.TypeString(named, qualifier)
 				if set := methodSetOf(named, qualifier); len(set) > 0 {
-					tidx[types.TypeString(named, qualifier)] = set
+					tidx[key] = set
+				}
+				if fs := fieldsOf(named, qualifier); len(fs) > 0 {
+					fidx[key] = fs
 				}
 			}
 		}
@@ -219,10 +242,30 @@ func LoadGoPackages(dir string, paths map[string]string) *goPackages {
 			idx[qual] = fns
 		}
 	}
-	if len(idx) == 0 && len(tidx) == 0 {
+	if len(idx) == 0 && len(tidx) == 0 && len(fidx) == 0 {
 		return nil
 	}
-	return &goPackages{funcs: idx, types: tidx}
+	return &goPackages{funcs: idx, types: tidx, fields: fidx}
+}
+
+// fieldsOf returns the exported fields of a named struct type, keyed by Go field
+// name with the field's Go type as value. Non-struct named types yield nil. Like
+// the loaded type strings elsewhere, the field types are used only as keys and
+// hints, never written to the generated Go.
+func fieldsOf(named *types.Named, qualifier types.Qualifier) map[string]string {
+	st, ok := named.Underlying().(*types.Struct)
+	if !ok {
+		return nil
+	}
+	fs := map[string]string{}
+	for i := 0; i < st.NumFields(); i++ {
+		f := st.Field(i)
+		if !f.Exported() {
+			continue
+		}
+		fs[f.Name()] = types.TypeString(f.Type(), qualifier)
+	}
+	return fs
 }
 
 // methodSetOf returns the exported method set of a named type keyed by Go method

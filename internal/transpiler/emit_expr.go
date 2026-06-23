@@ -2213,6 +2213,20 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 						e.writef("%s.%s", identToGo(sym.Name), goField)
 						return nil
 					}
+					// External Go struct: (:scheme u) → u.Scheme against the
+					// loaded field set, uniform with locally-declared structs.
+					if fs := e.goFieldSet(typeName); fs != nil {
+						goField := fnToGo(kw.Value)
+						if _, ok := fs[goField]; !ok {
+							if _, ok := fs[kw.Value]; ok {
+								goField = kw.Value
+							} else {
+								return fmt.Errorf("type %s has no exported field :%s (at %s)", typeName, kw.Value, n.Pos())
+							}
+						}
+						e.writef("%s.%s", identToGo(sym.Name), goField)
+						return nil
+					}
 				}
 			}
 		}

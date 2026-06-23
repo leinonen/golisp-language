@@ -300,6 +300,63 @@ func TestGoMethodDispatch(t *testing.T) {
 	}
 }
 
+// TestGoFieldAccess checks dot-free field access on interop values (ADR-015,
+// Phase 12e): a value whose external Go struct type is known reads its exported
+// fields via (.-Field x) and (:field x), and a non-existent field is a
+// position-tagged error.
+func TestGoFieldAccess(t *testing.T) {
+	idx := LoadGoPackages(".", map[string]string{"url": "net/url"})
+	if idx == nil {
+		t.Fatal("failed to load net/url signatures")
+	}
+	if fs := idx.fieldSet("url.URL"); fs == nil || fs["Scheme"] == "" {
+		t.Fatalf("url.URL field set not loaded: %v", fs)
+	}
+	emit := func(src string) (string, error) {
+		ds, err := CollectDecls(nil, src, "")
+		if err != nil {
+			return "", err
+		}
+		ds.SetGoPackages(idx)
+		out, _, err := TranspileNoRuntimeFileExt(src, "", ds, false)
+		return out, err
+	}
+
+	// 1. (.-Field x) interop accessor on an annotated external-typed param.
+	out, err := emit(`(ns main)
+(defn f [u *url/URL] -> string (.-Scheme u))`)
+	if err != nil {
+		t.Fatalf("(.-Scheme u): %v", err)
+	}
+	if !strings.Contains(out, "u.Scheme") {
+		t.Errorf("expected u.Scheme in:\n%s", out)
+	}
+
+	// 2. (:field x) keyword access maps to the Go field, like a local struct.
+	out, err = emit(`(ns main)
+(defn f [u *url/URL] -> string (:host u))`)
+	if err != nil {
+		t.Fatalf("(:host u): %v", err)
+	}
+	if !strings.Contains(out, "u.Host") {
+		t.Errorf("expected u.Host in:\n%s", out)
+	}
+
+	// 3. A non-existent field is a diagnostic, in both spellings.
+	if _, err := emit(`(ns main)
+(defn f [u *url/URL] -> string (.-Bogus u))`); err == nil {
+		t.Error("expected error for (.-Bogus u)")
+	} else if !strings.Contains(err.Error(), "has no exported field") {
+		t.Errorf("error %q should mention 'has no exported field'", err.Error())
+	}
+	if _, err := emit(`(ns main)
+(defn f [u *url/URL] -> string (:bogus u))`); err == nil {
+		t.Error("expected error for (:bogus u)")
+	} else if !strings.Contains(err.Error(), "has no exported field") {
+		t.Errorf("error %q should mention 'has no exported field'", err.Error())
+	}
+}
+
 // TestLoadGoPackages checks the go/packages signature extraction against the
 // standard library (always available offline). It is the foundation of
 // ADR-015 / Phase 12a: the transpiler reading Go signatures the way jank reads

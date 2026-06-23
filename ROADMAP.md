@@ -167,10 +167,17 @@ longer the default surface. Built directly on the Phase 12 typed-interop loader.
     **non-existent method on a known external type is a position-tagged error**
     (`type pkg.T has no exported method M`). Verified end-to-end:
     `(match-string (regexp/must-compile …) s)` → `re.MatchString(s)`.
-  - Remaining (12e): wrong-typed-arg diagnostics, and missing **field** access
-    (`.-Field`) — fields need named-type field enumeration, methods are done.
-    Multi-return Go *methods* in single-value position aren't yet gated (use the
-    `(.Method …)` + `if-err` form), unlike multi-return functions.
+  - **12e field access done** (15e): the loader also reads exported **struct
+    field sets**. A value of a known external struct type reads its fields
+    dot-free — `(.-Scheme u)` and `(:scheme u)` both emit `u.Scheme` — and a
+    non-existent field is a position-tagged error (`type pkg.T has no exported
+    field F`), in both spellings. Field types whose own type is external chain
+    through inference. Verified end-to-end with `net/url.URL`.
+  - Remaining (12e): wrong-typed-arg diagnostics; multi-return Go *methods* in
+    single-value position aren't yet gated (use the `(.Method …)` + `if-err`
+    form), unlike multi-return functions. Typed field/method access still needs
+    the receiver to carry the external Go type (annotation or typed return); an
+    `if-err`-bound multi-return result is Go-typed but its type isn't recorded.
 - [ ] **Document the boundary** — "reach for interop when you need a Go library;
   otherwise stay in `core`." Wrapping a Go package is pure glisp (ADR-012 rule 4
   carries forward), but it's now clearly *interop*, not the everyday surface.

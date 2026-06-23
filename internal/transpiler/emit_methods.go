@@ -91,6 +91,12 @@ func (e *Emitter) goMethodSet(typeKey string) map[string]goFunc {
 	return e.goPkgs.methodSet(typeKey)
 }
 
+// goFieldSet returns the loaded exported field set of an external Go struct
+// type (Go field name → field Go type), or nil.
+func (e *Emitter) goFieldSet(typeKey string) map[string]string {
+	return e.goPkgs.fieldSet(typeKey)
+}
+
 // goFuncToSig adapts a loaded Go method signature to the *fnSig that method
 // dispatch emission uses. Only the fixed parameters carry type hints; a variadic
 // method's trailing args emit bare (they are `any`/interface in practice), and a

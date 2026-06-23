@@ -67,6 +67,13 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 		addImport("bytes")
 		addImport("os/exec")
 	}
+	if builtins["_path"] {
+		addImport("path/filepath")
+	}
+	if builtins["_walk"] {
+		addImport("path/filepath")
+		addImport("io/fs")
+	}
 	// "_set" is a pseudo-package marker for set algebra helpers (no real import needed)
 	// "_file" is a pseudo-package marker for file I/O helpers (real imports: os, fmt)
 	// "_atom" is a pseudo-package marker for atom helpers (real import: sync)
@@ -127,6 +134,12 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["_proc"] {
 		s += glispProcRuntime
+	}
+	if builtins["_path"] {
+		s += glispPathRuntime
+	}
+	if builtins["_walk"] {
+		s += glispWalkRuntime
 	}
 	return s
 }
@@ -2042,5 +2055,57 @@ func _glispProcRun(args ...any) map[string]any {
 
 func _glispProcSh(cmd any) map[string]any {
 	return _glispExec(exec.Command("sh", "-c", _glispToString(cmd)))
+}
+`
+
+// glispPathRuntime is appended when path/* or glob are used (real import:
+// path/filepath). Path helpers front filepath, so joins/splits respect the OS
+// separator. _glispGlob returns matches as []any (empty on a bad pattern).
+const glispPathRuntime = `
+// --- path/* and glob helpers (generated) ---
+
+func _glispPathJoin(parts ...any) string {
+	s := make([]string, len(parts))
+	for i, p := range parts {
+		s[i] = _glispToString(p)
+	}
+	return filepath.Join(s...)
+}
+
+func _glispPathDir(p any) string   { return filepath.Dir(_glispToString(p)) }
+func _glispPathBase(p any) string  { return filepath.Base(_glispToString(p)) }
+func _glispPathExt(p any) string   { return filepath.Ext(_glispToString(p)) }
+func _glispPathClean(p any) string { return filepath.Clean(_glispToString(p)) }
+
+func _glispGlob(pattern any) []any {
+	m, err := filepath.Glob(_glispToString(pattern))
+	if err != nil {
+		return []any{}
+	}
+	out := make([]any, len(m))
+	for i, p := range m {
+		out[i] = p
+	}
+	return out
+}
+`
+
+// glispWalkRuntime is appended when walk is used (real imports: path/filepath,
+// io/fs). Returns every regular file under root, recursively, as []any.
+const glispWalkRuntime = `
+// --- walk helper (generated) ---
+
+func _glispWalk(root any) []any {
+	out := []any{}
+	filepath.WalkDir(_glispToString(root), func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			out = append(out, p)
+		}
+		return nil
+	})
+	return out
 }
 `

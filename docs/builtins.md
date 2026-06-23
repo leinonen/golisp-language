@@ -489,6 +489,31 @@ exit code is 0. No import declaration needed.
 (:out (proc/sh "ls -1 | wc -l"))   ; shell features via sh -c
 ```
 
+## Paths & filesystem
+
+Path helpers front `path/filepath`, so joins and splits respect the OS
+separator. No import declaration needed. (See also the bare file built-ins:
+`read-file`/`write-file`/`list-dir`/`mkdir`/`file-exists?` and `slurp`/`spit`.)
+
+| Form | Returns | Description |
+|---|---|---|
+| `(path/join & parts)` | string | Join elements with the OS separator |
+| `(path/dir p)` | string | The directory part (all but the last element) |
+| `(path/base p)` | string | The last element (file name) |
+| `(path/ext p)` | string | The extension, including the dot (`""` if none) |
+| `(path/clean p)` | string | Shortest equivalent path, lexically |
+| `(glob pattern)` | `[]any` | Paths matching a single-level shell pattern (`"src/*.go"`) |
+| `(walk dir)` | `[]any` | Every regular file under dir, recursively |
+
+```clojure
+; process every .glsp file under a tree
+(doseq [f (walk "examples")]
+  (when (str/ends-with? f ".glsp")
+    (println (path/base f))))
+
+(glob "*.txt")                     ; → ["a.txt" "b.txt"] in the current dir
+```
+
 ## Context
 
 Pass `context.Context` to Go APIs that support cancellation and deadlines. No import declaration needed.

@@ -107,7 +107,7 @@ func TestMultiReturnInterop(t *testing.T) {
 // 12d), generalizing the math-only stdlibNumericParams table.
 func TestArgCoercionInterop(t *testing.T) {
 	idx := LoadGoPackages(".", map[string]string{
-		"strings": "strings", "strconv": "strconv", "path": "path",
+		"strings": "strings", "strconv": "strconv", "filepath": "path/filepath",
 	})
 	if idx == nil {
 		t.Fatal("failed to load stdlib signatures")
@@ -141,8 +141,8 @@ func TestArgCoercionInterop(t *testing.T) {
 		{
 			"variadic element type coerces per-arg, not the slice",
 			`(ns main)
-(defn f [xs []any] -> string (path/join (first xs) (second xs)))`,
-			"path.Join(_glispToString(_glispFirst(xs)), _glispToString(_glispSecond(xs)))",
+(defn f [xs []any] -> string (filepath/join (first xs) (second xs)))`,
+			"filepath.Join(_glispToString(_glispFirst(xs)), _glispToString(_glispSecond(xs)))",
 		},
 		{
 			"concrete arg is not wrapped",

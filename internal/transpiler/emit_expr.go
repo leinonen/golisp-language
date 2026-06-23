@@ -901,7 +901,7 @@ func (e *Emitter) isVoidCall(n *ast.CallExpr) bool {
 var anyReturningBuiltins = map[string]bool{
 	"get": true, "get-in": true, "nth": true, "first": true, "second": true,
 	"last": true, "peek": true, "rand-nth": true, "find": true, "deref": true,
-	"reduce": true, "apply": true,
+	"reduce": true, "apply": true, "transduce": true,
 	// proc/* return a map[string]any result; treating it as `any` lets keyword
 	// access on it (`(:out r)`) coerce into str/ and other typed positions.
 	"proc/run": true, "proc/sh": true,
@@ -1747,15 +1747,29 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return e.emitDotimes(n.Args)
 		// 2a: collection operations
 		case "map":
+			if len(n.Args) == 1 {
+				e.needImport("_xf")
+				return e.emitRuntimeCall("_glispMapXf", n.Args, 1)
+			}
 			return e.emitRuntimeCall("_glispMap", n.Args, 2)
 		case "for":
 			return e.emitFor(n.Args)
 		case "map-indexed":
 			return e.emitRuntimeCall("_glispMapIndexed", n.Args, 2)
 		case "filter":
+			if len(n.Args) == 1 {
+				e.needImport("_xf")
+				return e.emitRuntimeCall("_glispFilterXf", n.Args, 1)
+			}
 			return e.emitRuntimeCall("_glispFilter", n.Args, 2)
 		case "reduce":
 			return e.emitRuntimeCall("_glispReduce", n.Args, 3)
+		case "transduce":
+			e.needImport("_xf")
+			return e.emitRuntimeCall("_glispTransduce", n.Args, 4)
+		case "sequence":
+			e.needImport("_xf")
+			return e.emitRuntimeCall("_glispSequence", n.Args, 2)
 		case "reverse":
 			return e.emitRuntimeCall("_glispReverse", n.Args, 1)
 		case "contains?":
@@ -1772,8 +1786,16 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "range":
 			return e.emitVariadicRuntimeCall("_glispRange", n.Args)
 		case "take":
+			if len(n.Args) == 1 {
+				e.needImport("_xf")
+				return e.emitRuntimeCall("_glispTakeXf", n.Args, 1)
+			}
 			return e.emitRuntimeCall("_glispTake", n.Args, 2)
 		case "drop":
+			if len(n.Args) == 1 {
+				e.needImport("_xf")
+				return e.emitRuntimeCall("_glispDropXf", n.Args, 1)
+			}
 			return e.emitRuntimeCall("_glispDrop", n.Args, 2)
 		// 7b: data transformation
 		case "second":
@@ -1806,14 +1828,26 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			e.needImport("data")
 			return e.emitRuntimeCall("_glispFrequencies", n.Args, 1)
 		case "into":
+			if len(n.Args) == 3 {
+				e.needImport("_xf")
+				return e.emitRuntimeCall("_glispIntoXf", n.Args, 3)
+			}
 			return e.emitRuntimeCall("_glispInto", n.Args, 2)
 		case "concat":
 			return e.emitVariadicRuntimeCall("_glispConcat", n.Args)
 		case "mapcat":
 			return e.emitRuntimeCall("_glispMapcat", n.Args, 2)
 		case "take-while":
+			if len(n.Args) == 1 {
+				e.needImport("_xf")
+				return e.emitRuntimeCall("_glispTakeWhileXf", n.Args, 1)
+			}
 			return e.emitRuntimeCall("_glispTakeWhile", n.Args, 2)
 		case "drop-while":
+			if len(n.Args) == 1 {
+				e.needImport("_xf")
+				return e.emitRuntimeCall("_glispDropWhileXf", n.Args, 1)
+			}
 			return e.emitRuntimeCall("_glispDropWhile", n.Args, 2)
 		case "zipmap":
 			e.needImport("data")
@@ -1827,8 +1861,16 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "distinct":
 			return e.emitRuntimeCall("_glispDistinct", n.Args, 1)
 		case "remove":
+			if len(n.Args) == 1 {
+				e.needImport("_xf")
+				return e.emitRuntimeCall("_glispRemoveXf", n.Args, 1)
+			}
 			return e.emitRuntimeCall("_glispRemove", n.Args, 2)
 		case "keep":
+			if len(n.Args) == 1 {
+				e.needImport("_xf")
+				return e.emitRuntimeCall("_glispKeepXf", n.Args, 1)
+			}
 			return e.emitRuntimeCall("_glispKeep", n.Args, 2)
 		case "split-at":
 			return e.emitRuntimeCall("_glispSplitAt", n.Args, 2)
@@ -3304,6 +3346,8 @@ var fnArgHelpers = map[string]int{
 	"_glispNotAny": 0, "_glispRemove": 0, "_glispKeep": 0, "_glispSortBy": 0,
 	"_glispGroupBy": 0, "_glispPartitionBy": 0, "_glispMapcat": 0,
 	"_glispTakeWhile": 0, "_glispDropWhile": 0, "_glispSplitWith": 0,
+	"_glispMapXf": 0, "_glispFilterXf": 0, "_glispRemoveXf": 0, "_glispKeepXf": 0,
+	"_glispTakeWhileXf": 0, "_glispDropWhileXf": 0,
 	"_glispMinKey": 0, "_glispMaxKey": 0, "_glispMinBy": 0, "_glispMaxBy": 0,
 	"_glispMapVals": 0, "_glispMapKeys": 0,
 	"_glispComplement": 0, "_glispFnil": 0, "_glispPartial": 0, "_glispApply": 0,

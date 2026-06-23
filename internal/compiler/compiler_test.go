@@ -244,6 +244,32 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 
+	t.Run("transducers", func(t *testing.T) {
+		src := `(ns main)
+(defn main [] -> void
+  (let [xf (comp (map (fn [x] (* x x))) (filter (fn [x] (> x 5))) (take 2))]
+    (fmt/println "seq" (sequence xf (range 1 1000000)))
+    (fmt/println "sum" (transduce xf (fn [acc x] (+ acc x)) 0 (range 1 1000000)))
+    (fmt/println "into" (into [] (map (fn [x] (+ x 1))) [1 2 3]))))
+`
+		path := filepath.Join(dir, "xf.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		got := out.String()
+		// squares >5, first 2: 9 (3²), 16 (4²) → seq [9 16], sum 25
+		for _, want := range []string{"seq [9 16]", "sum 25", "into [2 3 4]"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout %q missing %q", got, want)
+			}
+		}
+	})
+
 	t.Run("proc run", func(t *testing.T) {
 		src := `(ns main)
 (defn main [] -> void

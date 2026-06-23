@@ -39,16 +39,17 @@ var builtinArity = map[string][2]int{
 	"doseq": {2, -1}, "dotimes": {2, -1},
 
 	// collection / sequence operations
-	"map": {2, 2}, "map-indexed": {2, 2}, "filter": {2, 2}, "reduce": {3, 3}, "reverse": {1, 1},
+	"map": {1, 2}, "map-indexed": {2, 2}, "filter": {1, 2}, "reduce": {3, 3}, "reverse": {1, 1},
 	"contains?": {2, 2}, "some": {2, 2}, "every?": {2, 2}, "sort-by": {2, 2},
-	"flatten": {1, 1}, "take": {2, 2}, "drop": {2, 2}, "for": {2, -1}, "mod": {2, 2},
+	"flatten": {1, 1}, "take": {1, 2}, "drop": {1, 2}, "for": {2, -1}, "mod": {2, 2},
+	"transduce": {4, 4}, "sequence": {2, 2},
 	"second": {1, 1}, "last": {1, 1}, "empty?": {1, 1}, "not-empty": {1, 1},
 	"get-in": {2, 2}, "assoc-in": {3, 3}, "update-in": {3, 3}, "update": {3, 3},
 	"select-keys": {2, 2}, "rename-keys": {2, 2}, "group-by": {2, 2},
-	"frequencies": {1, 1}, "into": {2, 2}, "mapcat": {2, 2},
-	"take-while": {2, 2}, "drop-while": {2, 2}, "zipmap": {2, 2},
+	"frequencies": {1, 1}, "into": {2, 3}, "mapcat": {2, 2},
+	"take-while": {1, 2}, "drop-while": {1, 2}, "zipmap": {2, 2},
 	"partition": {2, 2}, "partition-by": {2, 2}, "distinct": {1, 1},
-	"remove": {2, 2}, "keep": {2, 2}, "split-at": {2, 2}, "split-with": {2, 2},
+	"remove": {1, 2}, "keep": {1, 2}, "split-at": {2, 2}, "split-with": {2, 2},
 	"not-any?": {2, 2}, "interpose": {2, 2}, "repeat": {2, 2},
 
 	// numeric predicates / arithmetic helpers

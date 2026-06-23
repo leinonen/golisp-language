@@ -688,6 +688,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["encoding/csv"] {
 			e.write(glispCsvRuntime)
 		}
+		if e.builtinImports["_xf"] {
+			e.write(glispXfRuntime)
+		}
 		if e.builtinImports["net/http"] {
 			e.write(glispHttpRuntime)
 		}

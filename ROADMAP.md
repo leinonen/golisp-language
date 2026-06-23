@@ -242,9 +242,12 @@ binary + a real Lisp + (optionally) skip-the-build is a strong niche.
 Lean on the strong collection library; add the pieces an ETL/transform job
 needs. Eager throughout (no lazy seqs — see open questions).
 
-- [ ] **Eager transducers** — `(comp (map f) (filter g) (take n))` with
-  `transduce` / `into` / `eduction`. Transducers compose pipelines **without**
-  laziness, so they fit ADR-003 cleanly and unify the existing HOFs.
+- [x] **Eager transducers** (17b) — `map`/`filter`/`remove`/`keep`/`take`/`drop`/
+  `take-while`/`drop-while` called with a single arg return a transducer (a unary
+  `rf→rf`), so the existing `comp` composes them; `transduce`/`sequence`/`into`
+  (3-arg) apply them. Eager (ADR-003) with a `Reduced` sentinel for early
+  termination (`take`/`take-while`). Runtime block `glispXfRuntime` (`_xf` key,
+  no real imports). The 2-arg eager forms are unchanged.
 - [x] **CSV** (17a) — `(csv/parse text)` → header-mapped rows (`[]any` of
   `map[string]any`, first record = header) and `(csv/write rows)` → CSV string
   (header = first row's keys, sorted). Built-in forms over `encoding/csv` (the

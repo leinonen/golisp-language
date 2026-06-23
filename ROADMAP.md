@@ -50,7 +50,30 @@ works. These remain load-bearing:
 
 ---
 
-## Phase 13 — The macro engine (foundation)
+## Status
+
+The v2 re-founding is **delivered**: Phases 13–17 are complete. glisp now has its
+own macro engine, a glisp-authored standard library, first-class typed Go interop
+with position-tagged diagnostics, a scripting/CLI toolchain, and a
+data-processing stack — plus 18 examples including a `salesreport` showcase that
+exercises the whole stack in one program. **Phase 18 (Web) is the active front.**
+
+| Phase | | Highlights |
+|---|---|---|
+| 13 — Macros | ✅ | `defmacro` + syntax-quote; `core` prelude; `->`/`->>`/`when-not`/… ported to glisp |
+| 14 — `core` vocabulary | ✅ | `str/` `sys/` `cli/` `math/` + bare `slurp`/`spit`/`lines`; whole surface migrated |
+| 15 — Interop | ✅ | signature loader, dot-free method/field dispatch, full 12e diagnostics |
+| 16 — Scripting & CLI | ✅ | shebang, `run --watch`, `cli/parse-opts`, `proc/`, `path/`/`glob`/`walk` |
+| 17 — Data processing | ✅ | CSV, eager transducers, constant-memory line + JSON streaming |
+| 18 — Web | 🔨 | **active** — evolve the v1 web stack under the v2 model |
+
+**Continuous:** tooling/docs polish. **Deferred (need an ADR):** interpreted
+fast-path for `glisp run`, value-equality `=`, lazy sequences — see Open
+questions. The per-phase detail below is kept as a build record.
+
+---
+
+## Phase 13 — The macro engine (foundation) ✅
 
 The keystone of v2; everything downstream leans on it. This is the single
 largest piece of engineering on the roadmap and the highest-leverage. See
@@ -93,7 +116,7 @@ ADR-017 for the design rationale.
 
 ---
 
-## Phase 14 — `core`: the standard vocabulary
+## Phase 14 — `core`: the standard vocabulary ✅
 
 Give the language its own names; Go becomes the backend. This is where "feels
 like a Lisp, not like Go" is actually delivered. `core` is **written in glisp**
@@ -101,8 +124,9 @@ like a Lisp, not like Go" is actually delivered. `core` is **written in glisp**
 helpers injected like the runtime (single-file inline, dir builds via
 `glisp_core.go`) — namespaces live only at the glisp level, so they never
 collide with Go's `string` type / stdlib packages. See
-[docs/design/phase-14-core.md](design/phase-14-core.md). **14a (the mechanism +
-`str/`) is done.**
+[docs/design/phase-14-core.md](design/phase-14-core.md). **Done** — the mechanism,
+`str/`/`sys/`/`math/`, the bare prelude, LSP support, and the full example-corpus
+migration all landed; the vocabulary keeps growing as real code asks.
 
 - [x] **The `core` mechanism** (14a) — glisp-authored, mangled-and-injected,
   gated on use, with call-site resolution + arg coercion via the existing
@@ -134,31 +158,31 @@ collide with Go's `string` type / stdlib packages. See
   `filepath/join`, which have no core form, remain as interop). Surfaced two
   core gaps, now fixed: `sys/env` takes an optional default (`(sys/env "PORT"
   "4000")`), and `str/join` accepts any sequence including sets.
-- [x] **`math` namespace** (18b) — Go's `math/*` (sqrt, floor, round, pow, …, and
+- [x] **`math` namespace** (14e) — Go's `math/*` (sqrt, floor, round, pow, …, and
   `math/pi`) already read naturally as stdlib interop, so the `math` **core**
   namespace only adds the helpers Go omits: `clamp`, `sign`, `gcd`, `lcm`,
   `round-to`. Partial-namespace resolution: names defined in `math.glsp` are
   core, undefined ones fall through to stdlib `math.*` (and core helpers may call
   stdlib `math/*` themselves — `round-to` uses `math/pow`/`math/round`).
-- [~] **Grow the vocabulary** — `str/` gained `capitalize`, `trim-start`,
-  `trim-end`, `replace-first`, `last-index-of`, `pad-left`, `pad-right` (18a).
+- [~] **Grow the vocabulary** (14f) — `str/` gained `capitalize`, `trim-start`,
+  `trim-end`, `replace-first`, `last-index-of`, `pad-left`, `pad-right`.
   More `str/`, data helpers, and bare `core` functions grow as demand drives.
 
 ---
 
-## Phase 15 — Interop, the Clojure-to-Java way
+## Phase 15 — Interop, the Clojure-to-Java way ✅
 
 Make Go interop a deliberate, ergonomic, *visible* facility — first-class but no
 longer the default surface. Built directly on the Phase 12 typed-interop loader.
 
-- [ ] **One clear interop import** — `(import [github.com/user/pkg :as alias])`
-  as the blessed way to pull in a Go package, mirroring Clojure's `(:import …)`.
-  Keep `pkg/fn` call syntax for power users.
-- [ ] **Keep the interop primitives** — `(.Method o args)`, `(.-Field o)`,
+- [x] **One clear interop import** — `(:import [github.com/user/pkg :as alias])`
+  is the blessed way to pull in a Go package, mirroring Clojure's `(:import …)`.
+  `pkg/fn` call syntax stays for power users.
+- [x] **Keep the interop primitives** — `(.Method o args)`, `(.-Field o)`,
   `(Type. {…})`, `(as T v)`, and `& spread`. These are golisp's `(.method)` /
   `(Foo.)` / `(cast)`, and they are *good*. They stay visible, like Java interop
   in Clojure.
-- [ ] **Finish typed interop (Phase 12 remnants)** — 12c typed returns into
+- [x] **Finish typed interop (Phase 12 remnants)** — 12c typed returns into
   dot-free dispatch and typed positions; 12e full glisp-level interop
   diagnostics.
   - **Arity diagnostics done** (15a): a wrong-arity call to a loaded Go function
@@ -197,14 +221,14 @@ longer the default surface. Built directly on the Phase 12 typed-interop loader.
   coercion + arity diagnostics, dot-free method/field dispatch on typed values,
   the interop primitives, and the documented limitations. Linked from the README.
 
-Phase 15 is substantially complete: the interop engine (12a–12e) plus the
-boundary doc. The remaining 12e remnants above (wrong-typed-arg diagnostics,
-multi-return-method gating, `if-err` result typing) are tracked as a backlog,
-not blockers.
+Phase 15 is **complete**: the interop engine (12a–12e) plus the boundary doc all
+landed. The three minor remnants noted above (non-literal wrong-typed-arg
+diagnostics, `if-err`-bound interop result typing, annotation-only package
+loading) are tracked as a small backlog, not blockers.
 
 ---
 
-## Phase 16 — Scripting & CLI
+## Phase 16 — Scripting & CLI ✅
 
 Make glisp a first-class scripting and automation language. Single static
 binary + a real Lisp + (optionally) skip-the-build is a strong niche.
@@ -244,7 +268,7 @@ binary + a real Lisp + (optionally) skip-the-build is a strong niche.
 
 ---
 
-## Phase 17 — Data processing
+## Phase 17 — Data processing ✅
 
 Lean on the strong collection library; add the pieces an ETL/transform job
 needs. Eager throughout (no lazy seqs — see open questions).
@@ -277,17 +301,37 @@ needs. Eager throughout (no lazy seqs — see open questions).
 
 ---
 
-## Phase 18 — Web, continued
+## Phase 18 — Web, continued 🔨
 
-Keep the v1 strength; evolve it under the new model.
+The active front. The v1 web stack (routing, middleware, hiccup, SSE,
+websockets) is a genuine strength; v2 fills the gaps a real app hits and
+re-presents the stack under the new identity. Slices are ordered by leverage —
+each is independently shippable and reviewable.
 
-- [ ] **Web as a `core`-style library** — the web stack (routing, middleware,
-  hiccup, SSE, websockets) presented as a first-class glisp library rather than
-  a special Go package the user imports by URL.
-- [ ] **Richer routing / templating** ergonomics, now that macros exist (a
-  routing DSL is the canonical "macros earn their keep" example).
-- [ ] **Observability** — structured request logging, metrics hooks, tracing
-  context already half-present via `ctx/*` and `log/*`.
+- [ ] **Sessions + signed cookies** (18a) — the first slice. A
+  `(web/wrap-session opts)` middleware backed by HMAC-signed (tamper-proof)
+  cookies: `(web/session req)` reads the session map, `(web/assoc-session resp k
+  v)` / `(web/clear-session resp)` write it back via `Set-Cookie`. Secret from
+  `opts`/`sys/env`; `crypto/hmac` + `encoding/base64` in `web/session.go`. The
+  building block for auth flows — pairs with the existing `wrap-auth`.
+- [ ] **Multipart / file uploads** (18b) — parse `multipart/form-data` so
+  `form-param` covers file fields; `(web/uploaded-file req "field")` →
+  `{:filename :size :content}` (or a temp-file handle for large uploads). Closes
+  the obvious gap between the form helpers and real upload forms.
+- [ ] **Routing DSL via macros** (18c) — the canonical "macros earn their keep"
+  example. A `(defroutes app …)` / `(GET "/users/:id" [id] …)` macro that expands
+  to the existing `routes`/`web/get` calls, binding path params as locals. Pure
+  AST rewrite over the stable runtime — no new Go, written in glisp like the
+  threading macros. Proves the Phase 13 engine on a real DSL.
+- [ ] **Observability middleware** (18d) — `web/wrap-logging` (structured
+  per-request `log/*` lines: method, path, status, duration) and
+  `web/wrap-metrics` (a pluggable counter/timer hook). Tracing context already
+  flows via `ctx/*`; this surfaces it. Composes with `wrap-recover`.
+- [ ] **Web as a documented `core`-style library** (18e) — once the above land,
+  present the whole stack the way `core`/interop are documented: a single guide
+  framing web as a first-class glisp library (the `golisp/web` import is the one
+  deliberate interop seam), not "a Go package you reach for." The
+  `examples/todos` app stays the living reference.
 
 ---
 

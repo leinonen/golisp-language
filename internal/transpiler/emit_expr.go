@@ -2271,6 +2271,11 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 	if info, ok := e.resolveMethodCall(n); ok {
 		return e.emitMethodCall(n, info)
 	}
+	// A dot-free method spelling on an external-typed receiver that names no
+	// method of that Go type is a typo, not a free call — flag it (Phase 12e).
+	if err := e.checkExternalMethodTypo(n); err != nil {
+		return err
+	}
 
 	// General function call: f(args...)
 	// A trailing `& xs` spreads a slice into a Go variadic parameter:

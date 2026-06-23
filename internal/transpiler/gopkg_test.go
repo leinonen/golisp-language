@@ -198,6 +198,51 @@ func TestVariadicSpreadLoaderValidation(t *testing.T) {
 	}
 }
 
+// TestGoInteropDiagnostics covers the Phase 15f interop diagnostics: a literal
+// argument of the wrong kind for a loaded Go parameter, and a multi-return
+// external method used in single-value position (ADR-015, 12e).
+func TestGoInteropDiagnostics(t *testing.T) {
+	idx := LoadGoPackages(".", map[string]string{"strings": "strings"})
+	if idx == nil {
+		t.Fatal("failed to load strings signatures")
+	}
+	build := func(src string) error {
+		ds, err := CollectDecls(nil, src, "")
+		if err != nil {
+			return err
+		}
+		ds.SetGoPackages(idx)
+		_, _, err = TranspileNoRuntimeFileExt(src, "", ds, false)
+		return err
+	}
+
+	// strings.Repeat(s string, count int): a string literal in the int slot.
+	if err := build(`(ns main)
+(defn f [] -> string (strings/repeat "x" "3"))`); err == nil {
+		t.Error("expected a wrong-typed-arg error for a string literal in an int param")
+	} else if !strings.Contains(err.Error(), "string literal") || !strings.Contains(err.Error(), "numeric") {
+		t.Errorf("error %q should flag the string literal vs numeric param", err.Error())
+	}
+	// Correct literal kinds pass.
+	if err := build(`(ns main)
+(defn f [] -> string (strings/repeat "x" 3))`); err != nil {
+		t.Errorf("correct literal kinds should pass, got: %v", err)
+	}
+
+	// strings.Builder.WriteString → (int, error): dot-free in single-value position.
+	if err := build(`(ns main)
+(defn f [b *strings/Builder] -> any (let [n (write-string b "hi")] n))`); err == nil {
+		t.Error("expected a multi-return error for a dot-free external method as a single value")
+	} else if !strings.Contains(err.Error(), "multiple values") {
+		t.Errorf("error %q should mention 'multiple values'", err.Error())
+	}
+	// With if-err it is fine.
+	if err := build(`(ns main)
+(defn f [b *strings/Builder] -> any (if-err [n e] (write-string b "hi") e n))`); err != nil {
+		t.Errorf("multi-return method with if-err should pass, got: %v", err)
+	}
+}
+
 // TestGoCallArityValidation checks that, with loaded signatures in scope, a
 // wrong-arity call to an imported Go function is a position-tagged transpile
 // error (ADR-015, Phase 12e) rather than an opaque Go compile error, while

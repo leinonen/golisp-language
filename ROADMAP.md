@@ -179,11 +179,15 @@ longer the default surface. Built directly on the Phase 12 typed-interop loader.
     non-existent field is a position-tagged error (`type pkg.T has no exported
     field F`), in both spellings. Field types whose own type is external chain
     through inference. Verified end-to-end with `net/url.URL`.
-  - Remaining (12e): wrong-typed-arg diagnostics; multi-return Go *methods* in
-    single-value position aren't yet gated (use the `(.Method …)` + `if-err`
-    form), unlike multi-return functions. Typed field/method access still needs
-    the receiver to carry the external Go type (annotation or typed return); an
-    `if-err`-bound multi-return result is Go-typed but its type isn't recorded.
+  - **12e diagnostics complete** (15f): a multi-return external **method** used
+    dot-free in single-value position is now gated (`goFuncToSig` renders a 2+
+    result method as `(T1, T2)` so `multiReturnCall` catches it), and a
+    **wrong-kind literal argument** to a loaded `pkg/fn` is a position-tagged
+    error (`checkGoCallArgTypes`, literals only — false-positive-free).
+  - Remaining (minor): non-literal wrong-typed args aren't diagnosed (Go reports
+    them, `.glsp`-mapped); an `if-err`-bound multi-return interop result isn't
+    type-recorded for further dot-free dispatch; `GoImportPaths` doesn't load a
+    package referenced only by a type annotation (`:import` it).
 - [x] **Document the boundary** (15d) — [`docs/interop.md`](docs/interop.md):
   "reach for interop when you need a Go library; otherwise stay in `core`." A
   single guide covering external-package imports, `pkg/fn` calls with arg

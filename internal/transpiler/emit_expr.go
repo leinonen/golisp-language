@@ -2447,6 +2447,14 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			if err := checkGoCallArity(sym.Name, fn, len(leading), hasSpread, sym.Pos()); err != nil {
 				return err
 			}
+			// Wrong-typed-arg diagnostics (Phase 15 / 12e): a literal argument
+			// whose kind clearly can't match the loaded Go parameter type (a string
+			// where a number is wanted, …) is a positioned glisp error instead of
+			// an opaque Go "cannot use" error. Only literals are checked, so no
+			// false positives on values that coerce.
+			if err := checkGoCallArgTypes(sym.Name, fn, leading, sym.Pos()); err != nil {
+				return err
+			}
 		}
 	}
 	if err := e.emitExpr(n.Head); err != nil {
@@ -2507,6 +2515,64 @@ func checkGoCallArity(name string, fn goFunc, leading int, hasSpread bool, pos a
 	}
 	if leading != len(fn.params) {
 		return fmt.Errorf("arity error: %s called with %d arg(s), expected %d (at %s)", name, leading, len(fn.params), pos)
+	}
+	return nil
+}
+
+// goTypeCategory buckets a Go type into the broad kinds a glisp literal can be
+// checked against; "" means "don't check" (any, interface, structs, slices, …).
+func goTypeCategory(t string) string {
+	switch strings.TrimSpace(t) {
+	case "string":
+		return "string"
+	case "bool":
+		return "bool"
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		"byte", "rune", "uintptr", "float32", "float64":
+		return "numeric"
+	}
+	return ""
+}
+
+// litCategory returns the broad kind of a literal argument, or "" if the
+// argument is not a literal (a value that may coerce — never flagged).
+func litCategory(n ast.Node) string {
+	switch n.(type) {
+	case *ast.StringLit:
+		return "string"
+	case *ast.IntLit, *ast.FloatLit:
+		return "numeric"
+	case *ast.BoolLit:
+		return "bool"
+	}
+	return ""
+}
+
+// checkGoCallArgTypes flags a literal argument whose kind clearly cannot match
+// the loaded Go parameter type (Phase 15 / 12e). It checks literals only — a
+// non-literal value may coerce, so it is never flagged — keeping the check free
+// of false positives while catching real typos like (strings/repeat "x" "3").
+func checkGoCallArgTypes(name string, fn goFunc, leading []ast.Node, pos ast.Position) error {
+	for i, arg := range leading {
+		acat := litCategory(arg)
+		if acat == "" {
+			continue
+		}
+		var pt string
+		switch {
+		case fn.variadic && i >= len(fn.params)-1:
+			pt = strings.TrimPrefix(fn.params[len(fn.params)-1], "[]")
+		case i < len(fn.params):
+			pt = fn.params[i]
+		default:
+			continue
+		}
+		pcat := goTypeCategory(pt)
+		if pcat != "" && pcat != acat {
+			return fmt.Errorf("%s argument %d is a %s literal, but %s expects %s (%s) (at %s)",
+				name, i+1, acat, name, pcat, pt, pos)
+		}
 	}
 	return nil
 }

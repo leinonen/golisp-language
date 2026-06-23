@@ -123,14 +123,18 @@ you need its methods:
 A few interop edges are not yet absorbed (tracked in
 [`ROADMAP.md`](../ROADMAP.md), Phase 15):
 
-- **Multi-return Go *methods*** in single-value position aren't gated — use the
-  `(.Method …)` form with `if-err` (multi-return *functions* like `url/parse`
-  *are* gated).
+- A multi-return Go **method** used dot-free in single-value position *is* now a
+  glisp diagnostic (like multi-return functions) — bind it with `if-err`, or use
+  the `(.Method …)` form. A **wrong-kind literal argument** to a loaded `pkg/fn`
+  (e.g. a string where a number is wanted) is flagged too.
 - An **`if-err`-bound multi-return interop result** is Go-typed but its type
   isn't recorded, so it doesn't yet dispatch dot-free — bind it through a typed
   function parameter (or `(as T …)`) to dispatch on it.
-- **Wrong-typed concrete arguments** aren't diagnosed at the glisp level yet;
-  the Go compiler reports them (with `.glsp` line mapping).
+- **Non-literal** wrong-typed args aren't diagnosed at the glisp level (only
+  literals are checked, to stay false-positive-free); the Go compiler reports
+  them, with `.glsp` line mapping.
+- An external type used *only* via a `[c *pkg/T]` annotation (no `pkg/fn` call)
+  needs its package `:import`ed to be loaded for dot-free dispatch.
 
 ## Wrapping a Go package as a glisp module
 

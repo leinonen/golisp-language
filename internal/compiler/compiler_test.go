@@ -386,6 +386,32 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 
+	t.Run("core str additions", func(t *testing.T) {
+		src := `(ns main)
+(defn main [] -> void
+  (fmt/println (str/capitalize "hELLO"))
+  (fmt/println (str/replace-first "a-b-c" "-" "+"))
+  (fmt/println (str/last-index-of "a.b.c" "."))
+  (fmt/println (str "[" (str/pad-left "42" 5) "]"))
+  (fmt/println (str "[" (str/trim-start "  x") "]")))
+`
+		path := filepath.Join(dir, "corestr.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		got := out.String()
+		for _, want := range []string{"Hello", "a+b-c", "3", "[   42]", "[x]"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout %q missing %q", got, want)
+			}
+		}
+	})
+
 	t.Run("proc run", func(t *testing.T) {
 		src := `(ns main)
 (defn main [] -> void

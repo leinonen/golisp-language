@@ -221,7 +221,12 @@ binary + a real Lisp + (optionally) skip-the-build is a strong niche.
   `--name=value`, `-n value`, flags, defaults, `:int` coercion, `--`, and
   collects unknown-option / missing-value / bad-int errors. Dogfooded in
   `examples/cli` (`--help`/`--json`). Subcommand parsing is a possible follow-up.
-- [ ] **`proc` / `sh`** — subprocess execution with captured stdout/stderr/exit.
+- [x] **`proc` / `sh`** (16d) — `(proc/run cmd & args)` (no shell) and
+  `(proc/sh command)` (via `sh -c`) run external commands, returning
+  `{:out :err :exit :ok}` (captured stdout/stderr, exit code, success flag).
+  Built-in namespace with a Go runtime helper (`_proc` pseudo-key → `os/exec` +
+  `bytes`), keeping the unsafe `*exec.ExitError` assertion in Go. As a side
+  benefit, `str/` calls now coerce these `any` map values (`(str/trim (:out r))`).
 - [ ] **Filesystem & paths** — glob, walk, path join/split, temp files, building
   on the existing file built-ins folded into `io`.
 

@@ -902,6 +902,9 @@ var anyReturningBuiltins = map[string]bool{
 	"get": true, "get-in": true, "nth": true, "first": true, "second": true,
 	"last": true, "peek": true, "rand-nth": true, "find": true, "deref": true,
 	"reduce": true, "apply": true,
+	// proc/* return a map[string]any result; treating it as `any` lets keyword
+	// access on it (`(:out r)`) coerce into str/ and other typed positions.
+	"proc/run": true, "proc/sh": true,
 	// debugging / threading helpers that pass a value through as `any`
 	"pp": true, "time-it": true, "as->": true, "tap->": true, "tap->>": true,
 }
@@ -2071,6 +2074,13 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "re/split":
 			e.needImport("regexp")
 			return e.emitRuntimeCall("_glispReSplit", n.Args, 2)
+		// Subprocess execution — returns {:out :err :exit :ok}
+		case "proc/run":
+			e.needImport("_proc")
+			return e.emitVariadicRuntimeCall("_glispProcRun", n.Args)
+		case "proc/sh":
+			e.needImport("_proc")
+			return e.emitRuntimeCall("_glispProcSh", n.Args, 1)
 		// Structured logging (log/slog) — void in Go, IIFE wrapper in expression position
 		case "log/info", "log/debug", "log/warn", "log/error":
 			e.write("func() any { ")

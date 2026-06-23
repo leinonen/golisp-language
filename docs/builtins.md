@@ -468,6 +468,27 @@ RE2-syntax regular expressions via Go's `regexp` package. No import required. Pa
 
 **RE2 note**: Go uses RE2 syntax — no lookaheads, lookbehinds, or backreferences. Use `regexp.Compile` via Go interop if you need error-checked compilation at startup.
 
+## Subprocess (`proc/`)
+
+Run external commands. Both forms capture output and return a map
+`{:out :err :exit :ok}` — `:out`/`:err` are the captured stdout/stderr strings,
+`:exit` the exit code (`-1` if the process couldn't start), `:ok` true when the
+exit code is 0. No import declaration needed.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(proc/run cmd & args)` | map | Run `cmd` with `args` directly (no shell) |
+| `(proc/sh command)` | map | Run `command` via `sh -c` (pipes, globs, redirection) |
+
+```clojure
+(let [r (proc/run "git" "rev-parse" "HEAD")]
+  (if (:ok r)
+    (println "commit:" (str/trim (:out r)))
+    (println "git failed (" (:exit r) "):" (:err r))))
+
+(:out (proc/sh "ls -1 | wc -l"))   ; shell features via sh -c
+```
+
 ## Context
 
 Pass `context.Context` to Go APIs that support cancellation and deadlines. No import declaration needed.

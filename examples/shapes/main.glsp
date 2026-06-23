@@ -15,7 +15,7 @@
   (* math/pi (:radius c) (:radius c)))
 
 (defmethod Circle Describe [c] -> string
-  (fmt/sprintf "circle(r=%.2f)" (:radius c)))
+  (format "circle(r=%.2f)" (:radius c)))
 
 (defstruct Rect
   width float64
@@ -26,7 +26,7 @@
   (* (:width r) (:height r)))
 
 (defmethod Rect Describe [r] -> string
-  (fmt/sprintf "rect(%.2f x %.2f)" (:width r) (:height r)))
+  (format "rect(%.2f x %.2f)" (:width r) (:height r)))
 
 (defstruct Triangle
   a float64
@@ -39,7 +39,7 @@
     (math/sqrt (* s (- s (:a t)) (- s (:b t)) (- s (:c t))))))
 
 (defmethod Triangle Describe [t] -> string
-  (fmt/sprintf "triangle(%.2f, %.2f, %.2f)" (:a t) (:b t) (:c t)))
+  (format "triangle(%.2f, %.2f, %.2f)" (:a t) (:b t) (:c t)))
 
 ;;; Prints a shape's description and area to stdout.
 (defn print-shape [s Shape] -> void

@@ -58,7 +58,7 @@
 ;;; cwd-relative static/ for `glisp run`, whose binary lives in a temp dir.
 (def static-dir
   (str
-    (let [bin-rel (filepath/join (filepath/dir (str (nth os/args 0))) "static")]
+    (let [bin-rel (filepath/join (filepath/dir (str (nth (sys/args) 0))) "static")]
       (if (file-exists? bin-rel) bin-rel "static"))))
 
 (defn page [items any] -> string
@@ -100,8 +100,8 @@
 
 ;;; Adds a todo from the form body and returns the refreshed list fragment.
 (defn add-todo [req web/Request] -> web/Response
-  (let [title (trim (web/form-param req "title"))]
-    (if (blank? title)
+  (let [title (str/trim (web/form-param req "title"))]
+    (if (str/blank? title)
       (web/bad-request "title must not be blank")
       (do
         (swap! todos
@@ -148,7 +148,8 @@
   (do
     (swap! chat-clients (fn [cs] (conj cs out)))
     (broadcast "* someone joined")
-    (for-chan [msg in] (when (not (blank? (str msg))) (broadcast (str msg))))
+    (for-chan [msg in]
+      (when (not (str/blank? (str msg))) (broadcast (str msg))))
     (swap! chat-clients (fn [cs] (remove (fn [c] (= c out)) cs)))
     (broadcast "* someone left")
     nil))

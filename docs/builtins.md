@@ -359,6 +359,7 @@ environment, fronting Go's `os`.
 |---|---|---|
 | `(sys/args)` | `[]string` | Command-line arguments (program name first), like `os/args` |
 | `(sys/env name)` | string | Environment variable value, or `""` if unset |
+| `(sys/env name default)` | string | Environment variable value, or `default` when unset/empty |
 | `(sys/exit code)` | — | Exit the process with the given status code |
 
 ```clojure

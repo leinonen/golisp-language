@@ -32,7 +32,7 @@
 
 ;; Accepts any sequence (its elements are stringified) so (str/join sep coll)
 ;; works on map/filter output, like Clojure's clojure.string/join.
-(defn join [sep string xs []any] -> string
+(defn join [sep string xs any] -> string
   (join xs sep))
 
 (defn split [s string sep string] -> []string

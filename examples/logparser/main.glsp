@@ -4,7 +4,7 @@
 
 ; ---- sample data ----
 (def sample-log string
-  (join
+  (str/join "\n"
     ["2024-01-15 10:23:45 INFO  user=alice  action=login   status=ok"
      "2024-01-15 10:24:12 ERROR user=bob    action=upload  status=denied"
      "2024-01-15 10:24:33 WARN  user=alice  action=export  status=slow"
@@ -14,8 +14,7 @@
      "2024-01-15 10:27:02 WARN  user=bob    action=login   status=slow"
      "2024-01-15 10:28:19 INFO  user=eve    action=login   status=ok"
      "not-a-log-line"
-     "2024-01-15 10:29:44 ERROR user=alice  action=upload  status=quota"]
-    "\n"))
+     "2024-01-15 10:29:44 ERROR user=alice  action=upload  status=quota"]))
 
 ; ---- parsing ----
 (def log-pattern string
@@ -39,7 +38,7 @@
 
 ;;; Load and parse all entries from a log file. Returns [entries error].
 (defn load-log [path string] -> [[]any error]
-  (if-err [content err] (read-file path)
+  (if-err [content err] (slurp path)
     (values nil (wrap-error "reading log file" err))
     (let [lines (str/split (str content) "\n")
           entries (filter (fn [e] (not (nil? e))) (map (fn [l] (parse-line (str l))) lines))]
@@ -79,15 +78,15 @@
         report-path "/tmp/glisp-report.txt"]
     (log/info "log parser starting" "log" log-path)
     ; Write sample log to disk
-    ; write-file returns error-or-nil; a non-nil error is truthy.
-    (let [write-err (write-file log-path sample-log)]
+    ; spit returns error-or-nil; a non-nil error is truthy.
+    (let [write-err (spit log-path sample-log)]
       (when write-err
         (log/error "cannot write log file" "path" log-path "err" write-err)
-        (os/exit 1)))
+        (sys/exit 1)))
     (log/info "sample log written" "path" log-path)
     ; Parse entries
     (if-err [entries err] (load-log log-path)
-      (do (log/error "load failed" "err" err) (os/exit 1) nil)
+      (do (log/error "load failed" "err" err) (sys/exit 1) nil)
       (do
         (log/info "entries parsed"
                   "total"
@@ -117,7 +116,7 @@
               (log/warn "invalid email" "addr" addr))))
         ; Write report
         (let [report (build-report entries)
-              write-err (write-file report-path report)]
+              write-err (spit report-path report)]
           (if write-err
             (log/error "cannot write report" "path" report-path "err" write-err)
             (do

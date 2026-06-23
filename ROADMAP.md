@@ -214,8 +214,13 @@ binary + a real Lisp + (optionally) skip-the-build is a strong niche.
   separate stretch item below.)
 - [ ] **Interpreted fast-path (stretch)** — reuse the Phase 13 evaluator to run
   scripts without `go build`, for sub-second startup. Gated by its own ADR.
-- [ ] **`cli` library** — declarative arg/flag/subcommand parsing
-  (`clojure.tools.cli`-shaped).
+- [x] **`cli` library** (16c) — `cli/parse-opts` (clojure.tools.cli-shaped),
+  authored in glisp as a `core` namespace (`internal/core/cli.glsp`). Specs are
+  maps (`{:long "--port" :short "-p" :default 8080 :int true}` / `:flag`);
+  returns `{:options :arguments :errors :summary}`. Handles `--name value`,
+  `--name=value`, `-n value`, flags, defaults, `:int` coercion, `--`, and
+  collects unknown-option / missing-value / bad-int errors. Dogfooded in
+  `examples/cli` (`--help`/`--json`). Subcommand parsing is a possible follow-up.
 - [ ] **`proc` / `sh`** — subprocess execution with captured stdout/stderr/exit.
 - [ ] **Filesystem & paths** — glob, walk, path join/split, temp files, building
   on the existing file built-ins folded into `io`.

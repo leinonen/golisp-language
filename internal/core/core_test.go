@@ -7,10 +7,23 @@ func TestNamespacesLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("core failed to load: %v", err)
 	}
-	for _, ns := range []string{"str", "sys", "core"} {
+	for _, ns := range []string{"str", "sys", "cli", "core"} {
 		if _, ok := nss[ns]; !ok {
 			t.Errorf("missing %q namespace", ns)
 		}
+	}
+	cli, ok := nss["cli"]
+	if !ok {
+		t.Fatal("missing cli namespace")
+	}
+	hasParseOpts := false
+	for _, fn := range cli.Funcs {
+		if fn.Name == "parse-opts" {
+			hasParseOpts = true
+		}
+	}
+	if !hasParseOpts {
+		t.Error("cli namespace missing parse-opts")
 	}
 	str, ok := nss["str"]
 	if !ok {

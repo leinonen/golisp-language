@@ -138,6 +138,48 @@ func TestHover_defn(t *testing.T) {
 	}
 }
 
+func TestHover_coreStr(t *testing.T) {
+	// "str/upper" — cursor inside the name
+	src := "(defn f [s string] (str/upper s))"
+	result := FindHover(src, 0, 22)
+	if result == nil {
+		t.Fatal("expected hover for str/upper")
+	}
+	if !strings.Contains(result.Sig, "str/upper") || !strings.Contains(result.Sig, "string") {
+		t.Errorf("unexpected core hover sig: %q", result.Sig)
+	}
+}
+
+func TestCompletion_coreNamespaced(t *testing.T) {
+	// completion after "str/u"
+	src := "(defn f [] (str/u))"
+	items := FindCompletions(src, 0, 16)
+	found := false
+	for _, it := range items {
+		if it.Label == "str/upper" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected str/upper in completions, got %d items", len(items))
+	}
+}
+
+func TestCompletion_coreBare(t *testing.T) {
+	// bare core name completion: "sl" -> slurp
+	src := "(defn f [] (sl))"
+	items := FindCompletions(src, 0, 13)
+	found := false
+	for _, it := range items {
+		if it.Label == "slurp" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected slurp in completions")
+	}
+}
+
 func TestHover_defmacro(t *testing.T) {
 	// "unless" starts at col 10
 	src := "(defmacro unless [c b] `(if ~c nil ~b))"

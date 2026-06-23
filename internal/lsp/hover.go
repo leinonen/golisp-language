@@ -32,6 +32,9 @@ func FindHover(source string, line, col int) *HoverResult {
 	if bd, ok := BuiltinDocs[name]; ok {
 		return &HoverResult{Sig: bd.Sig, Doc: bd.Doc}
 	}
+	if cd, ok := CoreDocs()[name]; ok {
+		return &HoverResult{Sig: cd.Sig, Doc: cd.Doc}
+	}
 	if typeName, ok := findLocalBindingType(nodes, symTable, line, name); ok {
 		if typeName != "" {
 			return &HoverResult{Sig: fmt.Sprintf("(def %s %s)", name, typeName)}

@@ -43,6 +43,7 @@ make install        # go install ./cmd/glisp ./cmd/glisp-lsp
 glisp build   file.glsp         # compile to binary
 glisp build   dir/              # compile all .glsp in dir to binary
 glisp run     file.glsp [args]  # compile and run, no artifacts left behind
+glisp run --watch file.glsp     # re-run on save (kills + restarts; Ctrl-C to stop)
 glisp         file.glsp [args]  # run a script directly (enables #! shebang)
 glisp fmt     file.glsp         # format in-place
 glisp fmt     --check file.glsp # exit 1 if not formatted

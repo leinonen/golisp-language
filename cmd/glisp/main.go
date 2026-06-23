@@ -15,9 +15,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
 
 	"golisp/internal/ast"
 	"golisp/internal/compiler"
@@ -159,6 +164,7 @@ func macroexpandCmd(args []string) {
 func runCmd(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	strict := fs.Bool("strict", false, "require type annotations on all defn params, struct fields, and def globals")
+	watch := fs.Bool("watch", false, "rebuild and re-run on source changes (Ctrl-C to stop)")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(1)
 	}
@@ -166,8 +172,13 @@ func runCmd(args []string) {
 		fmt.Fprintln(os.Stderr, "run: requires <file.glsp> or <dir/>")
 		os.Exit(1)
 	}
+	opts := compiler.Options{Strict: *strict}
+	if *watch {
+		runWatch(fs.Arg(0), opts, fs.Args()[1:])
+		return
+	}
 	// Everything after the target is passed to the program untouched.
-	code, err := compiler.Run(fs.Arg(0), compiler.Options{Strict: *strict}, fs.Args()[1:])
+	code, err := compiler.Run(fs.Arg(0), opts, fs.Args()[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -175,6 +186,99 @@ func runCmd(args []string) {
 	if code != 0 {
 		os.Exit(code)
 	}
+}
+
+// runWatch rebuilds and re-runs target whenever a watched .glsp file changes,
+// killing and restarting the previous process each time (so long-running
+// programs like web servers restart cleanly). It polls modification times — no
+// external dependency — and runs until interrupted (Ctrl-C). A build failure is
+// reported and watching continues, so the next save can fix it.
+func runWatch(target string, opts compiler.Options, progArgs []string) {
+	tmpDir, err := os.MkdirTemp("", "glisp-watch-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	bin := filepath.Join(tmpDir, "app")
+
+	var mu sync.Mutex
+	var cur *exec.Cmd
+	stop := func() {
+		mu.Lock()
+		defer mu.Unlock()
+		if cur != nil {
+			cur.Process.Kill() // ignore "already finished" for self-exited scripts
+			cur.Wait()         // reap
+			cur = nil
+		}
+	}
+	start := func() {
+		if err := compiler.BuildTarget(target, bin, opts); err != nil {
+			fmt.Fprintf(os.Stderr, "glisp: build failed:\n%v\n", err)
+			return
+		}
+		c := exec.Command(bin, progArgs...)
+		c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+		if err := c.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "glisp: %v\n", err)
+			return
+		}
+		mu.Lock()
+		cur = c
+		mu.Unlock()
+	}
+
+	// Clean up the child and temp dir on Ctrl-C / SIGTERM.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		stop()
+		os.RemoveAll(tmpDir)
+		os.Exit(0)
+	}()
+
+	fmt.Fprintf(os.Stderr, "glisp: watching %s (Ctrl-C to stop)\n", target)
+	start()
+	last := watchSnapshot(watchFiles(target))
+	for {
+		time.Sleep(300 * time.Millisecond)
+		if snap := watchSnapshot(watchFiles(target)); snap != last {
+			last = snap
+			fmt.Fprintf(os.Stderr, "\nglisp: change detected — rebuilding %s\n", target)
+			stop()
+			start()
+		}
+	}
+}
+
+// watchFiles returns the .glsp files to watch for target: the file itself, or
+// every .glsp directly in a directory target.
+func watchFiles(target string) []string {
+	info, err := os.Stat(target)
+	if err != nil || !info.IsDir() {
+		return []string{target}
+	}
+	entries, _ := os.ReadDir(target)
+	var files []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".glsp") {
+			files = append(files, filepath.Join(target, e.Name()))
+		}
+	}
+	return files
+}
+
+// watchSnapshot fingerprints the watched files by path, mtime, and size, so any
+// edit, addition, or removal changes the result.
+func watchSnapshot(files []string) string {
+	var b strings.Builder
+	for _, f := range files {
+		if st, err := os.Stat(f); err == nil {
+			fmt.Fprintf(&b, "%s:%d:%d;", f, st.ModTime().UnixNano(), st.Size())
+		}
+	}
+	return b.String()
 }
 
 func printCmd(args []string) {
@@ -429,6 +533,7 @@ Usage:
   glisp build   [-o binary]    [--strict] <file.glsp>   transpile + go build
   glisp build   [-o binary]    [--strict] <dir/>        compile all .glsp in dir
   glisp run     [--strict] <file.glsp|dir/> [args...]   compile and run (no artifacts)
+  glisp run     --watch    <file.glsp|dir/> [args...]   re-run on source changes
   glisp         <file.glsp> [args...]        run a script (enables #! shebang)
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests

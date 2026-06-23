@@ -206,8 +206,12 @@ binary + a real Lisp + (optionally) skip-the-build is a strong niche.
   (only at file start; `#` keeps its meaning elsewhere) and preserved across
   `glisp fmt`, and `glisp <file.glsp> [args]` runs a file directly, so
   `#!/usr/bin/env glisp` scripts are executable (`chmod +x foo.glsp; ./foo.glsp`).
-- [ ] **Fast `glisp run`** — and **`glisp run --watch`** (re-run on save,
-  carried over from Phase 11).
+- [x] **`glisp run --watch`** (16b) — rebuilds and re-runs the target on every
+  source change, killing and restarting the previous process so long-running
+  programs (e.g. web servers) restart cleanly. Dependency-free mtime polling; a
+  build failure is reported and watching continues. Ctrl-C stops the child and
+  exits with no orphan. (Fast-startup `glisp run` interpreted path remains a
+  separate stretch item below.)
 - [ ] **Interpreted fast-path (stretch)** — reuse the Phase 13 evaluator to run
   scripts without `go build`, for sub-second startup. Gated by its own ADR.
 - [ ] **`cli` library** — declarative arg/flag/subcommand parsing

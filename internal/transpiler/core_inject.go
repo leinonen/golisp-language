@@ -94,6 +94,40 @@ func resolveCoreCall(name string) (mangled, ns string, ok bool) {
 	return "", "", false
 }
 
+// resolveCoreBare maps an unqualified name (slurp) to its mangled helper when it
+// is a bare core function (defined in the core.BareNamespace). Callers must check
+// that the name is not user-defined and not a built-in first, so those win.
+func resolveCoreBare(name string) (mangled, ns string, ok bool) {
+	if strings.Contains(name, "/") {
+		return "", "", false
+	}
+	ci, err := loadCore()
+	if err != nil || ci == nil {
+		return "", "", false
+	}
+	if fns, isCore := ci.fnNames[core.BareNamespace]; isCore && fns[name] {
+		return coreMangledName(core.BareNamespace, name), core.BareNamespace, true
+	}
+	return "", "", false
+}
+
+// coreBareShadowed reports whether a bare name is bound by something that must
+// win over a bare core function: a user top-level defn, an in-scope local
+// binding (let/loop/param/…), or a def global. (Built-ins are handled ahead of
+// bare-core resolution by the call switch and never overlap the bare names.)
+func (e *Emitter) coreBareShadowed(name string) bool {
+	if _, ok := e.symbols[name]; ok {
+		return true
+	}
+	if e.localVars[name] {
+		return true
+	}
+	if e.defGlobals[name] {
+		return true
+	}
+	return false
+}
+
 // allCoreDecls returns the mangled declarations of every core namespace, for
 // seeding the pre-pass type tables (signatures drive arg coercion + arity at
 // core call sites). Whether a function is *emitted* is gated separately by use.
@@ -134,17 +168,36 @@ func coreDeclsFor(namespaces map[string]bool) []ast.Node {
 // can fold those into the shared runtime. Returns "" when no namespaces are
 // needed.
 func CoreSource(pkgName string, namespaces map[string]bool) (string, map[string]bool, error) {
-	decls := coreDeclsFor(namespaces)
-	if len(decls) == 0 {
+	if len(namespaces) == 0 {
 		return "", nil, nil
 	}
-	e := newEmitter()
-	e.emitRuntime = false // the shared glisp_runtime.go carries the helpers
-	e.pkg = pkgName
-	if err := e.emitFile(decls); err != nil {
-		return "", nil, err
+	// Close over transitive core deps: a core function may call another core
+	// namespace (bare `lines` → `str/split`), which must also be emitted here, or
+	// glisp_core.go would reference an undefined helper. Re-emit until the needed
+	// set is stable; the final emitter's buffer is the result.
+	needed := map[string]bool{}
+	for ns := range namespaces {
+		needed[ns] = true
 	}
-	return e.buf.String(), e.builtinImports, nil
+	for {
+		e := newEmitter()
+		e.emitRuntime = false // the shared glisp_runtime.go carries the helpers
+		e.pkg = pkgName
+		if err := e.emitFile(coreDeclsFor(needed)); err != nil {
+			return "", nil, err
+		}
+		extra := NeededCoreNamespaces(e.builtinImports)
+		grew := false
+		for ns := range extra {
+			if !needed[ns] {
+				needed[ns] = true
+				grew = true
+			}
+		}
+		if !grew {
+			return e.buf.String(), e.builtinImports, nil
+		}
+	}
 }
 
 func sortedStringSet(m map[string]bool) []string {

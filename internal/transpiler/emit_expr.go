@@ -1639,6 +1639,15 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		if mangled, ns, ok := resolveCoreCall(sym.Name); ok {
 			e.needImport(coreNeededKey(ns))
 			n = ast.NewCallExpr(n.Pos_, ast.NewSymbol(sym.Pos_, mangled), n.Args)
+		} else if !e.coreBareShadowed(sym.Name) {
+			// Bare core function (slurp, …), callable unqualified. Resolved only
+			// when not shadowed by a user defn, a local binding, or a def global;
+			// built-ins are matched by the switch below first since the bare core
+			// names never overlap them.
+			if mangled, ns, ok := resolveCoreBare(sym.Name); ok {
+				e.needImport(coreNeededKey(ns))
+				n = ast.NewCallExpr(n.Pos_, ast.NewSymbol(sym.Pos_, mangled), n.Args)
+			}
 		}
 	}
 	// Handle built-in operators

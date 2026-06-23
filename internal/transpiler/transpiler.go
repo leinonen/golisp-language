@@ -830,6 +830,13 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 			e.write(mangled)
 			return nil
 		}
+		if !e.coreBareShadowed(v.Name) {
+			if mangled, ns, ok := resolveCoreBare(v.Name); ok {
+				e.needImport(coreNeededKey(ns))
+				e.write(mangled)
+				return nil
+			}
+		}
 		goName := identToGo(v.Name)
 		// Track packages used directly via qualified names (math/Pi, os/exit, etc.).
 		// Skip aliases that resolve to module imports (e.g. "web" → "golisp/web").

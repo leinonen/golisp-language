@@ -611,8 +611,19 @@ func (e *Emitter) emitMethodCallExpr(n *ast.MethodCallExpr) error {
 	return nil
 }
 
-// emitFieldAccessExpr: (.-Field obj) → obj.Field
+// emitFieldAccessExpr: (.-Field obj) → obj.Field. When obj is a symbol whose
+// external Go type is known, a field naming no exported field of that type is a
+// position-tagged diagnostic (ADR-015, Phase 12e) instead of an opaque Go error.
 func (e *Emitter) emitFieldAccessExpr(n *ast.FieldAccessExpr) error {
+	if sym, ok := n.Object.(*ast.Symbol); ok {
+		if typeName := e.localTypes[sym.Name]; typeName != "" {
+			if fs := e.goFieldSet(typeName); fs != nil {
+				if _, found := fs[n.Field]; !found {
+					return fmt.Errorf("type %s has no exported field %s (at %s)", typeName, n.Field, n.Pos())
+				}
+			}
+		}
+	}
 	if err := e.emitExpr(n.Object); err != nil {
 		return err
 	}

@@ -366,6 +366,20 @@ func (e *Emitter) inferValueStructType(value ast.Node) string {
 				return name
 			}
 		}
+	case *ast.FieldAccessExpr:
+		// A field whose type is itself a named external type chains:
+		// (.-Conn pool) → method dispatch on the resulting *pkg.Conn.
+		if sym, ok := v.Object.(*ast.Symbol); ok {
+			if typeName := e.localTypes[sym.Name]; typeName != "" {
+				if fs := e.goFieldSet(typeName); fs != nil {
+					if ft, ok := fs[v.Field]; ok {
+						if name, ok := e.externalTypeHint(ft); ok {
+							return name
+						}
+					}
+				}
+			}
+		}
 	}
 	return ""
 }

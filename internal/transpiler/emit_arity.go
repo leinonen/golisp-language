@@ -91,6 +91,8 @@ var builtinArity = map[string][2]int{
 	"re/match": {2, 2}, "re/find": {2, 2}, "re/find-all": {2, 2},
 	"re/replace": {3, 3}, "re/split": {2, 2},
 	"proc/run": {1, -1}, "proc/sh": {1, 1},
+	"path/join": {1, -1}, "path/dir": {1, 1}, "path/base": {1, 1},
+	"path/ext": {1, 1}, "path/clean": {1, 1}, "glob": {1, 1}, "walk": {1, 1},
 
 	// error wrapping, atoms, context
 	// (atom …) parses to *ast.AtomExpr (typed form needs a type arg), so it is

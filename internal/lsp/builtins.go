@@ -382,6 +382,15 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"proc/run": {Sig: "(proc/run cmd & args)          →  map", Doc: "Run cmd with args (no shell). Returns {:out :err :exit :ok} — captured stdout/stderr strings, exit code, and ok=true when exit 0."},
 	"proc/sh":  {Sig: "(proc/sh command)              →  map", Doc: "Run command via sh -c (shell features: pipes, globs, redirection). Returns {:out :err :exit :ok}."},
 
+	// Paths & filesystem traversal
+	"path/join":  {Sig: "(path/join & parts)            →  string", Doc: "Join path elements with the OS separator (filepath.Join)."},
+	"path/dir":   {Sig: "(path/dir p)                   →  string", Doc: "All but the last element of p (the directory)."},
+	"path/base":  {Sig: "(path/base p)                  →  string", Doc: "The last element of p (the file name)."},
+	"path/ext":   {Sig: "(path/ext p)                   →  string", Doc: "The file extension of p, including the dot (\"\" if none)."},
+	"path/clean": {Sig: "(path/clean p)                 →  string", Doc: "The shortest equivalent path by purely lexical processing."},
+	"glob":       {Sig: "(glob pattern)                 →  []any", Doc: "File paths matching a shell pattern (single level, e.g. \"src/*.go\"); empty on no match or a bad pattern."},
+	"walk":       {Sig: "(walk dir)                     →  []any", Doc: "Every regular file under dir, recursively, as a list of paths."},
+
 	// Context propagation
 	"ctx/background":   {Sig: "(ctx/background)              →  ctx", Doc: "Return context.Background() — the root context for explicit propagation."},
 	"ctx/todo":         {Sig: "(ctx/todo)                    →  ctx", Doc: "Return context.TODO() — a placeholder context."},

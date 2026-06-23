@@ -2088,6 +2088,28 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "proc/sh":
 			e.needImport("_proc")
 			return e.emitRuntimeCall("_glispProcSh", n.Args, 1)
+		// Path manipulation (filepath-backed) + filesystem traversal
+		case "path/join":
+			e.needImport("_path")
+			return e.emitVariadicRuntimeCall("_glispPathJoin", n.Args)
+		case "path/dir":
+			e.needImport("_path")
+			return e.emitRuntimeCall("_glispPathDir", n.Args, 1)
+		case "path/base":
+			e.needImport("_path")
+			return e.emitRuntimeCall("_glispPathBase", n.Args, 1)
+		case "path/ext":
+			e.needImport("_path")
+			return e.emitRuntimeCall("_glispPathExt", n.Args, 1)
+		case "path/clean":
+			e.needImport("_path")
+			return e.emitRuntimeCall("_glispPathClean", n.Args, 1)
+		case "glob":
+			e.needImport("_path")
+			return e.emitRuntimeCall("_glispGlob", n.Args, 1)
+		case "walk":
+			e.needImport("_walk")
+			return e.emitRuntimeCall("_glispWalk", n.Args, 1)
 		// Structured logging (log/slog) — void in Go, IIFE wrapper in expression position
 		case "log/info", "log/debug", "log/warn", "log/error":
 			e.write("func() any { ")

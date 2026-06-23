@@ -180,6 +180,41 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 
+	t.Run("path and fs", func(t *testing.T) {
+		fsdir := filepath.Join(dir, "tree")
+		if err := os.MkdirAll(filepath.Join(fsdir, "sub"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range []string{"a.txt", "b.txt", "sub/c.txt"} {
+			if err := os.WriteFile(filepath.Join(fsdir, f), []byte("x"), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		src := `(ns main)
+(defn main [] -> void
+  (let [d (nth (sys/args) 1)]
+    (fmt/println "base" (path/base (path/join "x" "y" "z.txt")))
+    (fmt/println "ext" (path/ext "a.go"))
+    (fmt/println "glob" (count (glob (path/join d "*.txt"))))
+    (fmt/println "walk" (count (walk d)))))
+`
+		path := filepath.Join(dir, "fs.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, []string{fsdir}, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		got := out.String()
+		for _, want := range []string{"base z.txt", "ext .go", "glob 2", "walk 3"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout %q missing %q", got, want)
+			}
+		}
+	})
+
 	t.Run("proc run", func(t *testing.T) {
 		src := `(ns main)
 (defn main [] -> void

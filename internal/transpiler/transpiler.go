@@ -42,7 +42,7 @@ type DeclSet struct {
 // dispatched by name before the general interop path, so loading the package
 // would be wasted work — skip them when resolving referenced qualifiers.
 var builtinNamespaces = map[string]bool{
-	"json": true, "re": true, "ctx": true, "log": true, "http": true, "proc": true,
+	"json": true, "re": true, "ctx": true, "log": true, "http": true, "proc": true, "path": true,
 }
 
 // GoImportPaths returns the Go packages whose signatures should be loaded for
@@ -640,6 +640,13 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			e.needImport("bytes")
 			e.needImport("os/exec")
 		}
+		if e.builtinImports["_path"] {
+			e.needImport("path/filepath")
+		}
+		if e.builtinImports["_walk"] {
+			e.needImport("path/filepath")
+			e.needImport("io/fs")
+		}
 	}
 	if err := e.emitImports(); err != nil {
 		return err
@@ -706,6 +713,12 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		if e.builtinImports["_proc"] {
 			e.write(glispProcRuntime)
 		}
+		if e.builtinImports["_path"] {
+			e.write(glispPathRuntime)
+		}
+		if e.builtinImports["_walk"] {
+			e.write(glispWalkRuntime)
+		}
 	}
 	return nil
 }
@@ -725,8 +738,8 @@ func (e *Emitter) emitImports() error {
 	// Add built-in imports that were actually needed during emission.
 	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
 	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
-	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true, "regexp": true, "bytes": true, "os/exec": true}
-	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context", "bytes", "os/exec"} {
+	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true, "regexp": true, "bytes": true, "os/exec": true, "path/filepath": true, "io/fs": true}
+	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context", "bytes", "os/exec", "path/filepath", "io/fs"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
 				continue

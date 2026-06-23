@@ -227,8 +227,13 @@ binary + a real Lisp + (optionally) skip-the-build is a strong niche.
   Built-in namespace with a Go runtime helper (`_proc` pseudo-key → `os/exec` +
   `bytes`), keeping the unsafe `*exec.ExitError` assertion in Go. As a side
   benefit, `str/` calls now coerce these `any` map values (`(str/trim (:out r))`).
-- [ ] **Filesystem & paths** — glob, walk, path join/split, temp files, building
-  on the existing file built-ins folded into `io`.
+- [x] **Filesystem & paths** (16e) — a `path/` namespace (`join`, `dir`, `base`,
+  `ext`, `clean`, filepath-backed) plus bare `(glob pattern)` and `(walk dir)`.
+  Built-in forms with runtime helpers (`_path` → `path/filepath`; `_walk` →
+  `path/filepath` + `io/fs`), alongside the existing file built-ins
+  (`read-file`/`write-file`/`list-dir`/`mkdir`/`file-exists?`, `slurp`/`spit`).
+  (`path/split` and temp-file/dir helpers — which need multi-return or `os` —
+  remain a possible follow-up.)
 
 ---
 

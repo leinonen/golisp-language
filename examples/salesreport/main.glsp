@@ -1,0 +1,96 @@
+#!/usr/bin/env glisp
+; salesreport — a data-processing CLI that shows the glisp v2 stack working
+; together: the core library (str/, sys/, path/, cli/), data processing (csv/,
+; transducers, json), and scripting (shebang — chmod +x and run it directly).
+;
+;   glisp run examples/salesreport/main.glsp
+;   glisp run examples/salesreport/main.glsp --region West --top 2
+;   glisp run examples/salesreport/main.glsp --format json
+;   glisp run examples/salesreport/main.glsp --format csv
+;   glisp run examples/salesreport/main.glsp --help
+(ns main)
+
+; Sample data. The tool writes this to a temp file and reads it back, so the
+; example also exercises the spit → slurp → csv/parse round-trip.
+(def sample-csv string
+  (str/join "\n"
+    ["region,product,amount"
+     "West,Widget,120"
+     "East,Gadget,80"
+     "West,Gizmo,200"
+     "East,Widget,60"
+     "West,Gadget,150"
+     "South,Gizmo,90"]))
+
+; Declarative options (cli/parse-opts, clojure.tools.cli-shaped).
+(def specs []any
+  [{:long "--region" :short "-r" :desc "Filter to one region" :default ""}
+   {:long    "--format"
+    :short   "-f"
+    :desc    "Output: text | json | csv"
+    :default "text"}
+   {:long    "--top"
+    :short   "-t"
+    :desc    "Show only the top N sales"
+    :default 0
+    :int     true}
+   {:long "--help" :short "-h" :desc "Show this help" :flag true}])
+
+;;; A raw CSV row (string fields) → a typed sale map.
+(defn to-sale [row any] -> any
+  {:region  (str (:region row))
+   :product (str (:product row))
+   :amount  (int (:amount row))})
+
+;;; Render one sale as an aligned text line.
+(defn sale-line [s any] -> string
+  (format "  %-6s %-8s $%d" (:region s) (:product s) (:amount s)))
+
+(defn main [] -> void
+  (let [parsed (cli/parse-opts (rest (sys/args)) specs)
+        opts (:options parsed)]
+    (when (not (empty? (:errors parsed)))
+      (doseq [e (:errors parsed)] (println "error:" e))
+      (sys/exit 1))
+    (when (:help opts)
+      (println "usage: salesreport [options]")
+      (println (:summary parsed))
+      (sys/exit 0))
+    (let [path (path/join "/tmp" "glisp-salesreport.csv")
+          region (str (:region opts))]
+      ; write the sample data, then read it back through csv/parse
+      (spit path sample-csv)
+      (if-err [content err] (slurp path)
+        (do (println "read error:" err) (sys/exit 1))
+        (if-err [rows perr] (csv/parse content)
+          (do (println "parse error:" perr) (sys/exit 1))
+          (let [keep? (fn [s] (or (str/blank? region) (= (:region s) region)))
+                pipeline (comp (map to-sale) (filter keep?))
+                sales (sequence pipeline rows)
+                ranked (reverse (sort-by (fn [s] (:amount s)) sales))
+                topn int (:top opts)
+                shown (if (> topn 0) (take topn ranked) ranked)
+                total (reduce (fn [acc s] (+ acc (:amount s))) 0 shown)]
+            (cond
+              (= (:format opts) "json")
+                (if-err [j jerr] (json/encode {:count (count shown) :total total :sales shown})
+                  (println "json error:" jerr)
+                  (println j))
+              (= (:format opts) "csv")
+                (if-err [out werr] (csv/write shown)
+                  (println "csv error:" werr)
+                  (print out))
+              :else
+                (do
+                  (println
+                    (str "Sales report"
+                      (if (str/blank? region)
+                        " (all regions)"
+                        (str " — " region))))
+                  (doseq [s shown] (println (sale-line s)))
+                  (println
+                    (format "  total: $%d across %d sale(s)"
+                            total
+                            (count shown)))))))))))
+
+; one transducer pipeline: raw rows → typed sales → region filter

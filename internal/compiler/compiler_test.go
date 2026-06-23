@@ -310,6 +310,35 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 
+	t.Run("core void+any in return position", func(t *testing.T) {
+		// pick is -> any so the if-err is in return position: the sys/exit err
+		// branch must emit `sys/exit(); return nil` (isVoidCall resolves the core
+		// fn), and opts (from cli/parse-opts, a core -> any fn) must propagate any
+		// so (:n opts) coerces.
+		src := `(ns main)
+(defn pick [opts any] -> any
+  (if-err [n e] (parse-int (str (:n opts)))
+    (do (println "bad") (sys/exit 1))
+    n))
+(defn main [] -> void
+  (let [opts (:options (cli/parse-opts ["-n" "7"]
+                         [{:long "--n" :short "-n" :default 0 :int true}]))]
+    (fmt/println "got" (pick opts))))
+`
+		path := filepath.Join(dir, "voidany.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		if got := out.String(); !strings.Contains(got, "got 7") {
+			t.Errorf("stdout %q, want it to contain %q", got, "got 7")
+		}
+	})
+
 	t.Run("proc run", func(t *testing.T) {
 		src := `(ns main)
 (defn main [] -> void

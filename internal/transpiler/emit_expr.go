@@ -883,8 +883,14 @@ func (e *Emitter) isVoidCall(n *ast.CallExpr) bool {
 	if voidReturnBuiltins[sym.Name] {
 		return true
 	}
-	if !e.localVars[sym.Name] {
-		if sig, ok := e.symbols[sym.Name]; ok {
+	name := sym.Name
+	// A core fn (sys/exit, …) is registered under its mangled name; resolve it so
+	// a core `-> void` call in return position emits `call(); return nil`.
+	if mangled, _, ok := resolveCoreCall(name); ok {
+		name = mangled
+	}
+	if !e.localVars[name] {
+		if sig, ok := e.symbols[name]; ok {
 			return sig.retType == "void"
 		}
 	}
@@ -948,8 +954,14 @@ func (e *Emitter) exprIsAny(n ast.Node) bool {
 		if anyReturningBuiltins[sym.Name] {
 			return true
 		}
-		if !e.localVars[sym.Name] {
-			if sig, found := e.symbols[sym.Name]; found {
+		name := sym.Name
+		// A core fn (cli/parse-opts, …) is registered under its mangled name;
+		// resolve it so an `-> any` core call propagates any to its binding.
+		if mangled, _, ok := resolveCoreCall(name); ok {
+			name = mangled
+		}
+		if !e.localVars[name] {
+			if sig, found := e.symbols[name]; found {
 				return sig.retType == "any"
 			}
 		}

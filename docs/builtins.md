@@ -175,6 +175,22 @@ compatibility, but new code should use `str/…`.
 | `(neg? n)` | bool | True when n is negative (< 0) |
 | `(zero? n)` | bool | True when n is zero |
 
+## Math (`math/`)
+
+Go's `math` package is reached directly as stdlib interop — `(math/sqrt x)`,
+`(math/floor x)`, `(math/ceil x)`, `(math/round x)`, `(math/abs x)`,
+`(math/pow x y)`, `(math/log x)`, `(math/sin x)`, … and the constant `math/pi` —
+no import declaration needed; `any` arguments coerce to `float64`. The `math/`
+**core** namespace adds the everyday helpers Go omits:
+
+| Form | Returns | Description |
+|---|---|---|
+| `(math/clamp x lo hi)` | any | Constrain x to `[lo, hi]` (preserves the argument's type) |
+| `(math/sign x)` | int | -1, 0, or 1 by the sign of x |
+| `(math/gcd a b)` | int | Greatest common divisor |
+| `(math/lcm a b)` | int | Least common multiple |
+| `(math/round-to x places)` | float64 | Round x to the given number of decimal places |
+
 ## Higher-order functions
 
 | Form | Returns | Description |

@@ -412,6 +412,34 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 
+	t.Run("core math", func(t *testing.T) {
+		// Core helpers (clamp/sign/gcd/lcm/round-to) coexist with stdlib math/*
+		// interop (sqrt): defined names are core, undefined ones fall through.
+		src := `(ns main)
+(defn main [] -> void
+  (fmt/println "clamp" (math/clamp 15 0 10) (math/clamp -3 0 10))
+  (fmt/println "sign" (math/sign -7) (math/sign 4))
+  (fmt/println "gcd" (math/gcd 48 36) "lcm" (math/lcm 4 6))
+  (fmt/println "round-to" (math/round-to 3.14159 2))
+  (fmt/println "sqrt" (math/sqrt 16.0)))
+`
+		path := filepath.Join(dir, "coremath.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		got := out.String()
+		for _, want := range []string{"clamp 10 0", "sign -1 1", "gcd 12 lcm 12", "round-to 3.14", "sqrt 4"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout %q missing %q", got, want)
+			}
+		}
+	})
+
 	t.Run("proc run", func(t *testing.T) {
 		src := `(ns main)
 (defn main [] -> void

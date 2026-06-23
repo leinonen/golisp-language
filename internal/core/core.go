@@ -24,6 +24,7 @@ var sources = map[string]string{
 	"str":  strSource,
 	"sys":  sysSource,
 	"cli":  cliSource,
+	"math": mathSource,
 	"core": bareSource,
 }
 
@@ -35,6 +36,9 @@ var sysSource string
 
 //go:embed cli.glsp
 var cliSource string
+
+//go:embed math.glsp
+var mathSource string
 
 //go:embed core_bare.glsp
 var bareSource string

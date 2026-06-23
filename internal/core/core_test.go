@@ -7,7 +7,7 @@ func TestNamespacesLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("core failed to load: %v", err)
 	}
-	for _, ns := range []string{"str", "sys", "cli", "core"} {
+	for _, ns := range []string{"str", "sys", "cli", "math", "core"} {
 		if _, ok := nss[ns]; !ok {
 			t.Errorf("missing %q namespace", ns)
 		}

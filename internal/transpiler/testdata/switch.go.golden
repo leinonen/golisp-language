@@ -34,7 +34,7 @@ func grade(score int) string {
 			return "F"
 		}
 	}()
-	return label
+	return _glispToString(label)
 }
 
 func process(cmd string) any {

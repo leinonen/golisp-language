@@ -956,6 +956,13 @@ func (e *Emitter) exprIsAny(n ast.Node) bool {
 		if info, ok := e.resolveMethodCall(v); ok {
 			return info.sig.retType == "any"
 		}
+	case *ast.IfExpr, *ast.CondExpr, *ast.WhenExpr, *ast.DoExpr, *ast.SwitchExpr, *ast.IfErrExpr:
+		// Block expressions in value position emit `func() any { … }()` unless a
+		// concrete hint absorbs them (handled in emitExprWithHint before this is
+		// consulted). So their default static type is `any`: a symbol bound to one
+		// is `any`, and using it in a typed/numeric position coerces instead of
+		// producing an invalid "any in T position" Go error.
+		return true
 	}
 	return false
 }

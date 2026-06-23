@@ -14,14 +14,6 @@
 
 (ns cli)
 
-;;; Parse v as an integer, returning {:ok true :val n} or {:ok false}. Kept as a
-;;; helper (not inline if-err in the parse loop) because if-err does not yet
-;;; lower a recur in its branches to a loop continue.
-(defn parse-int-result [v any] -> any
-  (if-err [n err] (parse-int (str v))
-    {:ok false}
-    {:ok true :val n}))
-
 ;;; The spec whose :long or :short matches name, or nil.
 (defn find-spec [specs any name any] -> any
   (first (filter (fn [s] (or (= (:long s) name) (= (:short s) name))) specs)))
@@ -89,10 +81,9 @@
                   (nil? v)
                   (recur (+ i 1) opts positional (conj errors (str "missing value for " name)) false)
                   (:int spec)
-                  (let [r (cli/parse-int-result v)]
-                    (if (:ok r)
-                      (recur ni (assoc opts (cli/opt-key spec) (:val r)) positional errors false)
-                      (recur ni opts positional (conj errors (str "invalid integer for " name ": " v)) false)))
+                  (if-err [n err] (parse-int (str v))
+                    (recur ni opts positional (conj errors (str "invalid integer for " name ": " v)) false)
+                    (recur ni (assoc opts (cli/opt-key spec) n) positional errors false))
                   :else
                   (recur ni (assoc opts (cli/opt-key spec) v) positional errors false)))))
           :else (recur (+ i 1) opts (conj positional arg) errors false))))))

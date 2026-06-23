@@ -342,6 +342,15 @@ each is independently shippable and reviewable.
 - **Error messages stay glisp-level** (ADR-011). Macro-expansion errors must
   point at `.glsp` source, including inside expanded forms — a new front for the
   "never debug generated code" principle.
+- **HOF arg-shape diagnostics cover `core`/stdlib fns** (ADR-011). The
+  `hofIncompatibleReason` gate (`emit_expr.go`) catches a non-`any` *user* `defn`
+  passed bare to `map`/`filter`/… but **not** a `core` or stdlib fn — so
+  `(map str/upper coll)` slips through to a runtime panic (`interface conversion:
+  func(string) string, not func(any) any`) instead of a position-tagged error
+  suggesting the `(fn [s] (str/upper s))` wrapper. Extend the gate to resolve
+  `core`/stdlib callees (via `coreResolvedName`) and flag any whose signature
+  isn't all-`any`. Ideally also auto-wrap them in an adapting closure so the bare
+  form just works.
 - **Docs** — a real docs site / book; the README leads with the v2 identity. The
   **one-sitting tour** survives, now demonstrating macros and `core`.
 - **Homebrew tap** (carried over from v1).

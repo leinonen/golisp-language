@@ -30,8 +30,10 @@
 (defn index-of [s string sub string] -> int
   (strings/index s sub))
 
-(defn join [sep string xs []string] -> string
-  (strings/join xs sep))
+;; Accepts any sequence (its elements are stringified) so (str/join sep coll)
+;; works on map/filter output, like Clojure's clojure.string/join.
+(defn join [sep string xs []any] -> string
+  (join xs sep))
 
 (defn split [s string sep string] -> []string
   (strings/split s sep))

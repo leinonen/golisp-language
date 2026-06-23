@@ -87,7 +87,7 @@
 ; (len w) works on any-typed values — len/count accept any collection or string.
 ;;; Returns words longer than 3 characters, lowercased and sorted.
 (defn long-words [text string] -> []any
-  (let [ws (split (lower-case (trim text)) " ")]
+  (let [ws (str/split (str/lower (str/trim text)) " ")]
     (sort-by (fn [w] w) (filter (fn [w] (> (len w) 3)) ws))))
 
 ; --- Variadic spread (& xs) ---
@@ -95,7 +95,7 @@
 ; tail — the glisp spelling for Go's f(args...), no bridge code needed.
 ;;; Sums any number of integers and labels the total.
 (defn labeled-total [label string & ns] -> string
-  (fmt/sprintf "%s = %d" label (reduce (fn [a b] (+ a b)) 0 ns)))
+  (format "%s = %d" label (reduce (fn [a b] (+ a b)) 0 ns)))
 
 ; --- Concurrent class analysis ---
 ; Typed def: names is []string, not []any. Go catches element-type mismatches.
@@ -126,14 +126,14 @@
   (let [xs [3 5 7]] (println (labeled-total "spread" & xs)))
   ; Fibonacci via typed loop/recur (i, a, b are int — no any-boxing)
   (let [fibs (map (fn [n] (fib n)) (range 10))]
-    (println "fib(0..9):" (join (map (fn [n] (str n)) fibs) " ")))
+    (println "fib(0..9):" (str/join " " (map (fn [n] (str n)) fibs))))
   ; Typed let binding: sep is string, not any
   (let [sep string ", "
         words (long-words "the quick brown fox jumps over the lazy dog")]
-    (println "long words:" (join words sep)))
+    (println "long words:" (str/join sep words)))
   ; Typed def: months []string — element access needs no type cast,
   ; and concrete slices flow through first/contains?/rest directly
-  (let [q1 string (join (take 3 months) "/")] (println "Q1:" q1))
+  (let [q1 string (str/join "/" (take 3 months))] (println "Q1:" q1))
   (println "first month:" (first months) "| has Dec?" (contains? months "Dec"))
   ; format, parse-int, parse-float, repeat, interpose
   (println (format "grade for 87: %s (score: %d)" (grade 87) 87))
@@ -143,8 +143,9 @@
   (if-err [x err] (parse-float "2.718")
     (println "parse-float error:" err)
     (println (format "parse-float: %.3f" x)))
-  (println "repeat:   " (join (repeat 5 "*") ""))
-  (println "interpose:" (join (interpose " | " ["alpha" "beta" "gamma"]) ""))
+  (println "repeat:   " (str/join "" (repeat 5 "*")))
+  (println "interpose:"
+           (str/join "" (interpose " | " ["alpha" "beta" "gamma"])))
   ; Analyze student classes concurrently.
   ; Map destructuring in fn params: {name :name scores :scores}
   (let [classes [{:name "Math" :scores [85 92 78 61 79 88 95]} {:name "English" :scores [76 85 90 55 68 73 82]} {:name "Science" :scores [91 94 87 98 79 85 92]}]]

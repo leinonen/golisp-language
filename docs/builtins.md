@@ -128,23 +128,34 @@ sorted order (so output is deterministic).
 
 ## Strings
 
+The **`str/` namespace** (`core`, Phase 14) is the canonical string library —
+`(str/upper s)`, `(str/lower s)`, `(str/trim s)`, `(str/blank? s)`,
+`(str/starts-with? s p)`, `(str/ends-with? s p)`, `(str/includes? s sub)`,
+`(str/index-of s sub)`, `(str/replace s old new)`, `(str/split s sep)`,
+`(str/join sep coll)` (separator first, like `clojure.string/join`), and
+`(str/repeat s n)`. Prefer these.
+
+`str`, `string`, and `format` below are bare core forms. The remaining bare
+string functions are **legacy aliases** of the `str/` surface — kept working for
+compatibility, but new code should use `str/…`.
+
 | Form | Returns | Description |
 |---|---|---|
 | `(str & args)` | string | Concatenate all args as strings |
 | `(string x)` | string | Convert x to a string: strings pass through, numbers/bools render decimally (`(string 65)` → `"65"`), anything else becomes `""` |
-| `(upper-case s)` | string | Uppercase |
-| `(lower-case s)` | string | Lowercase |
-| `(trim s)` | string | Strip leading/trailing whitespace |
-| `(blank? s)` | bool | True when s is nil or contains only whitespace |
+| `(format fmt & args)` | string | Printf-style formatting (`%s`, `%d`, `%v`, …) |
+| `(upper-case s)` | string | Legacy → `str/upper` |
+| `(lower-case s)` | string | Legacy → `str/lower` |
+| `(trim s)` | string | Legacy → `str/trim` |
+| `(blank? s)` | bool | Legacy → `str/blank?` |
 | `(capitalize s)` | string | Uppercase first character, lowercase the rest |
-| `(starts-with? s prefix)` | bool | True when s begins with prefix |
-| `(ends-with? s suffix)` | bool | True when s ends with suffix |
-| `(replace s old new)` | string | Replace all occurrences of old with new |
-| `(split s sep)` | `[]string` | Split on sep |
-| `(join sep coll)` | string | Join elements with sep |
+| `(starts-with? s prefix)` | bool | Legacy → `str/starts-with?` |
+| `(ends-with? s suffix)` | bool | Legacy → `str/ends-with?` |
+| `(replace s old new)` | string | Legacy → `str/replace` |
+| `(split s sep)` | `[]string` | Legacy → `str/split` |
+| `(join coll sep)` | string | Legacy → `str/join` (note: `str/join` takes sep first) |
 | `(subs s start)` | string | Substring from start to end |
 | `(subs s start end)` | string | Substring from start to end (exclusive) |
-| `(format fmt & args)` | string | Printf-style formatting (`%s`, `%d`, `%v`, …) |
 
 ## Numbers
 
@@ -322,14 +333,33 @@ Atoms live in type positions as `Atom` (any element) or `(Atom T)` — usable as
 
 No import required. All file operations work with plain strings for paths and content.
 
+The bare `core` helpers `(slurp path)` → `[string error]` and
+`(spit path content)` → `error` are the glisp-native (clojure.core-style) forms;
+`(lines s)` → `[]string` splits a string on newlines. The lower-level forms
+below remain available.
+
 | Form | Returns | Description |
 |---|---|---|
+| `(slurp path)` | `[string error]` | Read entire file as a string (core; clojure.core-style) |
+| `(spit path content)` | `error` | Write content to file (core; clojure.core-style) |
+| `(lines s)` | `[]string` | Split a string into lines (core) |
 | `(read-file path)` | `[string error]` | Read entire file as a string |
 | `(write-file path content)` | `error` | Write content to file, creating or truncating |
 | `(append-file path content)` | `error` | Append content to file, creating if absent |
 | `(file-exists? path)` | `bool` | True when a file or directory exists at path |
 | `(list-dir path)` | `[[]string error]` | Names of entries in a directory |
 | `(mkdir path)` | `error` | Create directory and all missing parents |
+
+## System (`sys/`)
+
+The `sys/` namespace (`core`) gives glisp-native access to the process and
+environment, fronting Go's `os`.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(sys/args)` | `[]string` | Command-line arguments (program name first), like `os/args` |
+| `(sys/env name)` | string | Environment variable value, or `""` if unset |
+| `(sys/exit code)` | — | Exit the process with the given status code |
 
 ```clojure
 ; Read a config file, handling missing file gracefully

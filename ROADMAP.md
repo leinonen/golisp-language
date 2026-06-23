@@ -119,22 +119,21 @@ collide with Go's `string` type / stdlib packages. See
   over Go's `os`. Confirms the mechanism generalizes to a second namespace
   (and that two namespaces inject/dedup together, with transitive closure —
   bare `lines` pulls in `str/split`).
+- [x] **LSP for `core`** (14c) — hover and completion for `str/upper`, `sys/env`,
+  bare `slurp`, … generated from the parsed `core` signatures so the docs can't
+  drift from the implementation.
+- [x] **Migrate the taught surface** (14d) — the one-sitting tour, README, and
+  the `cli`/`logparser` examples now use `str/`, `sys/`, `slurp`, and bare
+  `println`/`format`; the overlapping bare string built-ins (`upper-case`,
+  `trim`, `split`, `join`, …) are marked **legacy → `str/…`** in `docs/builtins.md`
+  and LSP hover (kept working — non-breaking). `str/join` takes the separator
+  first (clojure.string order) and accepts any sequence.
 - [ ] **`math` namespace** — native-named over Go `math` (`(math/sqrt x)`,
-  `(math/floor x)`, `math/pi`, …). Already partly present; make it the canonical
-  name, not a raw Go passthrough.
-- [ ] **`math` namespace** — native-named over Go `math` (`(math/sqrt x)`,
-  `(math/floor x)`, `math/pi`, …). Already partly present; make it the canonical
-  name, not a raw Go passthrough.
-- [ ] **`io` namespace** — `(slurp path)`, `(spit path content)`, `read-line`,
-  `lines`, alongside the existing file built-ins (which become `io/*`).
-- [ ] **`sys` namespace** — `(sys/args)`, `(sys/env "X")`, `(sys/exit code)`,
-  `(sys/getenv …)` replacing the surface use of `os/args` / `os/env` / `os/exit`.
-- [ ] **Migrate the surface** — examples, the tour, and docs move from raw
-  `fmt/`/`os/`/`strings/`/`json/`/`re/` to `core` namespaces. The raw Go names
-  keep working **as interop** (Phase 15) — deprecated in docs, not removed, so no
-  code breaks.
-- [ ] **`core` is documented as the language**, not as "wrappers." `glisp doc`
-  and the LSP lead with `core`; Go names are surfaced under interop.
+  `(math/floor x)`, `math/pi`, …). Make it the canonical name, not a raw Go
+  passthrough. (Deferred — Go's `math/*` names already read naturally; the
+  numeric domain was not chosen for v2.)
+- [ ] **Grow the vocabulary** — more `str/` (e.g. `capitalize`, `trim-start`),
+  data helpers, and bare `core` functions as the CLI/data domains drive demand.
 
 ---
 

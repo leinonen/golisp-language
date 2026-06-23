@@ -1,13 +1,15 @@
 # golisp
 
-Clojure-style S-expression language that transpiles to Go.
+A general-purpose Lisp hosted on Go — the way Clojure is hosted on the JVM. You
+write glisp, with its own standard library (`core`); Go is the host platform it
+compiles to and interops with. The result is a single static binary.
 
 ```clojure
 (defn greet [name string] -> string
   (str "Hello, " name "!"))
 
 (defn main []
-  (fmt/println (greet "World")))
+  (println (greet "World")))
 ```
 
 `.glsp` files compile to Go source, then to a statically-linked binary via standard
@@ -69,6 +71,15 @@ glisp doc     [name]            # show built-in docs (all if no name)
 (filter even? (range 10))
 #{1 2 3}
 
+; Standard library (core) — glisp-native names; Go is the host underneath
+(str/upper (str/trim s))                       ; string ops live in str/
+(str/join ", " ["a" "b" "c"])                  ; sep-first, like clojure.string
+(sys/env "HOME")                               ; process & environment in sys/
+(slurp "data.txt")                             ; bare clojure.core-style helpers
+
+; Macros — defmacro with syntax-quote; core ships when-not / if-not / -> / ->>
+(defmacro unless [test body] `(if ~test nil ~body))
+
 ; Structs, interfaces, methods — with dot-free dispatch on typed values
 (defstruct Circle radius float64)
 (defmethod Circle Area [c] -> float64 (* math/pi (:radius c) (:radius c)))
@@ -79,7 +90,7 @@ glisp doc     [name]            # show built-in docs (all if no name)
 (def result (go-val string (compute-name x)))  ; future → typed channel
 (par (init-cache) (connect-db))                ; parallel + WaitGroup
 (for-chan [msg ch] (process msg))              ; range until closed
-(with-lock mu (fmt/println "safe"))            ; mutex critical section
+(with-lock mu (println "safe"))                ; mutex critical section
 
 ; State & resources
 (def hits (atom int 0))                        ; typed atom

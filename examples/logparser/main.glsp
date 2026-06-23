@@ -41,7 +41,7 @@
 (defn load-log [path string] -> [[]any error]
   (if-err [content err] (read-file path)
     (values nil (wrap-error "reading log file" err))
-    (let [lines (split (str content) "\n")
+    (let [lines (str/split (str content) "\n")
           entries (filter (fn [e] (not (nil? e))) (map (fn [l] (parse-line (str l))) lines))]
       (values entries nil))))
 
@@ -53,7 +53,7 @@
         warns (count (filter (fn [e] (= (get e "level") "WARN")) entries))
         user-set (reduce (fn [acc e] (assoc acc (str (get e "user")) true)) {} entries)
         err-lines (map (fn [e] (format "  [%s] user=%-8s action=%-8s status=%s" (get e "level") (get e "user") (get e "action") (get e "status"))) (filter (fn [e] (= (get e "level") "ERROR")) entries))]
-    (join
+    (str/join "\n"
       [(format "Log Analysis Report")
        (format "===================")
        (format "Total entries  : %d" total)
@@ -62,8 +62,7 @@
        (format "Unique users   : %d" (count (keys user-set)))
        ""
        "Error entries:"
-       (join err-lines "\n")]
-      "\n")))
+       (str/join "\n" err-lines)])))
 
 ; ---- validation helpers ----
 ;;; Returns true when the string looks like an email address.

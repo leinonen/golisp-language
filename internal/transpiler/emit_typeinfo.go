@@ -338,7 +338,7 @@ func (e *Emitter) inferValueStructType(value ast.Node) string {
 	case *ast.CallExpr:
 		if sym, ok := v.Head.(*ast.Symbol); ok {
 			if e.symbols != nil {
-				if sig, found := e.symbols[sym.Name]; found {
+				if sig, found := e.symbols[e.coreResolvedName(sym.Name)]; found {
 					if name, ok := e.namedTypeHint(sig.retType); ok {
 						return name
 					}

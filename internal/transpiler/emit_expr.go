@@ -883,12 +883,7 @@ func (e *Emitter) isVoidCall(n *ast.CallExpr) bool {
 	if voidReturnBuiltins[sym.Name] {
 		return true
 	}
-	name := sym.Name
-	// A core fn (sys/exit, …) is registered under its mangled name; resolve it so
-	// a core `-> void` call in return position emits `call(); return nil`.
-	if mangled, _, ok := resolveCoreCall(name); ok {
-		name = mangled
-	}
+	name := e.coreResolvedName(sym.Name)
 	if !e.localVars[name] {
 		if sig, ok := e.symbols[name]; ok {
 			return sig.retType == "void"
@@ -954,12 +949,9 @@ func (e *Emitter) exprIsAny(n ast.Node) bool {
 		if anyReturningBuiltins[sym.Name] {
 			return true
 		}
-		name := sym.Name
 		// A core fn (cli/parse-opts, …) is registered under its mangled name;
 		// resolve it so an `-> any` core call propagates any to its binding.
-		if mangled, _, ok := resolveCoreCall(name); ok {
-			name = mangled
-		}
+		name := e.coreResolvedName(sym.Name)
 		if !e.localVars[name] {
 			if sig, found := e.symbols[name]; found {
 				return sig.retType == "any"
@@ -1047,9 +1039,10 @@ func (e *Emitter) callNumericKind(n *ast.CallExpr) string {
 			return numericGoKind(elem)
 		}
 	}
-	// A user fn / method with a declared numeric return type.
-	if !e.localVars[sym.Name] {
-		if sig, found := e.symbols[sym.Name]; found {
+	// A user or core fn / method with a declared numeric return type.
+	name := e.coreResolvedName(sym.Name)
+	if !e.localVars[name] {
+		if sig, found := e.symbols[name]; found {
 			return numericGoKind(sig.retType)
 		}
 	}
@@ -1124,11 +1117,13 @@ func (e *Emitter) isBoolExpr(n ast.Node) bool {
 		if !ok {
 			return false
 		}
-		if sig, ok := e.symbols[sym.Name]; ok {
-			return sig.retType == "bool"
-		}
 		if boolBuiltins[sym.Name] {
 			return true
+		}
+		// User or core fn (str/blank?, …) with a declared -> bool return: skip the
+		// _glispTruthy wrapper in conditions.
+		if sig, ok := e.symbols[e.coreResolvedName(sym.Name)]; ok {
+			return sig.retType == "bool"
 		}
 		if info, ok := e.resolveMethodCall(v); ok {
 			return info.sig.retType == "bool"

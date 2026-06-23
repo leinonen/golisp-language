@@ -5,6 +5,35 @@ import (
 	"testing"
 )
 
+func TestShebangSkipped(t *testing.T) {
+	// A leading "#!" line is skipped; the first real token is the '(' on line 2.
+	toks, err := Tokenize("#!/usr/bin/env glisp\n(def x 1)")
+	if err != nil {
+		t.Fatalf("tokenize: %v", err)
+	}
+	if toks[0].Type != TokenLParen {
+		t.Fatalf("first token = %v, want LParen", toks[0].Type)
+	}
+	if toks[0].Line != 2 {
+		t.Errorf("'(' line = %d, want 2 (shebang occupies line 1)", toks[0].Line)
+	}
+	// "#!" only counts as a shebang at the very start; elsewhere "#" keeps its
+	// normal meaning (it is a symbol character), so it is not silently skipped.
+	toks2, err := Tokenize("(def x 1)\n#!nope")
+	if err != nil {
+		t.Fatalf("tokenize: %v", err)
+	}
+	found := false
+	for _, tk := range toks2 {
+		if tk.Type == TokenSymbol && strings.Contains(tk.Text, "#!") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("a mid-file #! should lex as a symbol, not be skipped as a shebang")
+	}
+}
+
 func TestTokenizeBasic(t *testing.T) {
 	tests := []struct {
 		input    string

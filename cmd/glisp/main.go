@@ -5,6 +5,7 @@
 //	glisp compile <file.glsp> -o out   — transpile to out.go
 //	glisp build   <file.glsp>          — transpile + go build
 //	glisp run     <file.glsp> [args]   — compile + run, no artifacts left behind
+//	glisp         <file.glsp> [args]   — run a script directly (enables #! shebang)
 //	glisp print   <file.glsp>          — print Go output to stdout
 //	glisp test    <file.glsp>          — compile + go test
 package main
@@ -62,6 +63,13 @@ func main() {
 	case "version":
 		fmt.Println(version.Full())
 	default:
+		// `glisp <file.glsp> [args]` runs the file — so a script with a
+		// `#!/usr/bin/env glisp` shebang is directly executable (the kernel
+		// invokes glisp with the script path as the first argument).
+		if strings.HasSuffix(os.Args[1], ".glsp") {
+			runCmd(os.Args[1:])
+			return
+		}
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		usage()
 		os.Exit(1)
@@ -421,6 +429,7 @@ Usage:
   glisp build   [-o binary]    [--strict] <file.glsp>   transpile + go build
   glisp build   [-o binary]    [--strict] <dir/>        compile all .glsp in dir
   glisp run     [--strict] <file.glsp|dir/> [args...]   compile and run (no artifacts)
+  glisp         <file.glsp> [args...]        run a script (enables #! shebang)
   glisp print   <file.glsp>                  print Go output to stdout
   glisp test    <file.glsp>                  compile + run tests
   glisp fmt     [--check]      <file.glsp>   format source in-place (- = stdin→stdout)

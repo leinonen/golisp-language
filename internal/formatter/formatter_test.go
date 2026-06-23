@@ -6,6 +6,26 @@ import (
 	"golisp/internal/formatter"
 )
 
+func TestShebangPreserved(t *testing.T) {
+	in := "#!/usr/bin/env glisp\n(defn   main [] -> void (println    \"x\"))"
+	want := "#!/usr/bin/env glisp\n(defn main [] -> void\n  (println \"x\"))\n"
+	got, err := formatter.Format(in)
+	if err != nil {
+		t.Fatalf("format: %v", err)
+	}
+	if got != want {
+		t.Errorf("shebang round-trip:\n got %q\nwant %q", got, want)
+	}
+	// Idempotent: formatting the result again is a fixed point.
+	again, err := formatter.Format(got)
+	if err != nil {
+		t.Fatalf("format again: %v", err)
+	}
+	if again != got {
+		t.Errorf("not idempotent:\n got %q\nwant %q", again, got)
+	}
+}
+
 func TestFormat(t *testing.T) {
 	tests := []struct {
 		name  string

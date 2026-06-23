@@ -91,6 +91,7 @@ func (l *lexer) sourceContext(line, col int) string {
 
 func (l *lexer) tokenize() ([]Token, error) {
 	var tokens []Token
+	l.skipShebang()
 	for {
 		l.skipWhitespaceAndComments()
 		if l.pos >= len(l.src) {
@@ -104,6 +105,20 @@ func (l *lexer) tokenize() ([]Token, error) {
 		tokens = append(tokens, tok)
 	}
 	return tokens, nil
+}
+
+// skipShebang skips a leading "#!" line so a .glsp script can carry a Unix
+// shebang (#!/usr/bin/env glisp) and still lex. Only the very first line is
+// treated this way; "#" anywhere else keeps its normal meaning (#{…} sets). The
+// trailing newline is left for skipWhitespaceAndComments, so code on line 2
+// keeps its true line number.
+func (l *lexer) skipShebang() {
+	if l.pos != 0 || l.peek() != '#' || l.peekAt(1) != '!' {
+		return
+	}
+	for l.pos < len(l.src) && l.peek() != '\n' {
+		l.advance()
+	}
 }
 
 func (l *lexer) skipWhitespaceAndComments() {

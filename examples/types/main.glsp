@@ -1,0 +1,125 @@
+; types — glisp's type system, two ways.
+;
+; glisp is gradually typed: you write Clojure-shaped maps and functions, and
+; where a type is known the transpiler compiles them to real Go structs and
+; method calls. `any` stays the always-valid fallback; types are an upgrade,
+; never a requirement. This example shows the two halves of that story:
+;
+;   1. Gradual struct typing — map literals become structs, (:field x) becomes
+;      x.Field, and every field name is checked by the Go compiler.
+;   2. Interface dispatch — definterface + defmethod give polymorphism; one
+;      function drives many concrete types without knowing which it holds.
+(ns main)
+
+; ── 1. Gradual struct typing ─────────────────────────────────────────────────
+; Product is a real Go struct. The {...} literals below are written in the
+; convenient map form, but because the surrounding functions declare Product as
+; their parameter / return type, the transpiler compiles each literal straight
+; to a Product{...} — no (Product. {...}) wrapper. Misspell a field and the
+; build fails.
+(defstruct Product
+  name string
+  category string
+  price float64
+  stock int)
+
+;;; The {...} in return position becomes Product{...} from the declared type.
+(defn product [name string category string price float64 stock int] -> Product
+  {:name     name
+   :category category
+   :price    price
+   :stock    stock})
+
+;;; A copy of p with n units added to stock. (:field p) reads as p.Field
+;;; because p is statically a Product.
+(defn restock [p Product n int] -> Product
+  {:name     (:name p)
+   :category (:category p)
+   :price    (:price p)
+   :stock    (+ (:stock p) n)})
+
+;;; A copy of p with a percentage discount applied.
+(defn discount [p Product pct float64] -> Product
+  {:name     (:name p)
+   :category (:category p)
+   :price    (* (:price p) (- 1 pct))
+   :stock    (:stock p)})
+
+;;; One-line summary; the receiver p is a Product, so (:field p) → p.Field.
+(defmethod Product Label [p] -> string
+  (format "%-10s %-12s $%7.2f  x%d"
+          (:name p)
+          (:category p)
+          (:price p)
+          (:stock p)))
+
+;;; True when stock is below the reorder threshold.
+(defn low-stock? [p Product threshold int] -> bool
+  (< (:stock p) threshold))
+
+; ── 2. Interface dispatch ────────────────────────────────────────────────────
+; Shape is a Go interface. Each shape type implements it independently;
+; print-shape dispatches through the interface — (area s) and (describe s)
+; resolve dot-free to s.Area() / s.Describe() — without knowing the concrete
+; type behind s.
+(definterface Shape
+  (Area [] -> float64)
+  (Describe [] -> string))
+
+(defstruct Circle
+  radius float64)
+
+;;; Area of the circle (π × r²).
+(defmethod Circle Area [c] -> float64
+  (* math/pi (:radius c) (:radius c)))
+
+(defmethod Circle Describe [c] -> string
+  (format "circle(r=%.2f)" (:radius c)))
+
+(defstruct Rect
+  width float64
+  height float64)
+
+(defmethod Rect Area [r] -> float64
+  (* (:width r) (:height r)))
+
+(defmethod Rect Describe [r] -> string
+  (format "rect(%.2f x %.2f)" (:width r) (:height r)))
+
+(defstruct Triangle
+  a float64
+  b float64
+  c float64)
+
+;;; Area via Heron's formula.
+(defmethod Triangle Area [t] -> float64
+  (let [s (* 0.5 (+ (:a t) (:b t) (:c t)))]
+    (math/sqrt (* s (- s (:a t)) (- s (:b t)) (- s (:c t))))))
+
+(defmethod Triangle Describe [t] -> string
+  (format "triangle(%.2f, %.2f, %.2f)" (:a t) (:b t) (:c t)))
+
+;;; Takes the Shape interface — any implementor works.
+(defn print-shape [s Shape] -> void
+  (fmt/printf "  %-28s  area = %.4f\n" (describe s) (area s)))
+
+(defn main [] -> void
+  ; --- gradual struct typing ---
+  (let [widget (product "Widget" "hardware" 9.99 50)
+        gadget (product "Gadget" "electronics" 49.99 3)
+        bolts (product "Bolt Pack" "hardware" 3.99 200)]
+    (println "=== Catalog (typed structs from map literals) ===")
+    (println " " (label widget))
+    (println " " (label gadget))
+    (println " " (label bolts))
+    (println "\n=== Restock gadget +20 ===")
+    (let [restocked (restock gadget 20)]
+      (println " " (label restocked))
+      (println "  low stock (<10)?" (low-stock? restocked 10)))
+    (println "\n=== 15% off widget ===")
+    (println " " (label (discount widget 0.15))))
+  ; --- interface dispatch ---
+  (println "\n=== Shapes (interface dispatch) ===")
+  (print-shape (Circle. {:radius 5}))
+  (print-shape (Rect. {:width 4 :height 6}))
+  (print-shape (Triangle. {:a 3 :b 4 :c 5})))

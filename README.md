@@ -140,8 +140,10 @@ Handlers are `Request → Response` (both aliases for `map[string]any`).
 make examples
 ./examples/tour/tour            # language tour: fib, strings, goroutines, JSON
 glisp run examples/cli/main.glsp 3 1 4   # CLI stats tool — (sys/args), no build step
+./examples/types/types          # the type system: gradual structs + interface dispatch
+./examples/data/data            # collection built-ins + transducer pipelines
+./examples/concurrency/concurrency # the 6 concurrency primitives + atoms + typed channels
 ./examples/api/api              # REST API with routing, middleware, auth
-./examples/inventory/inventory  # gradual struct typing: map literals + (:field x) → typed structs
 ./examples/movienight/movienight # sets, threading macros, partial/comp/juxt, ctx deadlines
 ./examples/todos/todos          # server-rendered todos: hiccup + htmx + SSE live stats + websocket chat
 ./examples/salesreport/salesreport --format json   # the v2 stack together: cli/ + csv/ + transducers + str//path//sys/

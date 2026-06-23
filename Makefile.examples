@@ -1,18 +1,17 @@
-.PHONY: examples examples-clean examples-cli examples-tour examples-api examples-shapes examples-inventory examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms examples-withopen examples-doto examples-movienight examples-todos examples-salesreport
+.PHONY: examples examples-clean examples-cli examples-tour examples-api examples-types examples-multifile examples-httpclient examples-data examples-concurrency examples-logparser examples-sec-pipeline examples-patterns examples-movienight examples-todos examples-salesreport
 
 BIN ?= glisp
 
 # Each example target needs the glisp binary. The aggregate `examples` target
 # (main Makefile) gets `build` via its own prerequisite, but CI and ad-hoc runs
 # invoke the individual targets directly, so depend on `build` here too.
-examples-cli examples-tour examples-api examples-shapes examples-inventory examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms examples-withopen examples-doto examples-movienight examples-todos examples-salesreport: build
+examples-cli examples-tour examples-api examples-types examples-multifile examples-httpclient examples-data examples-concurrency examples-logparser examples-sec-pipeline examples-patterns examples-movienight examples-todos examples-salesreport: build
 
 examples-clean:
-	rm -f examples/cli/cli examples/tour/tour examples/api/api examples/shapes/shapes examples/inventory/inventory examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/notes-api/notes-api examples/concurrency/concurrency examples/logparser/logparser examples/sec-pipeline/sec-pipeline examples/atoms/atoms examples/withopen/withopen examples/doto/doto examples/movienight/movienight examples/todos/todos examples/salesreport/salesreport
+	rm -f examples/cli/cli examples/tour/tour examples/api/api examples/types/types examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/concurrency/concurrency examples/logparser/logparser examples/sec-pipeline/sec-pipeline examples/patterns/patterns examples/movienight/movienight examples/todos/todos examples/salesreport/salesreport
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
-	rm -f examples/notes-api/glisp_runtime.go examples/notes-api/main.go examples/notes-api/handlers.go examples/notes-api/db.go
 
-examples: examples-clean examples-cli examples-tour examples-api examples-shapes examples-inventory examples-multifile examples-httpclient examples-data examples-notes-api examples-concurrency examples-logparser examples-sec-pipeline examples-atoms examples-withopen examples-doto examples-movienight examples-todos examples-salesreport
+examples: examples-clean examples-cli examples-tour examples-api examples-types examples-multifile examples-httpclient examples-data examples-concurrency examples-logparser examples-sec-pipeline examples-patterns examples-movienight examples-todos examples-salesreport
 
 examples-cli:
 	./$(BIN) build -o examples/cli/cli examples/cli/main.glsp
@@ -23,11 +22,8 @@ examples-tour:
 examples-api:
 	./$(BIN) build -o examples/api/api examples/api/main.glsp
 
-examples-shapes:
-	./$(BIN) build -o examples/shapes/shapes examples/shapes/main.glsp
-
-examples-inventory:
-	./$(BIN) build -o examples/inventory/inventory examples/inventory/main.glsp
+examples-types:
+	./$(BIN) build -o examples/types/types examples/types/main.glsp
 
 examples-multifile:
 	./$(BIN) build -o examples/multifile/multifile examples/multifile/
@@ -47,14 +43,8 @@ examples-logparser:
 examples-sec-pipeline:
 	./$(BIN) build -o examples/sec-pipeline/sec-pipeline examples/sec-pipeline/main.glsp
 
-examples-atoms:
-	./$(BIN) build -o examples/atoms/atoms examples/atoms/
-
-examples-withopen:
-	./$(BIN) build -o examples/withopen/withopen examples/withopen/main.glsp
-
-examples-doto:
-	./$(BIN) build -o examples/doto/doto examples/doto/main.glsp
+examples-patterns:
+	./$(BIN) build -o examples/patterns/patterns examples/patterns/main.glsp
 
 examples-movienight:
 	./$(BIN) build -o examples/movienight/movienight examples/movienight/main.glsp

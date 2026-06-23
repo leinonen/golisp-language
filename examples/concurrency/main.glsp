@@ -1,5 +1,7 @@
 ;;; Concurrent job runner
-;;; Demonstrates all 6 concurrency primitives plus typed go-val and typed channels:
+;;; Demonstrates all 6 concurrency primitives plus typed go-val, typed channels,
+;;; and atoms for shared mutable state:
+;;;   atom        — lock-protected shared state; swap!/deref are race-free
 ;;;   go-val      — launch a goroutine that returns a result via chan T (typed)
 ;;;   par         — run independent tasks in parallel, wait for all
 ;;;   for-chan     — range over a channel until it is closed
@@ -7,6 +9,24 @@
 ;;;   with-lock   — mutex-protected critical section (IIFE with Lock/defer Unlock)
 ;;;   :timeout    — select! case that fires after N milliseconds
 (ns main)
+
+; ── shared state with an atom ─────────────────────────────────────────────────
+; A typed atom wrapping an int. (atom int 0) records the element type, so
+; (deref c) coerces to a concrete int — no (int (deref c)) cast — and an
+; (Atom int) param documents the value. swap! applies a function atomically:
+; lock, call f, store, unlock, so concurrent increments never conflict.
+(defn increment! [c (Atom int)] -> any
+  (swap! c (fn [n any] (+ n 1))))
+
+;;; Run n goroutines, each calling increment! per-times, and return the final
+;;; count. Without an atom the result would be a racy < expected.
+(defn race-counter [n int per int] -> int
+  (let [counter (atom int 0)
+        done (chan bool n)]
+    (doseq [_ (range n)]
+           (go (doseq [_ (range per)] (increment! counter)) (send! done true)))
+    (doseq [_ (range n)] (recv! done))
+    (deref counter)))
 
 ; ── shared log mutex ──────────────────────────────────────────────
 ; with-lock ensures log lines from concurrent goroutines don't interleave.
@@ -80,4 +100,11 @@
         (close! buf)
         (let [names (collect buf)]
           (println "    job count:" (len names))
-          (doseq [n names] (println "    -" n)))))))
+          (doseq [n names] (println "    -" n))))
+      ; 6. atom — 5 goroutines × 1000 increments on one shared counter.
+      ;    swap! is race-free, so the total is exactly 5000.
+      (println
+        "── shared counter (atom) ────────────")
+      (let [got (race-counter 5 1000)]
+        (println "    expected: 5000  got:" got)
+        (println (if (= got 5000) "    no data races." "    race detected!"))))))

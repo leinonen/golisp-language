@@ -1,8 +1,10 @@
-; data pipeline example
-; Demonstrates 7b data-transformation built-ins using a product catalog:
-;   second, last, empty?, not-empty, get-in, assoc-in, update, update-in,
-;   select-keys, rename-keys, group-by, frequencies, into, concat, mapcat,
-;   take-while, drop-while, zipmap, partition, partition-by
+; data — collection & data-transformation built-ins over a product catalog.
+;
+; Two things to notice in the v2 surface:
+;   • keyword access works on plain maps: (:name p) is (get p "name"), and a
+;     bare keyword is a function, so (map :name products) just works.
+;   • transducers compose transformation steps with comp, independent of the
+;     collection they run on — see the pipeline section at the end.
 (ns main)
 
 (def products []any
@@ -50,122 +52,97 @@
     :supplier {:name "AcmeCo" :tier 1}}])
 
 (defn main [] -> void
-  ; --- second / last ---
-  ; second and last are runtime helpers, so they accept any (including []any).
+  ; --- second / last / keyword-as-function ---
   (println "=== second / last ===")
-  (println "  second product:" (get (second products) "name"))
-  (println "  last product:  " (get (last products) "name"))
+  (println "  second product:" (:name (second products)))
+  (println "  last product:  " (:name (last products)))
   ; --- empty? / not-empty ---
   (println "\n=== empty? / not-empty ===")
-  (let [out-of-stock (filter (fn [p] (= (int (get p "stock")) 0)) products)
-        refurbished (filter (fn [p] (= (get p "category") "refurbished")) products)]
+  (let [out-of-stock (filter (fn [p] (= (:stock p) 0)) products)
+        refurbished (filter (fn [p] (= (:category p) "refurbished")) products)]
     (println "  out-of-stock empty?" (empty? out-of-stock))
     (println "  refurbished empty? " (empty? refurbished))
-    (println "  out-of-stock:" (map (fn [p] (get p "name")) out-of-stock))
+    (println "  out-of-stock:" (map :name out-of-stock))
     (println "  not-empty nil check:" (= (not-empty refurbished) nil)))
   ; --- select-keys ---
   (println "\n=== select-keys ===")
-  (let [summaries (map (fn [p] (select-keys p ["name" "price" "stock"])) products)]
-    (map (fn [m] (println " " m)) (take 3 summaries)))
+  (doseq
+    [m
+     (take 3 (map (fn [p] (select-keys p ["name" "price" "stock"])) products))]
+    (println " " m))
   ; --- rename-keys ---
-  ; (get products 0) uses _glispGet which accepts any — works on []any.
   (println "\n=== rename-keys ===")
-  (let [renamed (rename-keys (get products 0) {"name" "title" "price" "cost" "stock" "qty"})]
+  (let [renamed (rename-keys (first products) {"name" "title" "price" "cost" "stock" "qty"})]
     (println " " (select-keys renamed ["id" "title" "cost" "qty"])))
-  ; --- get-in / assoc-in ---
+  ; --- get-in / assoc-in (nested supplier map) ---
   (println "\n=== get-in / assoc-in ===")
-  (let [pa (get products 0)
+  (let [pa (first products)
         promoted (assoc-in pa ["supplier" "tier"] 0)]
     (println "  supplier:      " (get-in pa ["supplier" "name"]))
     (println "  tier before:   " (get-in pa ["supplier" "tier"]))
     (println "  tier after:    " (get-in promoted ["supplier" "tier"])))
   ; --- update / update-in ---
-  ; second returns any, so all built-ins work normally.
   (println "\n=== update / update-in ===")
   (let [pb (second products)
         restocked (update pb "stock" (fn [n] (* n 3)))
         tiered (update-in pb ["supplier" "tier"] (fn [n] (- n 1)))]
-    (println "  stock before:"
-             (get pb "stock")
-             " after x3:"
-             (get restocked "stock"))
+    (println "  stock before:" (:stock pb) " after x3:" (:stock restocked))
     (println "  tier before: "
              (get-in pb ["supplier" "tier"])
              " after -1:"
              (get-in tiered ["supplier" "tier"])))
   ; --- group-by ---
-  ; Values from (get m k) are any — count and map work on them directly.
   (println "\n=== group-by ===")
-  (let [by-cat (group-by "category" products)
-        hw (get by-cat "hardware")
-        el (get by-cat "electronics")]
-    (println "  hardware:" (count hw) "products")
-    (println "  electronics:" (count el) "products")
-    (println "  hw names:" (map (fn [p] (get p "name")) hw)))
+  (let [by-cat (group-by :category products)]
+    (println "  hardware:" (count (get by-cat "hardware")) "products")
+    (println "  electronics:" (count (get by-cat "electronics")) "products")
+    (println "  hw names:" (map :name (get by-cat "hardware"))))
   ; --- frequencies ---
   (println "\n=== frequencies ===")
-  (let [suppliers (map (fn [p] (get-in p ["supplier" "name"])) products)
-        freq (frequencies suppliers)]
-    (println " " freq))
+  (println " "
+           (frequencies (map (fn [p] (get-in p ["supplier" "name"])) products)))
   ; --- zipmap ---
   (println "\n=== zipmap ===")
-  (let [names (map (fn [p] (get p "name")) products)
-        prices (map (fn [p] (get p "price")) products)
-        lookup (zipmap names prices)]
+  (let [lookup (zipmap (map :name products) (map :price products))]
     (println "  Widget A:" (get lookup "Widget A"))
     (println "  Gadget Y:" (get lookup "Gadget Y"))
     (println "  Wrench Set:" (get lookup "Wrench Set")))
   ; --- into: collect name→stock pairs into a map ---
-  ; into returns any; get works on any directly.
   (println "\n=== into ===")
-  (let [pairs (map (fn [p] [(get p "name") (get p "stock")]) products)
-        stocks (into {} pairs)]
+  (let [stocks (into {} (map (fn [p] [(:name p) (:stock p)]) products))]
     (println "  Widget B stock:" (get stocks "Widget B"))
     (println "  Wrench Set stock:" (get stocks "Wrench Set")))
-  ; --- concat ---
-  (println "\n=== concat ===")
-  (let [cheap (filter (fn [p] (< (get p "price") 1000)) products)
-        pricey (filter (fn [p] (>= (get p "price") 5000)) products)
-        extremes (concat cheap pricey)]
-    (println "  cheap (<$10):" (map (fn [p] (get p "name")) cheap))
-    (println "  pricey (≥$50):" (map (fn [p] (get p "name")) pricey))
-    (println "  combined:" (len extremes) "products"))
-  ; --- mapcat ---
-  (println "\n=== mapcat ===")
-  (let [tags (mapcat (fn [p] [(get p "name") (get p "category")]) (take 3 products))]
-    (println " " tags))
-  ; --- take-while / drop-while ---
+  ; --- concat / mapcat ---
+  (println "\n=== concat / mapcat ===")
+  (let [cheap (filter (fn [p] (< (:price p) 1000)) products)
+        pricey (filter (fn [p] (>= (:price p) 5000)) products)]
+    (println "  cheap (<$10):" (map :name cheap))
+    (println "  pricey (≥$50):" (map :name pricey))
+    (println "  combined:" (count (concat cheap pricey)) "products")
+    (println "  name+category tags:"
+             (mapcat (juxt :name :category) (take 3 products))))
+  ; --- take-while / drop-while over a sorted view ---
   (println "\n=== take-while / drop-while ===")
-  (let [price-sorted (sort-by (fn [p] (get p "price")) products)
-        budget (take-while (fn [p] (< (get p "price") 2000)) price-sorted)
-        premium (drop-while (fn [p] (< (get p "price") 2000)) price-sorted)]
-    (println "  budget (<$20): " (map (fn [p] (get p "name")) budget))
-    (println "  premium (≥$20):" (map (fn [p] (get p "name")) premium)))
-  ; --- partition ---
-  ; partition returns []any of []any batches.
-  ; (batch) is any inside the map callback — first/count work on it.
-  (println "\n=== partition ===")
-  (let [batches (partition 3 products)]
-    (println "  products:"
-             (len products)
-             " batch-size: 3  batches:"
-             (len batches))
-    (map
-      (fn [batch]
-        (do (println "  batch:" (map (fn [p] (get p "name")) batch)) nil))
-      batches))
-  ; --- partition-by ---
-  ; run is any inside map callback — first/count work on it.
-  (println "\n=== partition-by ===")
-  (let [runs (->> products (sort-by (fn [p] (get p "category"))) (partition-by (fn [p] (get p "category"))))]
-    (map
-      (fn [run]
-        (do
-          (println " "
-                   (get-in (first run) ["category"])
-                   "x"
-                   (count run)
-                   ":"
-                   (map (fn [p] (get p "name")) run))
-          nil))
-      runs)))
+  (let [price-sorted (sort-by :price products)]
+    (println "  budget (<$20): "
+             (map :name (take-while (fn [p] (< (:price p) 2000)) price-sorted)))
+    (println "  premium (≥$20):"
+             (map :name (drop-while (fn [p] (< (:price p) 2000)) price-sorted))))
+  ; --- partition / partition-by ---
+  (println "\n=== partition / partition-by ===")
+  (doseq [batch (partition 3 products)] (println "  batch:" (map :name batch)))
+  (doseq [run (->> products (sort-by :category) (partition-by :category))]
+    (println " " (:category (first run)) "x" (count run) ":" (map :name run)))
+  ; --- transducers: compose steps with comp, run with sequence/transduce ---
+  ; A transducer is the transformation without the collection. The same xform
+  ; can feed sequence (→ vector), into (→ collection), or transduce (→ reduce).
+  (println "\n=== transducers ===")
+  (let [in-stock-prices (comp (filter (fn [p] (> (:stock p) 0))) (map :price))]
+    ; sequence: realize the transformed stream into a vector
+    (println "  in-stock prices:" (sequence in-stock-prices products))
+    ; transduce: fold the stream to a total, no intermediate vector
+    (println "  total in-stock value:"
+             (transduce in-stock-prices (fn [a b] (+ a b)) 0 products))
+    ; take short-circuits — only the first 2 hardware names are produced
+    (let [first-two-hw (comp (filter (fn [p] (= (:category p) "hardware"))) (map :name) (take 2))]
+      (println "  first 2 hardware:" (sequence first-two-hw products)))))

@@ -150,36 +150,35 @@
   ; Map destructuring in fn params: {name :name scores :scores}
   (let [classes [{:name "Math" :scores [85 92 78 61 79 88 95]} {:name "English" :scores [76 85 90 55 68 73 82]} {:name "Science" :scores [91 94 87 98 79 85 92]}]]
     (let [ch (chan map[string]any (len classes))]
-      ; Spawn one goroutine per class using map destructuring on the param
-      (map
-        (fn [{name :name scores :scores}]
-          (let [total (reduce (fn [acc s] (+ acc s)) 0 scores)
-                n (count scores)
-                avg (/ (int total) n)
-                pass (filter (fn [s] (>= s 60)) scores)
-                pass-n (count pass)]
-            ; go in tail position needs no trailing nil — statement-only
-            ; forms auto-return nil (ADR-011)
-            (go
-              (send! ch {:name (str name) :avg avg :grade (grade avg) :passing (str pass-n "/" n)}))))
-        classes)
+      ; Spawn one goroutine per class. doseq (not map) for side effects: it
+      ; runs for effect and returns nil.
+      (doseq [c classes]
+        (let [name (:name c)
+              scores (:scores c)
+              total (reduce (fn [acc s] (+ acc s)) 0 scores)
+              n (count scores)
+              avg (/ (int total) n)
+              pass (filter (fn [s] (>= s 60)) scores)
+              pass-n (count pass)]
+          ; go in tail position needs no trailing nil — statement-only
+          ; forms auto-return nil (ADR-011)
+          (go
+            (send! ch {:name (str name) :avg avg :grade (grade avg) :passing (str pass-n "/" n)}))))
       ; Collect and rank by average score.
       ; Sequential destructuring: [[top second third] ranked]
       (let [results (map (fn [_] (recv! ch)) classes)
             ranked (sort-by (fn [{avg :avg}] avg) results)
             [top second third] ranked]
         (println "\n=== Class Report ===")
-        (map
-          (fn [{name :name avg :avg grade :grade passing :passing}]
-            (println " "
-                     name
-                     "| avg:"
-                     avg
-                     "| grade:"
-                     grade
-                     "| passing:"
-                     passing))
-          ranked)
+        (doseq [r ranked]
+          (println " "
+                   (:name r)
+                   "| avg:"
+                   (:avg r)
+                   "| grade:"
+                   (:grade r)
+                   "| passing:"
+                   (:passing r)))
         ; keyword lookup: (:name m) extracts the :name key from a map
         (println "\nbottom:"
                  (:name top)

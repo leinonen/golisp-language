@@ -28,13 +28,4 @@ jobs:
         run: go test $(go list ./... | grep -v golisp/examples)
 
       - name: Build examples
-        run: |
-          make examples-tour \
-               examples-api \
-               examples-shapes \
-               examples-multifile \
-               examples-httpclient \
-               examples-data \
-               examples-concurrency \
-               examples-logparser \
-               examples-movienight
+        run: make examples

@@ -1790,6 +1790,11 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			e.needImport("_lines")
 			e.needImport("_xf")
 			return e.emitRuntimeCall("_glispTransduceLines", n.Args, 4)
+		case "transduce-json":
+			e.needImport("encoding/json") // json package (+ glispJsonRuntime, fmt)
+			e.needImport("_jsonstream")   // glispJsonStreamRuntime + os
+			e.needImport("_xf")           // _glispReduced
+			return e.emitRuntimeCall("_glispTransduceJson", n.Args, 4)
 		case "reverse":
 			return e.emitRuntimeCall("_glispReverse", n.Args, 1)
 		case "contains?":

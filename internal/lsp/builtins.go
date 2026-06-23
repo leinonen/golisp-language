@@ -402,6 +402,7 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	// Line-oriented IO
 	"read-lines":      {Sig: "(read-lines path)              →  [[]any error]", Doc: "Read a file's lines into a vector. Returns ([]any, error) — use with if-err."},
 	"transduce-lines": {Sig: "(transduce-lines xform rf init path) →  [any error]", Doc: "Stream a file's lines through transducer xform and reducing fn rf in constant memory; take/take-while stop reading early. Returns (result, error) — use with if-err."},
+	"transduce-json":  {Sig: "(transduce-json xform rf init path) →  [any error]", Doc: "Stream a top-level JSON array's elements (one at a time, constant memory) through transducer xform and reducing fn rf; take/take-while stop reading early. Returns (result, error) — use with if-err."},
 
 	// Context propagation
 	"ctx/background":   {Sig: "(ctx/background)              →  ctx", Doc: "Return context.Background() — the root context for explicit propagation."},

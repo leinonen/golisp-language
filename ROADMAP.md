@@ -257,8 +257,12 @@ needs. Eager throughout (no lazy seqs — see open questions).
   a vector; `(transduce-lines xform rf init path)` streams the lines through a
   transducer pipeline in **constant memory** (`bufio.Scanner`), honoring the
   `Reduced` sentinel so `take`/`take-while` stop reading early. Both return
-  `(value, error)` for `if-err`. (Streaming JSON — per-object decode of a large
-  array — remains a possible follow-up.)
+  `(value, error)` for `if-err`.
+- [x] **Streaming JSON** (17d) — `(transduce-json xform rf init path)` streams a
+  top-level JSON array's elements one at a time through a transducer pipeline via
+  `json.Decoder` (constant memory), honoring the `Reduced` sentinel so
+  `take`/`take-while` stop decoding early. The JSON analog of `transduce-lines`;
+  returns `(value, error)` for `if-err`.
 - [x] **Pipeline ergonomics** (17c) — the `read → transform → write` idiom is now
   first-class and documented (`docs/builtins.md`): `transduce-lines` (or
   `slurp`/`csv/parse`) → transducer pipeline → `spit`/`csv/write`, the

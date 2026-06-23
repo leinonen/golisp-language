@@ -107,6 +107,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	if builtins["encoding/csv"] {
 		s += glispCsvRuntime
 	}
+	if builtins["_xf"] {
+		s += glispXfRuntime
+	}
 	if builtins["net/http"] {
 		s += glispHttpRuntime
 	}
@@ -2173,5 +2176,161 @@ func _glispCsvWrite(rows any) (string, error) {
 	}
 	w.Flush()
 	return buf.String(), w.Error()
+}
+`
+
+// glispXfRuntime is appended when transducers are used (map/filter/take/… with a
+// single argument, transduce, sequence, into-with-xform). A transducer is a
+// unary func(rf) rf (rf is a reducing func(acc, x) any), so the existing comp
+// composes them. _glispReduced signals early termination (take/take-while). No
+// real imports — only the always-present _glispToSlice/_glispToInt/_glispTruthy/
+// _glispConj helpers.
+const glispXfRuntime = `
+// --- transducers (generated) ---
+
+type _glispReduced struct{ val any }
+
+func _glispEnsureReduced(x any) any {
+	if _, ok := x.(_glispReduced); ok {
+		return x
+	}
+	return _glispReduced{x}
+}
+
+func _glispRF(rf any) func(any, any) any { return rf.(func(any, any) any) }
+
+func _glispMapXf(f any) any {
+	ff := f.(func(any) any)
+	return func(rf any) any {
+		step := _glispRF(rf)
+		return func(acc any, x any) any { return step(acc, ff(x)) }
+	}
+}
+
+func _glispFilterXf(pred any) any {
+	pf := pred.(func(any) any)
+	return func(rf any) any {
+		step := _glispRF(rf)
+		return func(acc any, x any) any {
+			if _glispTruthy(pf(x)) {
+				return step(acc, x)
+			}
+			return acc
+		}
+	}
+}
+
+func _glispRemoveXf(pred any) any {
+	pf := pred.(func(any) any)
+	return func(rf any) any {
+		step := _glispRF(rf)
+		return func(acc any, x any) any {
+			if _glispTruthy(pf(x)) {
+				return acc
+			}
+			return step(acc, x)
+		}
+	}
+}
+
+func _glispKeepXf(f any) any {
+	ff := f.(func(any) any)
+	return func(rf any) any {
+		step := _glispRF(rf)
+		return func(acc any, x any) any {
+			if v := ff(x); v != nil {
+				return step(acc, v)
+			}
+			return acc
+		}
+	}
+}
+
+func _glispTakeXf(n any) any {
+	limit := _glispToInt(n)
+	return func(rf any) any {
+		step := _glispRF(rf)
+		taken := 0
+		return func(acc any, x any) any {
+			if taken >= limit {
+				return _glispEnsureReduced(acc)
+			}
+			taken++
+			acc = step(acc, x)
+			if taken >= limit {
+				return _glispEnsureReduced(acc)
+			}
+			return acc
+		}
+	}
+}
+
+func _glispDropXf(n any) any {
+	limit := _glispToInt(n)
+	return func(rf any) any {
+		step := _glispRF(rf)
+		seen := 0
+		return func(acc any, x any) any {
+			if seen < limit {
+				seen++
+				return acc
+			}
+			return step(acc, x)
+		}
+	}
+}
+
+func _glispTakeWhileXf(pred any) any {
+	pf := pred.(func(any) any)
+	return func(rf any) any {
+		step := _glispRF(rf)
+		return func(acc any, x any) any {
+			if _glispTruthy(pf(x)) {
+				return step(acc, x)
+			}
+			return _glispEnsureReduced(acc)
+		}
+	}
+}
+
+func _glispDropWhileXf(pred any) any {
+	pf := pred.(func(any) any)
+	return func(rf any) any {
+		step := _glispRF(rf)
+		dropping := true
+		return func(acc any, x any) any {
+			if dropping && _glispTruthy(pf(x)) {
+				return acc
+			}
+			dropping = false
+			return step(acc, x)
+		}
+	}
+}
+
+func _glispXfReduce(xform, rf, init, coll any) any {
+	step := xform.(func(any) any)(rf).(func(any, any) any)
+	acc := init
+	for _, x := range _glispToSlice(coll) {
+		acc = step(acc, x)
+		if r, ok := acc.(_glispReduced); ok {
+			return r.val
+		}
+	}
+	return acc
+}
+
+func _glispTransduce(xform, rf, init, coll any) any {
+	return _glispXfReduce(xform, rf, init, coll)
+}
+
+func _glispSequence(xform, coll any) []any {
+	rf := func(acc any, x any) any { return append(acc.([]any), x) }
+	return _glispXfReduce(xform, any(rf), any([]any{}), coll).([]any)
+}
+
+func _glispIntoXf(to, xform, coll any) any {
+	rf := func(acc any, x any) any { return _glispConj(acc, x) }
+	return _glispXfReduce(xform, any(rf), to, coll)
 }
 `

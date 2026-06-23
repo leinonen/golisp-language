@@ -395,6 +395,10 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"csv/parse": {Sig: "(csv/parse text)               →  [[]any error]", Doc: "Parse CSV text; the first record is the header, each later record becomes a map keyed by header. Returns ([]any, error) — use with if-err."},
 	"csv/write": {Sig: "(csv/write rows)               →  [string error]", Doc: "Write a sequence of maps as CSV; the header is the first row's keys (sorted). Returns (string, error) — use with if-err."},
 
+	// Transducers (eager; compose with comp)
+	"transduce": {Sig: "(transduce xform rf init coll) →  any", Doc: "Reduce coll with rf and init, transforming items through xform (a transducer). Eager; take/take-while terminate early."},
+	"sequence":  {Sig: "(sequence xform coll)          →  []any", Doc: "Apply transducer xform to coll, returning the transformed items as a vector."},
+
 	// Context propagation
 	"ctx/background":   {Sig: "(ctx/background)              →  ctx", Doc: "Return context.Background() — the root context for explicit propagation."},
 	"ctx/todo":         {Sig: "(ctx/todo)                    →  ctx", Doc: "Return context.TODO() — a placeholder context."},

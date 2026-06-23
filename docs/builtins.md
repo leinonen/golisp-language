@@ -535,6 +535,31 @@ becomes a `map[string]any` keyed by header name. Both forms return
       (spit "adults.csv" out))))
 ```
 
+## Transducers
+
+Called with a **single argument** (no collection), `map`, `filter`, `remove`,
+`keep`, `take`, `drop`, `take-while`, and `drop-while` return a **transducer** — a
+composable transformation independent of any source. `comp` composes them (data
+flows left-to-right), and `transduce`/`sequence`/`into` apply them. Eager
+throughout (ADR-003); `take`/`take-while` terminate early.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(map f)` / `(filter pred)` / … | transducer | The 1-arg form is a transducer (vs the 2-arg eager `(map f coll)`) |
+| `(transduce xform rf init coll)` | any | Reduce coll with rf/init, items transformed through xform |
+| `(sequence xform coll)` | `[]any` | Apply xform to coll, returning a vector |
+| `(into to xform coll)` | coll | Pour xform-transformed items of coll into to (3-arg form) |
+
+```clojure
+(def xf (comp (map (fn [x] (* x x)))
+              (filter (fn [x] (> x 5)))
+              (take 2)))
+
+(sequence xf (range 1 1000000))          ; → [9 16]  (early-terminates)
+(transduce xf (fn [a x] (+ a x)) 0 nums) ; reduce with the same pipeline
+(into [] (map (fn [x] (+ x 1))) [1 2 3]) ; → [2 3 4]
+```
+
 ## Context
 
 Pass `context.Context` to Go APIs that support cancellation and deadlines. No import declaration needed.

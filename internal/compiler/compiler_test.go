@@ -130,6 +130,56 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 
+	t.Run("if-err recur in loop tail", func(t *testing.T) {
+		// if-err with a recur in each branch, in loop-tail position: the recur must
+		// lower to a loop continue (regression for the if-err loop-tail gap).
+		src := `(ns main)
+(defn sum-ints [xs []any] -> int
+  (loop [i 0 acc 0]
+    (if (>= i (count xs))
+      acc
+      (if-err [n err] (parse-int (str (nth xs i)))
+        (recur (+ i 1) acc)
+        (recur (+ i 1) (+ acc n))))))
+(defn main [] -> void (fmt/println "sum" (sum-ints ["1" "x" "3" "10"])))
+`
+		path := filepath.Join(dir, "iferrloop.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		if got := out.String(); !strings.Contains(got, "sum 14") { // 1+3+10, "x" skipped
+			t.Errorf("stdout %q, want it to contain %q", got, "sum 14")
+		}
+	})
+
+	t.Run("block expr coerces into typed position", func(t *testing.T) {
+		// A symbol bound to an if/switch (which emit func() any) is `any`; using it
+		// in a typed position must coerce (regression for the block-expr any gap).
+		src := `(ns main)
+(defn shout [s string] -> string (str/upper s))
+(defn main [] -> void
+  (let [name (if true "hello" "bye")]
+    (fmt/println (shout name))))
+`
+		path := filepath.Join(dir, "blockany.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		if got := out.String(); !strings.Contains(got, "HELLO") {
+			t.Errorf("stdout %q, want it to contain %q", got, "HELLO")
+		}
+	})
+
 	t.Run("proc run", func(t *testing.T) {
 		src := `(ns main)
 (defn main [] -> void

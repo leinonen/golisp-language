@@ -138,6 +138,8 @@ func (e *Emitter) emitLoopTailNode(n ast.Node, retVar string) error {
 		return e.emitIfLoopTail(v, retVar)
 	case *ast.CondExpr:
 		return e.emitCondLoopTail(v, retVar)
+	case *ast.IfErrExpr:
+		return e.emitIfErrLoopTail(v, retVar)
 	case *ast.DoExpr:
 		return e.emitLoopBody(v.Body, retVar)
 	case *ast.SelectStmt, *ast.GoStmt, *ast.ParStmt, *ast.ForChanStmt,
@@ -258,6 +260,44 @@ func (e *Emitter) emitCondLoopTail(n *ast.CondExpr, retVar string) error {
 		e.line("}")
 	}
 	return nil
+}
+
+// emitIfErrLoopTail emits an if-err form in loop-tail position, lowering a recur
+// in either branch to a loop continue (mirrors emitIfErrExprReturn, but tail-
+// emits the branches rather than returning them). Without this, an if-err in a
+// loop tail falls through to the value path and its recur emits invalid Go.
+func (e *Emitter) emitIfErrLoopTail(n *ast.IfErrExpr, retVar string) error {
+	goVal := identToGo(n.ValName)
+	goErr := identToGo(n.ErrName)
+	e.writeIndent()
+	e.writef("%s, %s := ", goVal, goErr)
+	if err := e.emitExpr(n.Expr); err != nil {
+		return err
+	}
+	e.nl()
+	e.writeIndent()
+	e.writef("if %s != nil {", goErr)
+	e.nl()
+	e.push()
+	if err := e.emitLoopTailNode(n.OnErr, retVar); err != nil {
+		return err
+	}
+	e.pop()
+	e.line("}")
+	// Block-wrap a nested if-err ok-branch so reusing the same error var name
+	// doesn't trip Go's "no new variables on left side of :=" (as the return path
+	// does).
+	if _, nested := n.OnOk.(*ast.IfErrExpr); nested {
+		e.line("{")
+		e.push()
+		if err := e.emitLoopTailNode(n.OnOk, retVar); err != nil {
+			return err
+		}
+		e.pop()
+		e.line("}")
+		return nil
+	}
+	return e.emitLoopTailNode(n.OnOk, retVar)
 }
 
 // isCollectionNode returns true for literal collection nodes (vector, map, set).

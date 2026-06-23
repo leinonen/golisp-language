@@ -1,0 +1,100 @@
+; patterns — two everyday forms for working with stateful objects.
+;
+;   doto      configure an object with a sequence of side-effecting steps,
+;             then hand it back. Reads as a fluent builder chain.
+;   with-open bind resources, run a body, and Close() them deterministically —
+;             in reverse order, even if the body panics.
+;
+; Both lean on the same idea: structure the lifecycle of an object so the happy
+; path reads top-to-bottom and cleanup is automatic.
+(ns main)
+
+; ── doto: build, configure, return ───────────────────────────────────────────
+; (doto x form...) evaluates x once, runs each form on it, and returns x.
+; A (.method args) step threads x as the receiver — x.Method(args); a bare
+; (fn args) step threads x as the first argument. Any pointer-receiver type
+; works: x is a local, so Go auto-addresses it.
+(defstruct Report
+  title string
+  lines (Atom []any))
+
+(defmethod *Report SetTitle [r t string] -> error
+  (println "  title:" t)
+  nil)
+
+(defmethod *Report AddLine [r line string] -> error
+  (swap! (:lines r) (fn [ls] (conj ls line)))
+  (println "  +" line)
+  nil)
+
+(defmethod *Report Render [r] -> error
+  (println "  --- rendered" (count (deref (:lines r))) "lines ---")
+  nil)
+
+(defn new-report [] -> *Report
+  {:title ""
+   :lines (atom []any [])})
+
+;;; doto with (.method …) interop steps, including a zero-arg one.
+(defn build-report [] -> any
+  (doto (new-report)
+    (.SetTitle "Quarterly")
+    (.AddLine "revenue up")
+    (.AddLine "costs flat")
+    (.Render)))
+
+;;; doto with dot-free dispatch — (add-line …) resolves to .AddLine on the
+;;; typed receiver, no (.Method …) interop needed.
+(defn append-two [r *Report] -> any
+  (doto r (add-line "extra one") (add-line "extra two")))
+
+; ── with-open: deterministic cleanup ─────────────────────────────────────────
+; (with-open [name resource ...] body...) binds each resource, runs the body,
+; and defers Close() on each — in reverse order of acquisition, and even if the
+; body panics. Anything implementing Close() error is closed; other values are
+; left untouched.
+(defstruct File
+  name string)
+
+(defmethod *File Close [f] -> error
+  (println "  close" (:name f))
+  nil)
+
+(defn open-file [n string] -> *File
+  (println "  open " n)
+  {:name n})
+
+(defn read-contents [f *File] -> string
+  (str "<contents of " (:name f) ">"))
+
+;;; One resource: the body's value is returned; the file closes on the way out.
+(defn read-one [path string] -> string
+  (with-open [f (open-file path)] (read-contents f)))
+
+;;; Multiple resources open left-to-right and close right-to-left (LIFO).
+(defn copy-file [src string dst string] -> int
+  (with-open [in (open-file src)
+              out (open-file dst)]
+    (println "  copy " (:name in) "->" (:name out))
+    1))
+
+;;; Cleanup still runs on panic: the deferred Close fires before the deferred
+;;; recover handler sees the panic.
+(defn guard [] -> void
+  (let [r (recover)] (when r (println "  recovered:" r))))
+
+(defn read-or-fail [path string] -> void
+  (defer (guard))
+  (with-open [f (open-file path)] (panic "boom while reading")))
+
+(defn main [] -> void
+  (println "=== doto: build a report ===")
+  (build-report)
+  (println "\n=== doto: dot-free dispatch ===")
+  (append-two (new-report))
+  (println "\n=== with-open: single resource ===")
+  (println " =>" (read-one "notes.txt"))
+  (println "\n=== with-open: LIFO close ===")
+  (println " =>" (copy-file "a.dat" "b.dat"))
+  (println "\n=== with-open: cleanup on panic ===")
+  (read-or-fail "flaky.txt"))

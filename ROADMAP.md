@@ -111,8 +111,14 @@ collide with Go's `string` type / stdlib packages. See
   `starts-with?`, `ends-with?`, `includes?`, `index-of`, `join`, `split`,
   `replace`, `repeat`, over Go's `strings`. (`str/` is distinct from the bare
   `str` concat built-in.) Grows as real code asks.
-- [ ] **`core` prelude, auto-referred** — `slurp`/`spit`/`pr`/`prn`/… bare names
-  (clojure.core style); `println`/`print`/`str`/`format`/`assert` already are.
+- [x] **`core` prelude, auto-referred** (14b) — bare clojure.core-style names:
+  `slurp`/`spit`/`lines` (over file I/O). Resolution yields to user defns, local
+  bindings, def globals, and built-ins, so any of those shadow a bare core name.
+  More bare names grow here as needed.
+- [x] **`sys` namespace** (14b) — `(sys/args)`, `(sys/env name)`, `(sys/exit code)`
+  over Go's `os`. Confirms the mechanism generalizes to a second namespace
+  (and that two namespaces inject/dedup together, with transitive closure —
+  bare `lines` pulls in `str/split`).
 - [ ] **`math` namespace** — native-named over Go `math` (`(math/sqrt x)`,
   `(math/floor x)`, `math/pi`, …). Already partly present; make it the canonical
   name, not a raw Go passthrough.

@@ -1,0 +1,13 @@
+;;; glisp core — the sys/ namespace: process & environment access.
+;;; Glisp-native names over Go's os, so code says (sys/env "X") not (os/env "X").
+
+(ns sys)
+
+(defn args [] -> []string
+  os/args)
+
+(defn env [name string] -> string
+  (os/getenv name))
+
+(defn exit [code int] -> void
+  (os/exit code))

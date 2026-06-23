@@ -18,13 +18,25 @@ import (
 )
 
 // sources maps a namespace name to its embedded glisp source. The (ns …) in
-// each file must match its key here.
+// each file must match its key here. The "core" namespace holds the bare
+// (auto-referred) functions, callable unqualified.
 var sources = map[string]string{
-	"str": strSource,
+	"str":  strSource,
+	"sys":  sysSource,
+	"core": bareSource,
 }
 
 //go:embed str.glsp
 var strSource string
+
+//go:embed sys.glsp
+var sysSource string
+
+//go:embed core_bare.glsp
+var bareSource string
+
+// BareNamespace is the namespace name whose functions are callable unqualified.
+const BareNamespace = "core"
 
 // Namespace holds the parsed function declarations of one core namespace.
 type Namespace struct {

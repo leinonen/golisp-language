@@ -1,0 +1,14 @@
+;;; glisp core — bare (auto-referred) functions, the clojure.core-style surface.
+;;; These are callable unqualified, like the built-ins (println, str, count).
+;;; A user defn of the same name shadows them.
+
+(ns core)
+
+(defn slurp [path string] -> [string error]
+  (read-file path))
+
+(defn spit [path string content string] -> error
+  (write-file path content))
+
+(defn lines [s string] -> []string
+  (str/split s "\n"))

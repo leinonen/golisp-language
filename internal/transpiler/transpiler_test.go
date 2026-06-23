@@ -1115,6 +1115,52 @@ func TestCoreStr(t *testing.T) {
 	}
 }
 
+// TestCoreBareAndSys locks Phase 14b: bare core functions (lines) are callable
+// unqualified, the sys/ namespace works, and a bare core function that calls
+// another namespace (lines → str/split) pulls it in transitively.
+func TestCoreBareAndSys(t *testing.T) {
+	src := "(defn f [s string] -> int (count (lines s)))\n" +
+		"(defn g [] -> string (sys/env \"X\"))"
+	got, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+	if !strings.Contains(got, "func _gcore_core_lines(") {
+		t.Errorf("bare lines not injected:\n%s", got)
+	}
+	if !strings.Contains(got, "func _gcore_str_split(") {
+		t.Errorf("transitive str/split not injected for lines:\n%s", got)
+	}
+	if !strings.Contains(got, "func _gcore_sys_env(") || !strings.Contains(got, "os.Getenv") {
+		t.Errorf("sys/env not injected:\n%s", got)
+	}
+}
+
+// TestCoreBareLocalShadowed confirms a local binding (let var) shadows a bare
+// core function — regression for the logparser example, which binds a let `lines`.
+func TestCoreBareLocalShadowed(t *testing.T) {
+	src := "(defn f [s string] -> any (let [lines (split s \",\")] (first lines)))"
+	got, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+	if strings.Contains(got, "_gcore_core_lines") {
+		t.Errorf("local `lines` should shadow bare core, but core was injected:\n%s", got)
+	}
+}
+
+// TestCoreBareShadowed confirms a user defn shadows a bare core function.
+func TestCoreBareShadowed(t *testing.T) {
+	src := "(defn lines [s string] -> string (str \"x\" s))\n(defn main [] (println (lines \"hi\")))"
+	got, err := Transpile(src)
+	if err != nil {
+		t.Fatalf("transpile error: %v", err)
+	}
+	if strings.Contains(got, "_gcore_core_lines") {
+		t.Errorf("user lines should shadow core, but core was injected:\n%s", got)
+	}
+}
+
 // TestCoreStrUnusedNotInjected confirms a namespace is only injected when used.
 func TestCoreStrUnusedNotInjected(t *testing.T) {
 	got, err := Transpile("(defn f [] -> int 1)")

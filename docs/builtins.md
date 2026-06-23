@@ -362,6 +362,37 @@ environment, fronting Go's `os`.
 | `(sys/env name default)` | string | Environment variable value, or `default` when unset/empty |
 | `(sys/exit code)` | — | Exit the process with the given status code |
 
+## Command-line options (`cli/`)
+
+`(cli/parse-opts args specs)` parses a sequence of argument strings against a
+vector of option specs (clojure.tools.cli-shaped), returning a map. Each spec is
+a map: `:long` (required, `"--name"`), `:short` (`"-n"`), `:desc` (help text),
+`:default`, `:flag` (boolean — presence sets it true, no value consumed), and
+`:int` (parse the value as an integer). `--name value`, `--name=value`, and
+`-n value` are all accepted; `--` ends option parsing.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(cli/parse-opts args specs)` | map | `{:options {…} :arguments [...] :errors [...] :summary "…"}` |
+
+`:options` is keyed by each long name without `--` (so `:port`, `:verbose`);
+`:arguments` holds the positional args; `:errors` collects unknown options,
+missing values, and bad integers; `:summary` is generated help text.
+
+```clojure
+(def specs []any
+  [{:long "--port" :short "-p" :desc "Port" :default 8080 :int true}
+   {:long "--verbose" :short "-v" :desc "Verbose" :flag true}])
+
+(let [parsed (cli/parse-opts (rest (sys/args)) specs)
+      opts (:options parsed)]
+  (when (not (empty? (:errors parsed)))
+    (doseq [e (:errors parsed)] (println "error:" e))
+    (println (:summary parsed))
+    (sys/exit 1))
+  (start (:port opts) (:verbose opts) (:arguments parsed)))
+```
+
 ```clojure
 ; Read a config file, handling missing file gracefully
 (if-err [content err] (read-file "config.json")

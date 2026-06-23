@@ -23,6 +23,7 @@ import (
 var sources = map[string]string{
 	"str":  strSource,
 	"sys":  sysSource,
+	"cli":  cliSource,
 	"core": bareSource,
 }
 
@@ -31,6 +32,9 @@ var strSource string
 
 //go:embed sys.glsp
 var sysSource string
+
+//go:embed cli.glsp
+var cliSource string
 
 //go:embed core_bare.glsp
 var bareSource string

@@ -1,0 +1,98 @@
+;;; glisp core — the cli/ namespace: declarative command-line option parsing,
+;;; shaped after clojure.tools.cli. (cli/parse-opts args specs) returns a map
+;;; {:options {…} :arguments [...] :errors [...] :summary "…"}.
+;;;
+;;; A spec is a map per option:
+;;;   {:long "--port" :short "-p" :desc "Port number" :default 8080 :int true}
+;;;   {:long "--verbose" :short "-v" :desc "Verbose" :flag true}
+;;; :long is required; :short, :desc, :default optional; :flag marks a boolean
+;;; option (no value, presence → true); :int parses the value as an integer.
+;;; Options are keyed in :options by the long name without the leading "--".
+;;;
+;;; Calls to sibling cli/ functions are qualified (cli/opt-key …): core functions
+;;; are flat-mangled, so a bare call would not resolve to this namespace.
+
+(ns cli)
+
+;;; Parse v as an integer, returning {:ok true :val n} or {:ok false}. Kept as a
+;;; helper (not inline if-err in the parse loop) because if-err does not yet
+;;; lower a recur in its branches to a loop continue.
+(defn parse-int-result [v any] -> any
+  (if-err [n err] (parse-int (str v))
+    {:ok false}
+    {:ok true :val n}))
+
+;;; The spec whose :long or :short matches name, or nil.
+(defn find-spec [specs any name any] -> any
+  (first (filter (fn [s] (or (= (:long s) name) (= (:short s) name))) specs)))
+
+;;; The :options key for a spec: its :long with the leading "--" stripped.
+(defn opt-key [spec any] -> string
+  (let [l (str (:long spec))]
+    (if (str/starts-with? l "--") (subs l 2) l)))
+
+;;; A spec's default value: explicit :default, else false for a flag, else nil.
+(defn spec-default [spec any] -> any
+  (cond
+    (not (nil? (:default spec))) (:default spec)
+    (:flag spec) false
+    :else nil))
+
+;;; The initial :options map, every spec set to its default.
+(defn defaults [specs any] -> any
+  (reduce (fn [acc s] (assoc acc (cli/opt-key s) (cli/spec-default s))) {} specs))
+
+;;; One option's help line, e.g. "  -p, --port  Port number".
+(defn opt-usage [spec any] -> string
+  (let [short (if (nil? (:short spec)) "    " (str (:short spec) ", "))]
+    (str "  " short (str (:long spec)) "  " (str (:desc spec)))))
+
+;;; The generated help text: one line per spec.
+(defn summary [specs any] -> string
+  (str/join "\n" (map (fn [s] (cli/opt-usage s)) specs)))
+
+;;; Parse args (a sequence of strings) against specs. Returns a map with
+;;; :options (parsed values by long name), :arguments (positional args left
+;;; over), :errors (human-readable problems), and :summary (the help text).
+;;; "--" ends option parsing; everything after it is positional.
+(defn parse-opts [args any specs any] -> any
+  (loop [i 0
+         opts (cli/defaults specs)
+         positional []
+         errors []
+         done false]
+    (if (>= i (count args))
+      {:options opts
+       :arguments positional
+       :errors errors
+       :summary (cli/summary specs)}
+      (let [arg (str (nth args i))]
+        (cond
+          done (recur (+ i 1) opts (conj positional arg) errors true)
+          (= arg "--") (recur (+ i 1) opts positional errors true)
+          (str/starts-with? arg "-")
+          (let [eq (str/index-of arg "=")
+                name (if (>= eq 0) (subs arg 0 eq) arg)
+                spec (cli/find-spec specs name)]
+            (cond
+              (nil? spec)
+              (recur (+ i 1) opts positional (conj errors (str "unknown option: " name)) false)
+              (:flag spec)
+              (recur (+ i 1) (assoc opts (cli/opt-key spec) true) positional errors false)
+              :else
+              (let [inline (>= eq 0)
+                    v (if inline
+                        (subs arg (+ eq 1))
+                        (if (< (+ i 1) (count args)) (str (nth args (+ i 1))) nil))
+                    ni int (if inline (+ i 1) (+ i 2))]
+                (cond
+                  (nil? v)
+                  (recur (+ i 1) opts positional (conj errors (str "missing value for " name)) false)
+                  (:int spec)
+                  (let [r (cli/parse-int-result v)]
+                    (if (:ok r)
+                      (recur ni (assoc opts (cli/opt-key spec) (:val r)) positional errors false)
+                      (recur ni opts positional (conj errors (str "invalid integer for " name ": " v)) false)))
+                  :else
+                  (recur ni (assoc opts (cli/opt-key spec) v) positional errors false)))))
+          :else (recur (+ i 1) opts (conj positional arg) errors false))))))

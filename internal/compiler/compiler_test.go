@@ -129,6 +129,35 @@ func TestRunWithIO(t *testing.T) {
 			t.Error("expected an error for a missing target")
 		}
 	})
+
+	t.Run("cli parse-opts", func(t *testing.T) {
+		src := `(ns main)
+(def specs []any
+  [{:long "--port" :short "-p" :default 8080 :int true}
+   {:long "--verbose" :short "-v" :flag true}])
+(defn main [] -> void
+  (let [p (cli/parse-opts (rest (sys/args)) specs)]
+    (fmt/println "port" (:port (:options p))
+                 "verbose" (:verbose (:options p))
+                 "args" (:arguments p)
+                 "errors" (:errors p))))
+`
+		path := filepath.Join(dir, "cli.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, []string{"-p", "3000", "-v", "extra"}, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		got := out.String()
+		for _, want := range []string{"port 3000", "verbose true", "args [extra]", "errors []"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout %q missing %q", got, want)
+			}
+		}
+	})
 }
 
 // TestRunMultiFileCrossType verifies that a directory build resolves struct

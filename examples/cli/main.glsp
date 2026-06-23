@@ -1,12 +1,18 @@
-; cli — number statistics from command-line arguments
+; cli — number statistics from command-line arguments, with option parsing.
 ; The fast way to try it (no build artifacts):
 ;   glisp run examples/cli/main.glsp 3 1 4 1 5 9 2 6
-; (sys/args) is the command-line []string — rest, map, contains?, get and
-; friends accept concrete Go slices directly, so CLI args need no conversion.
+;   glisp run examples/cli/main.glsp --json 3 1 4
+;   glisp run examples/cli/main.glsp --help
+; cli/parse-opts (clojure.tools.cli-shaped, in core) turns (sys/args) into
+; :options + :arguments; the positionals are the numbers to summarize.
 (ns main)
 
 ; Typed []int def: flows through sort/reduce/first just like []any.
 (def default-nums []int [3 1 4 1 5 9 2 6])
+
+(def specs []any
+  [{:long "--help" :short "-h" :desc "Show this help" :flag true}
+   {:long "--json" :short "-j" :desc "Output as JSON" :flag true}])
 
 ;;; Parses one CLI argument to an int; exits with a message on bad input.
 (defn parse-arg [s string] -> int
@@ -15,16 +21,28 @@
     n))
 
 (defn main [] -> void
-  (let [args (rest (sys/args))]
-    (when (contains? args "--help")
-      (println "usage: cli [numbers...]")
+  (let [parsed (cli/parse-opts (rest (sys/args)) specs)
+        opts (:options parsed)
+        args (:arguments parsed)]
+    (when (not (empty? (:errors parsed)))
+      (doseq [e (:errors parsed)] (println "error:" e))
+      (sys/exit 1))
+    (when (:help opts)
+      (println "usage: cli [options] [numbers...]")
+      (println (:summary parsed))
       (sys/exit 0))
     (let [nums (if (empty? args) default-nums (map (fn [a] (parse-arg (str a))) args))
           sorted (sort nums)
-          total (reduce (fn [acc n] (+ acc n)) 0 nums)]
+          total (reduce (fn [acc n] (+ acc n)) 0 nums)
+          stats {"count" (len nums) "sum" total "min" (first sorted) "max" (last sorted) "mean" (/ (float64 total) (float64 (len nums)))}]
       (when (empty? args) (println "(no args given — using defaults)"))
-      (println "count:" (len nums))
-      (println "sum:  " total)
-      (println "min:  " (first sorted))
-      (println "max:  " (last sorted))
-      (println "mean: " (/ (float64 total) (float64 (len nums)))))))
+      (if (:json opts)
+        (if-err [s err] (json/encode stats)
+          (println "json error:" err)
+          (println s))
+        (do
+          (println "count:" (:count stats))
+          (println "sum:  " (:sum stats))
+          (println "min:  " (:min stats))
+          (println "max:  " (:max stats))
+          (println "mean: " (:mean stats)))))))

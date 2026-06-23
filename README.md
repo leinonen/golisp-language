@@ -144,6 +144,7 @@ glisp run examples/cli/main.glsp 3 1 4   # CLI stats tool — (sys/args), no bui
 ./examples/inventory/inventory  # gradual struct typing: map literals + (:field x) → typed structs
 ./examples/movienight/movienight # sets, threading macros, partial/comp/juxt, ctx deadlines
 ./examples/todos/todos          # server-rendered todos: hiccup + htmx + SSE live stats + websocket chat
+./examples/salesreport/salesreport --format json   # the v2 stack together: cli/ + csv/ + transducers + str//path//sys/
 ```
 
 ### Scripting

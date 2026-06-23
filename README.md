@@ -125,6 +125,7 @@ Handlers are `Request → Response` (both aliases for `map[string]any`).
 
 - [`docs/builtins.md`](docs/builtins.md) — all built-in forms and functions
 - [`docs/stdlib.md`](docs/stdlib.md) — standard library / package reference
+- [`docs/interop.md`](docs/interop.md) — calling Go: external packages, dot-free dispatch, primitives
 - [`docs/architecture.md`](docs/architecture.md) — how the transpiler works
 - [`docs/deployment.md`](docs/deployment.md) — Docker packaging (`scratch` images)
 - [`docs/editor-setup.md`](docs/editor-setup.md) — Neovim syntax highlighting + LSP

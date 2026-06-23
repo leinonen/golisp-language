@@ -178,9 +178,16 @@ longer the default surface. Built directly on the Phase 12 typed-interop loader.
     form), unlike multi-return functions. Typed field/method access still needs
     the receiver to carry the external Go type (annotation or typed return); an
     `if-err`-bound multi-return result is Go-typed but its type isn't recorded.
-- [ ] **Document the boundary** — "reach for interop when you need a Go library;
-  otherwise stay in `core`." Wrapping a Go package is pure glisp (ADR-012 rule 4
-  carries forward), but it's now clearly *interop*, not the everyday surface.
+- [x] **Document the boundary** (15d) — [`docs/interop.md`](docs/interop.md):
+  "reach for interop when you need a Go library; otherwise stay in `core`." A
+  single guide covering external-package imports, `pkg/fn` calls with arg
+  coercion + arity diagnostics, dot-free method/field dispatch on typed values,
+  the interop primitives, and the documented limitations. Linked from the README.
+
+Phase 15 is substantially complete: the interop engine (12a–12e) plus the
+boundary doc. The remaining 12e remnants above (wrong-typed-arg diagnostics,
+multi-return-method gating, `if-err` result typing) are tracked as a backlog,
+not blockers.
 
 ---
 

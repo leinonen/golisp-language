@@ -128,6 +128,12 @@ collide with Go's `string` type / stdlib packages. See
   `trim`, `split`, `join`, …) are marked **legacy → `str/…`** in `docs/builtins.md`
   and LSP hover (kept working — non-breaking). `str/join` takes the separator
   first (clojure.string order) and accepts any sequence.
+- [x] **Migrate the rest of the example corpus** — `api`, `inventory`, `shapes`,
+  `movienight`, and `todos` moved to `str/`/`sys/`/`slurp`/`spit`/`format` too,
+  so every example now reads in the canonical surface (only `fmt/printf` and
+  `filepath/join`, which have no core form, remain as interop). Surfaced two
+  core gaps, now fixed: `sys/env` takes an optional default (`(sys/env "PORT"
+  "4000")`), and `str/join` accepts any sequence including sets.
 - [ ] **`math` namespace** — native-named over Go `math` (`(math/sqrt x)`,
   `(math/floor x)`, `math/pi`, …). Make it the canonical name, not a raw Go
   passthrough. (Deferred — Go's `math/*` names already read naturally; the

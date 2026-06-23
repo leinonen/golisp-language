@@ -111,10 +111,10 @@
              (len (get seen "bob"))))
   ; map-vals: member → number of titles seen
   (println "  titles per member:" (map-vals (fn [s] (len s)) seen))
-  ; sets are sequences: join enumerates members in sorted order, and
+  ; sets are sequences: str/join enumerates members in sorted order, and
   ; (set coll) builds one from any sequence, dropping duplicates
-  (println "  a-z catalog of seen:" (join (seen-by-anyone) ", "))
-  (println "  genres on offer:    " (join (set (map :genre catalog)) ", "))
+  (println "  a-z catalog of seen:" (str/join ", " (seen-by-anyone)))
+  (println "  genres on offer:    " (str/join ", " (set (map :genre catalog))))
   ; --- ranked candidates ---
   (println "\n--- candidates (nobody has seen these) ---")
   (let [picks (ranked-picks)]
@@ -131,10 +131,10 @@
       (println "  short night picks: " (map :title (filter short? picks)))
       (println "  epic night picks:  "
                (map :title (filter (complement short?) picks))))
-    ; comp pipes title extraction into upper-case; juxt fans one movie out
+    ; comp pipes title extraction into str/upper; juxt fans one movie out
     ; to several views at once — keywords compose like any other fn
     (println "  marquee:           "
-             (map (comp (fn [t] (upper-case (str t))) :title) (take 2 picks)))
+             (map (comp (fn [t] (str/upper (str t))) :title) (take 2 picks)))
     (println "  title+year pairs:  " (map (juxt :title :year) (take 2 picks)))
     ; max-by / min-by rank the whole candidate list by a key fn
     (println "  highest rated:     " (:title (max-by :rating picks)))
@@ -152,7 +152,7 @@
       (println "  valid write-ins:" (map :title valid)))
     ; constantly + interleave: one ✔ per member, woven name ✔ name ✔ …
     (println "  rsvp:"
-             (join (interleave members (map (constantly "✔") members)) " ")))
+      (str/join " " (interleave members (map (constantly "✔") members)))))
   ; --- the plan: let-or validation + thread-first assembly ---
   (println "\n--- the plan ---")
   (println "  plan:    " (build-plan "Parasite" "carol"))

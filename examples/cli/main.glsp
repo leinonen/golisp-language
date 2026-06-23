@@ -18,7 +18,7 @@
   (let [args (rest (sys/args))]
     (when (contains? args "--help")
       (println "usage: cli [numbers...]")
-      (os/exit 0))
+      (sys/exit 0))
     (let [nums (if (empty? args) default-nums (map (fn [a] (parse-arg (str a))) args))
           sorted (sort nums)
           total (reduce (fn [acc n] (+ acc n)) 0 nums)]

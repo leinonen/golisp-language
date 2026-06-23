@@ -6,8 +6,12 @@
 (defn args [] -> []string
   os/args)
 
-(defn env [name string] -> string
-  (os/getenv name))
+;;; Returns the environment variable, or the optional fallback when unset/empty.
+(defn env [name string & fallback] -> string
+  (let [v (os/getenv name)]
+    (if (and (= v "") (not (empty? fallback)))
+      (str (first fallback))
+      v)))
 
 (defn exit [code int] -> void
   (os/exit code))

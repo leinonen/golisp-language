@@ -2302,18 +2302,24 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		// types, so an `any` argument is coerced/asserted at the call site
 		// (strings.ToUpper(_glispToString(x)), …) — generalizing the math-only
 		// table above to every loaded package. Variadic-aware: trailing args get
-		// the element type, not the []T slice type.
-		if paramTypes == nil {
-			if fn, ok := e.lookupGoCall(sym.Name); ok {
+		// the element type, not the []T slice type. The same loaded signature
+		// drives the spread and arity diagnostics below.
+		if fn, found := e.lookupGoCall(sym.Name); found {
+			if paramTypes == nil {
 				paramTypes = paramHintsFor(fn, len(leading))
 			}
-		}
-		// Spreading into an imported Go function whose loaded signature is not
-		// variadic can't be right — catch it at transpile time (ADR-011 rule 3)
-		// rather than emitting invalid Go. Unloaded packages trust the marker.
-		if hasSpread {
-			if fn, found := e.lookupGoCall(sym.Name); found && !fn.variadic {
+			// Spreading into an imported Go function whose loaded signature is not
+			// variadic can't be right — catch it at transpile time (ADR-011 rule 3)
+			// rather than emitting invalid Go. Unloaded packages trust the marker.
+			if hasSpread && !fn.variadic {
 				return fmt.Errorf("%s is not variadic — cannot spread arguments with & (at %s)", sym.Name, sym.Pos())
+			}
+			// Arity diagnostics (Phase 15 / ADR-015 12e): a wrong-arity interop
+			// call becomes a clean position-tagged glisp error instead of an
+			// opaque Go compile error. Only loaded packages are gated; an unloaded
+			// one degrades to untyped emission and the Go compiler reports it.
+			if err := checkGoCallArity(sym.Name, fn, len(leading), hasSpread, sym.Pos()); err != nil {
+				return err
 			}
 		}
 	}
@@ -2343,6 +2349,39 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		e.write("...")
 	}
 	e.write(")")
+	return nil
+}
+
+// checkGoCallArity validates the argument count of a call to a loaded Go
+// function (Phase 15 / ADR-015 12e). leading is the count of non-spread
+// arguments; hasSpread is true when a trailing `& xs` supplies the variadic
+// tail. It returns a position-tagged glisp error on mismatch so interop arity
+// mistakes surface in the .glsp source rather than as opaque Go compile errors.
+// Methods are never in the loaded index, so only package-level calls are gated.
+func checkGoCallArity(name string, fn goFunc, leading int, hasSpread bool, pos ast.Position) error {
+	if fn.variadic {
+		fixed := len(fn.params) - 1 // last param is the variadic []T slice
+		if hasSpread {
+			// The spread is the whole variadic tail; Go forbids mixing it with
+			// explicit variadic args, so the non-spread args must be exactly the
+			// fixed params.
+			if leading != fixed {
+				return fmt.Errorf("arity error: %s called with %d arg(s) before & spread, expected exactly %d (at %s)", name, leading, fixed, pos)
+			}
+			return nil
+		}
+		if leading < fixed {
+			return fmt.Errorf("arity error: %s called with %d arg(s), expected at least %d (at %s)", name, leading, fixed, pos)
+		}
+		return nil
+	}
+	// Fixed-arity: spreading into it is already rejected as "not variadic".
+	if hasSpread {
+		return nil
+	}
+	if leading != len(fn.params) {
+		return fmt.Errorf("arity error: %s called with %d arg(s), expected %d (at %s)", name, leading, len(fn.params), pos)
+	}
 	return nil
 }
 

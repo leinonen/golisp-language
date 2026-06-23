@@ -33,6 +33,11 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 		addImport("encoding/json")
 		addImport("fmt")
 	}
+	if builtins["encoding/csv"] {
+		addImport("encoding/csv")
+		addImport("strings")
+		addImport("sort")
+	}
 	if builtins["net/http"] {
 		addImport("fmt")
 		addImport("io")
@@ -98,6 +103,9 @@ func RuntimeSource(pkgName string, builtins map[string]bool) string {
 	}
 	if builtins["encoding/json"] {
 		s += glispJsonRuntime
+	}
+	if builtins["encoding/csv"] {
+		s += glispCsvRuntime
 	}
 	if builtins["net/http"] {
 		s += glispHttpRuntime
@@ -2107,5 +2115,63 @@ func _glispWalk(root any) []any {
 		return nil
 	})
 	return out
+}
+`
+
+// glispCsvRuntime is appended when csv/parse or csv/write are used (real imports:
+// encoding/csv, strings, sort). Rows are header-mapped: parse turns the first
+// record into keys, write takes the header from the first row's keys (sorted for
+// determinism). Both return (value, error) for use with if-err.
+const glispCsvRuntime = `
+// --- csv/* helpers (generated) ---
+
+func _glispCsvParse(text any) ([]any, error) {
+	records, err := csv.NewReader(strings.NewReader(_glispToString(text))).ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(records) == 0 {
+		return []any{}, nil
+	}
+	header := records[0]
+	rows := make([]any, 0, len(records)-1)
+	for _, rec := range records[1:] {
+		m := make(map[string]any, len(header))
+		for i, h := range header {
+			if i < len(rec) {
+				m[h] = rec[i]
+			} else {
+				m[h] = ""
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
+}
+
+func _glispCsvWrite(rows any) (string, error) {
+	s := _glispToSlice(rows)
+	var buf strings.Builder
+	w := csv.NewWriter(&buf)
+	if len(s) > 0 {
+		if first, ok := s[0].(map[string]any); ok {
+			header := make([]string, 0, len(first))
+			for k := range first {
+				header = append(header, k)
+			}
+			sort.Strings(header)
+			w.Write(header)
+			for _, row := range s {
+				m, _ := row.(map[string]any)
+				rec := make([]string, len(header))
+				for i, h := range header {
+					rec[i] = _glispToString(m[h])
+				}
+				w.Write(rec)
+			}
+		}
+	}
+	w.Flush()
+	return buf.String(), w.Error()
 }
 `

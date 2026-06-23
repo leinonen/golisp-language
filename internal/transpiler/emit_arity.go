@@ -93,6 +93,7 @@ var builtinArity = map[string][2]int{
 	"proc/run": {1, -1}, "proc/sh": {1, 1},
 	"path/join": {1, -1}, "path/dir": {1, 1}, "path/base": {1, 1},
 	"path/ext": {1, 1}, "path/clean": {1, 1}, "glob": {1, 1}, "walk": {1, 1},
+	"csv/parse": {1, 1}, "csv/write": {1, 1},
 
 	// error wrapping, atoms, context
 	// (atom …) parses to *ast.AtomExpr (typed form needs a type arg), so it is
@@ -142,6 +143,8 @@ var multiReturnBuiltins = map[string]string{
 	"parse-float":  "(float64, error)",
 	"json/encode":  "(string, error)",
 	"json/decode":  "(any, error)",
+	"csv/parse":    "([]any, error)",
+	"csv/write":    "(string, error)",
 	"read-file":    "(string, error)",
 	"list-dir":     "([]any, error)",
 	"http/get":     "(response, error)",

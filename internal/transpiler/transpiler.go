@@ -647,6 +647,10 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			e.needImport("path/filepath")
 			e.needImport("io/fs")
 		}
+		if e.builtinImports["_lines"] {
+			e.needImport("bufio")
+			e.needImport("os")
+		}
 		if e.builtinImports["encoding/csv"] {
 			// The csv helpers use the strings + sort packages; in single-file mode
 			// the whole runtime is inlined, so import them here (this also inlines
@@ -690,6 +694,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 		if e.builtinImports["_xf"] {
 			e.write(glispXfRuntime)
+		}
+		if e.builtinImports["_lines"] {
+			e.write(glispLineRuntime)
 		}
 		if e.builtinImports["net/http"] {
 			e.write(glispHttpRuntime)
@@ -752,8 +759,8 @@ func (e *Emitter) emitImports() error {
 	// Add built-in imports that were actually needed during emission.
 	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
 	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
-	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "encoding/csv": true, "net/http": true, "io": true, "os": true, "regexp": true, "bytes": true, "os/exec": true, "path/filepath": true, "io/fs": true}
-	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "encoding/csv", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context", "bytes", "os/exec", "path/filepath", "io/fs"} {
+	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "encoding/csv": true, "net/http": true, "io": true, "os": true, "regexp": true, "bytes": true, "os/exec": true, "path/filepath": true, "io/fs": true, "bufio": true}
+	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "encoding/csv", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context", "bytes", "os/exec", "path/filepath", "io/fs", "bufio"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
 				continue

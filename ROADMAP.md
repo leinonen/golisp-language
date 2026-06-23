@@ -138,8 +138,9 @@ collide with Go's `string` type / stdlib packages. See
   `(math/floor x)`, `math/pi`, …). Make it the canonical name, not a raw Go
   passthrough. (Deferred — Go's `math/*` names already read naturally; the
   numeric domain was not chosen for v2.)
-- [ ] **Grow the vocabulary** — more `str/` (e.g. `capitalize`, `trim-start`),
-  data helpers, and bare `core` functions as the CLI/data domains drive demand.
+- [~] **Grow the vocabulary** — `str/` gained `capitalize`, `trim-start`,
+  `trim-end`, `replace-first`, `last-index-of`, `pad-left`, `pad-right` (18a).
+  More `str/`, data helpers, and bare `core` functions grow as demand drives.
 
 ---
 

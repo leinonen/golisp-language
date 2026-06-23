@@ -131,9 +131,11 @@ sorted order (so output is deterministic).
 The **`str/` namespace** (`core`, Phase 14) is the canonical string library —
 `(str/upper s)`, `(str/lower s)`, `(str/trim s)`, `(str/blank? s)`,
 `(str/starts-with? s p)`, `(str/ends-with? s p)`, `(str/includes? s sub)`,
-`(str/index-of s sub)`, `(str/replace s old new)`, `(str/split s sep)`,
-`(str/join sep coll)` (separator first, like `clojure.string/join`), and
-`(str/repeat s n)`. Prefer these.
+`(str/index-of s sub)`, `(str/last-index-of s sub)`, `(str/replace s old new)`,
+`(str/replace-first s old new)`, `(str/split s sep)`, `(str/join sep coll)`
+(separator first, like `clojure.string/join`), `(str/repeat s n)`,
+`(str/capitalize s)`, `(str/trim-start s)`, `(str/trim-end s)`,
+`(str/pad-left s width)`, and `(str/pad-right s width)`. Prefer these.
 
 `str`, `string`, and `format` below are bare core forms. The remaining bare
 string functions are **legacy aliases** of the `str/` surface — kept working for

@@ -43,3 +43,38 @@
 
 (defn repeat [s string n int] -> string
   (strings/repeat s n))
+
+;; Calls to sibling str/ functions are qualified (str/upper …): core functions
+;; are flat-mangled, so a bare call would not resolve to this namespace.
+
+;;; Uppercase the first character and lowercase the rest.
+(defn capitalize [s string] -> string
+  (if (empty? s)
+    s
+    (str (str/upper (subs s 0 1)) (str/lower (subs s 1)))))
+
+;;; Trim leading whitespace (space, tab, newline, carriage return).
+(defn trim-start [s string] -> string
+  (strings/trim-left s " \t\n\r"))
+
+;;; Trim trailing whitespace.
+(defn trim-end [s string] -> string
+  (strings/trim-right s " \t\n\r"))
+
+;;; Replace only the first occurrence of old with new.
+(defn replace-first [s string old string new string] -> string
+  (strings/replace s old new 1))
+
+;;; Index of the last occurrence of sub in s, or -1.
+(defn last-index-of [s string sub string] -> int
+  (strings/last-index s sub))
+
+;;; Right-align s in a field of width, padding on the left with spaces.
+(defn pad-left [s string width int] -> string
+  (let [n (- width (count s))]
+    (if (> n 0) (str (str/repeat " " n) s) s)))
+
+;;; Left-align s in a field of width, padding on the right with spaces.
+(defn pad-right [s string width int] -> string
+  (let [n (- width (count s))]
+    (if (> n 0) (str s (str/repeat " " n)) s)))

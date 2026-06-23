@@ -42,7 +42,7 @@ type DeclSet struct {
 // dispatched by name before the general interop path, so loading the package
 // would be wasted work — skip them when resolving referenced qualifiers.
 var builtinNamespaces = map[string]bool{
-	"json": true, "re": true, "ctx": true, "log": true, "http": true, "proc": true, "path": true,
+	"json": true, "re": true, "ctx": true, "log": true, "http": true, "proc": true, "path": true, "csv": true,
 }
 
 // GoImportPaths returns the Go packages whose signatures should be loaded for
@@ -647,6 +647,14 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 			e.needImport("path/filepath")
 			e.needImport("io/fs")
 		}
+		if e.builtinImports["encoding/csv"] {
+			// The csv helpers use the strings + sort packages; in single-file mode
+			// the whole runtime is inlined, so import them here (this also inlines
+			// glispStrRuntime/glispSortRuntime, which is harmless). Multi-file builds
+			// add these imports in RuntimeSource without the runtime blocks.
+			e.needImport("strings")
+			e.needImport("sort")
+		}
 	}
 	if err := e.emitImports(); err != nil {
 		return err
@@ -676,6 +684,9 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 		}
 		if e.builtinImports["encoding/json"] {
 			e.write(glispJsonRuntime)
+		}
+		if e.builtinImports["encoding/csv"] {
+			e.write(glispCsvRuntime)
 		}
 		if e.builtinImports["net/http"] {
 			e.write(glispHttpRuntime)
@@ -738,8 +749,8 @@ func (e *Emitter) emitImports() error {
 	// Add built-in imports that were actually needed during emission.
 	// In multi-file mode (emitRuntime==false), sort and encoding/json are only
 	// used by the runtime helpers in glisp_runtime.go, not by user code directly.
-	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "net/http": true, "io": true, "os": true, "regexp": true, "bytes": true, "os/exec": true, "path/filepath": true, "io/fs": true}
-	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context", "bytes", "os/exec", "path/filepath", "io/fs"} {
+	runtimeOnlyPkgs := map[string]bool{"sort": true, "encoding/json": true, "encoding/csv": true, "net/http": true, "io": true, "os": true, "regexp": true, "bytes": true, "os/exec": true, "path/filepath": true, "io/fs": true}
+	for _, pkg := range []string{"fmt", "errors", "strings", "strconv", "reflect", "sort", "testing", "encoding/json", "encoding/csv", "net/http", "io", "os", "regexp", "sync", "time", "log/slog", "context", "bytes", "os/exec", "path/filepath", "io/fs"} {
 		if e.builtinImports[pkg] && !e.hasImport(pkg) {
 			if !e.emitRuntime && runtimeOnlyPkgs[pkg] {
 				continue

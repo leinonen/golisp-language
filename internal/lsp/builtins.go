@@ -391,6 +391,10 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"glob":       {Sig: "(glob pattern)                 →  []any", Doc: "File paths matching a shell pattern (single level, e.g. \"src/*.go\"); empty on no match or a bad pattern."},
 	"walk":       {Sig: "(walk dir)                     →  []any", Doc: "Every regular file under dir, recursively, as a list of paths."},
 
+	// CSV (header-mapped rows)
+	"csv/parse": {Sig: "(csv/parse text)               →  [[]any error]", Doc: "Parse CSV text; the first record is the header, each later record becomes a map keyed by header. Returns ([]any, error) — use with if-err."},
+	"csv/write": {Sig: "(csv/write rows)               →  [string error]", Doc: "Write a sequence of maps as CSV; the header is the first row's keys (sorted). Returns (string, error) — use with if-err."},
+
 	// Context propagation
 	"ctx/background":   {Sig: "(ctx/background)              →  ctx", Doc: "Return context.Background() — the root context for explicit propagation."},
 	"ctx/todo":         {Sig: "(ctx/todo)                    →  ctx", Doc: "Return context.TODO() — a placeholder context."},

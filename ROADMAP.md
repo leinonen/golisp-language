@@ -245,8 +245,11 @@ needs. Eager throughout (no lazy seqs — see open questions).
 - [ ] **Eager transducers** — `(comp (map f) (filter g) (take n))` with
   `transduce` / `into` / `eduction`. Transducers compose pipelines **without**
   laziness, so they fit ADR-003 cleanly and unify the existing HOFs.
-- [ ] **CSV** — read/write, header-mapped rows as `[]map[string]any` (the row
-  convention already used for DB results).
+- [x] **CSV** (17a) — `(csv/parse text)` → header-mapped rows (`[]any` of
+  `map[string]any`, first record = header) and `(csv/write rows)` → CSV string
+  (header = first row's keys, sorted). Built-in forms over `encoding/csv` (the
+  `json/` pattern); both return `(value, error)` for `if-err`. Composes with
+  `slurp`/`spit`/`walk` for read→transform→write.
 - [ ] **Streaming JSON / line-oriented IO** — process large inputs without
   loading them whole; `lines` + transduce.
 - [ ] **Pipeline ergonomics** — make the `read → transform → write` shape a

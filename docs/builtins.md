@@ -514,6 +514,27 @@ separator. No import declaration needed. (See also the bare file built-ins:
 (glob "*.txt")                     ; → ["a.txt" "b.txt"] in the current dir
 ```
 
+## CSV
+
+Header-mapped CSV: the first record is the header, and each subsequent record
+becomes a `map[string]any` keyed by header name. Both forms return
+`(value, error)` — use with `if-err`. No import declaration needed.
+
+| Form | Returns | Description |
+|---|---|---|
+| `(csv/parse text)` | `[[]any error]` | Parse CSV text to a list of header-keyed maps |
+| `(csv/write rows)` | `[string error]` | Write a sequence of maps as CSV (header = first row's keys, sorted) |
+
+```clojure
+; read → transform → write
+(if-err [rows err] (csv/parse (first (slurp "people.csv")))
+  (log/error "bad csv" "err" err)
+  (let [adults (filter (fn [r] (>= (int (:age r)) 18)) rows)]
+    (if-err [out werr] (csv/write adults)
+      (log/error "write failed" "err" werr)
+      (spit "adults.csv" out))))
+```
+
 ## Context
 
 Pass `context.Context` to Go APIs that support cancellation and deadlines. No import declaration needed.

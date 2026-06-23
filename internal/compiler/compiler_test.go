@@ -215,6 +215,35 @@ func TestRunWithIO(t *testing.T) {
 		}
 	})
 
+	t.Run("csv parse and write", func(t *testing.T) {
+		src := `(ns main)
+(defn main [] -> void
+  (if-err [rows err] (csv/parse "name,age\nAlice,30\nBob,25")
+    (fmt/println "perr" err)
+    (do
+      (fmt/println "rows" (count rows))
+      (fmt/println "first" (:name (first rows)) (:age (first rows)))
+      (if-err [out werr] (csv/write rows)
+        (fmt/println "werr" werr)
+        (fmt/println "out" out)))))
+`
+		path := filepath.Join(dir, "csv.glsp")
+		if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+			t.Fatal(err)
+		}
+		var out, errBuf bytes.Buffer
+		code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+		if err != nil || code != 0 {
+			t.Fatalf("RunWithIO: %v code=%d\nstderr: %s", err, code, errBuf.String())
+		}
+		got := out.String()
+		for _, want := range []string{"rows 2", "first Alice 30", "age,name", "30,Alice"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("stdout %q missing %q", got, want)
+			}
+		}
+	})
+
 	t.Run("proc run", func(t *testing.T) {
 		src := `(ns main)
 (defn main [] -> void

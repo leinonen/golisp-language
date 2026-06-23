@@ -1975,6 +1975,12 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "json/decode":
 			e.needImport("encoding/json")
 			return e.emitRuntimeCall("_glispJsonDecode", n.Args, 1)
+		case "csv/parse":
+			e.needImport("encoding/csv")
+			return e.emitRuntimeCall("_glispCsvParse", n.Args, 1)
+		case "csv/write":
+			e.needImport("encoding/csv")
+			return e.emitRuntimeCall("_glispCsvWrite", n.Args, 1)
 		case "http/get":
 			e.needImport("net/http")
 			if e.emitRuntime {

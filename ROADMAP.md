@@ -308,12 +308,15 @@ websockets) is a genuine strength; v2 fills the gaps a real app hits and
 re-presents the stack under the new identity. Slices are ordered by leverage —
 each is independently shippable and reviewable.
 
-- [ ] **Sessions + signed cookies** (18a) — the first slice. A
-  `(web/wrap-session opts)` middleware backed by HMAC-signed (tamper-proof)
-  cookies: `(web/session req)` reads the session map, `(web/assoc-session resp k
-  v)` / `(web/clear-session resp)` write it back via `Set-Cookie`. Secret from
-  `opts`/`sys/env`; `crypto/hmac` + `encoding/base64` in `web/session.go`. The
-  building block for auth flows — pairs with the existing `wrap-auth`.
+- [x] **Sessions + signed cookies** (18a) — ✅ `(web/wrap-session opts)`
+  middleware backed by HMAC-SHA256-signed (tamper-proof) cookies: `(web/session
+  req)` reads the decoded session map, `(web/put-session resp m)` /
+  `(web/assoc-session resp k v)` stage the outgoing map and `(web/clear-session
+  resp)` deletes it — all signed back into `Set-Cookie` by the middleware on the
+  way out. Secret from `opts :secret` or `SESSION_SECRET` (no secret → sessions
+  disabled, logged); `crypto/hmac` + `encoding/base64` in `web/session.go`. opts:
+  `:name :max-age :path :secure :http-only :same-site`. `examples/session` is the
+  reference; pairs with the existing `wrap-auth`.
 - [ ] **Multipart / file uploads** (18b) — parse `multipart/form-data` so
   `form-param` covers file fields; `(web/uploaded-file req "field")` →
   `{:filename :size :content}` (or a temp-file handle for large uploads). Closes

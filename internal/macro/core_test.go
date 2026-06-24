@@ -21,7 +21,7 @@ func TestCoreMacrosLoad(t *testing.T) {
 	for _, md := range core {
 		names[md.Name] = true
 	}
-	for _, want := range []string{"when-not", "if-not", "->", "->>", "some->", "some->>", "cond->", "cond->>"} {
+	for _, want := range []string{"when-not", "if-not", "->", "->>", "some->", "some->>", "cond->", "cond->>", "GET", "POST", "defroutes", "route-form"} {
 		if !names[want] {
 			t.Errorf("core prelude missing %q", want)
 		}
@@ -97,6 +97,67 @@ func TestCoreMacroShadowedByLocal(t *testing.T) {
 	}
 	if sym, ok := call.Head.(*ast.Symbol); !ok || sym.Name != "custom" {
 		t.Errorf("local when-not should shadow core, got head %v", call.Head)
+	}
+}
+
+// TestMacroTypedFnRoundTrip verifies the AST↔value bridge preserves single-symbol
+// fn param types and the return type through a syntax-quote (the capability the
+// routing DSL relies on to emit typed handlers).
+// TestMacroOpaqueFormPassthrough verifies a specialized form the bridge can't
+// decompose (switch) survives being passed through a macro as an argument — the
+// general pass-through the routing DSL relies on for arbitrary handler bodies.
+func TestMacroOpaqueFormPassthrough(t *testing.T) {
+	nodes, err := parser.ParseString("(defmacro wrap [body] `(do ~body))\n(defn f [x] -> any (wrap (switch x 1 \"one\" :default \"other\")))")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	out, err := Expand(nodes, nil)
+	if err != nil {
+		t.Fatalf("expand: %v", err)
+	}
+	got := formatter.FormatNode(firstDefnBody(t, out)[0])
+	if !strings.Contains(got, "(switch x") {
+		t.Errorf("switch form did not pass through the macro: %s", got)
+	}
+}
+
+func TestMacroTypedFnRoundTrip(t *testing.T) {
+	nodes, err := parser.ParseString("(defmacro mk [] `(fn [x int s string] -> bool x))\n(defn f [] -> any (mk))")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	out, err := Expand(nodes, nil)
+	if err != nil {
+		t.Fatalf("expand: %v", err)
+	}
+	got := formatter.FormatNode(firstDefnBody(t, out)[0])
+	if !strings.Contains(got, "(fn [x int s string] -> bool") {
+		t.Errorf("typed fn did not round-trip through the macro bridge: %s", got)
+	}
+}
+
+// TestMacroDefRoundTrip verifies a macro can emit a real top-level (def …) with a
+// type annotation (built as data), which defroutes uses to define its handler.
+func TestMacroDefRoundTrip(t *testing.T) {
+	nodes, err := parser.ParseString("(defmacro mkdef [n] (list 'def n 'int 7))\n(mkdef answer)")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	out, err := Expand(nodes, nil)
+	if err != nil {
+		t.Fatalf("expand: %v", err)
+	}
+	var def *ast.DefDecl
+	for _, n := range out {
+		if d, ok := n.(*ast.DefDecl); ok {
+			def = d
+		}
+	}
+	if def == nil {
+		t.Fatalf("macro should expand to a *ast.DefDecl; got %d nodes", len(out))
+	}
+	if def.Name != "answer" || def.TypeAnnot == nil || def.TypeAnnot.Text != "int" {
+		t.Errorf("expected `answer int 7`, got name=%q type=%v", def.Name, def.TypeAnnot)
 	}
 }
 

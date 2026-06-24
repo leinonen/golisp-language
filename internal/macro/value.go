@@ -63,6 +63,17 @@ type Builtin struct {
 	Fn   func(args []Value) (Value, error)
 }
 
+// opaqueNode wraps an AST node the bridge can't represent as generic list data
+// (a specialized form like switch/if-let/let-or/with-open/doto, or a concurrency
+// form). It lets such a form travel through a macro as an argument unchanged —
+// the common pass-through case, e.g. a handler body in the web routing DSL — and
+// be re-emitted verbatim by valueToNode. It is deliberately opaque: a macro can
+// splice it along but not decompose it (first/rest/list? do not see a sequence),
+// so a macro that needs to inspect a form still only works on forms the bridge
+// models. A syntax-quote *template* containing such a form still errors loudly
+// (expandSyntaxQuote is unchanged), since unquotes inside it can't be processed.
+type opaqueNode struct{ node ast.Node }
+
 // ---------- AST -> Value ----------
 
 // nodeToValue converts a parsed AST node into the macro value that represents it
@@ -119,12 +130,15 @@ func nodeToValue(n ast.Node) (Value, error) {
 		items = append(items, rest...)
 		return &List{Items: items}, nil
 	default:
-		// Parser-specialized forms (if/when/do/cond/let/loop/fn/quote) are
+		// Parser-specialized forms (if/when/do/cond/let/loop/fn/quote/def) are
 		// un-parsed to their generic list shape, then converted.
 		if g, ok := unparse(n); ok {
 			return nodeToValue(g)
 		}
-		return nil, fmt.Errorf("cannot use %T as quoted macro data yet (at %s)", n, n.Pos())
+		// Any other specialized form (switch/if-let/with-open/concurrency/…) is
+		// carried opaquely so it can pass through a macro unchanged and be
+		// re-emitted verbatim — a macro just can't decompose it.
+		return &opaqueNode{node: n}, nil
 	}
 }
 
@@ -207,6 +221,9 @@ func valueToNode(v Value, pos ast.Position) (ast.Node, error) {
 			return nil, err
 		}
 		return ast.NewCallExpr(pos, head, args), nil
+	case *opaqueNode:
+		// A form carried through the macro unchanged — re-emit it verbatim.
+		return x.node, nil
 	default:
 		return nil, fmt.Errorf("cannot convert %s back into a form", typeName(v))
 	}
@@ -263,6 +280,8 @@ func typeName(v Value) string {
 		return "fn"
 	case *Builtin:
 		return "builtin"
+	case *opaqueNode:
+		return "form"
 	default:
 		return fmt.Sprintf("%T", v)
 	}

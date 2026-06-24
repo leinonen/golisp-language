@@ -1186,6 +1186,13 @@ func (e *Emitter) exprIsAny(n ast.Node) bool {
 		case "+", "-", "*", "/", "mod":
 			// Arithmetic over any `any` operand routes through a helper → `any`.
 			return e.anyOperand(v.Args)
+		case "inc", "dec":
+			// (inc x) is native (concrete) on a numeric operand, _glispInc → `any`
+			// otherwise. Mirror emitIncDec so a concrete result isn't double-wrapped.
+			if len(v.Args) == 1 {
+				return e.incDecKind(v.Args[0]) == ""
+			}
+			return true
 		case "deref":
 			// A typed atom whose element coerces to a concrete scalar derefs to
 			// that scalar, not `any` — so no extra numeric wrapping is applied.
@@ -1282,6 +1289,11 @@ func (e *Emitter) callNumericKind(n *ast.CallExpr) string {
 			}
 		}
 		return kind
+	case "inc", "dec":
+		// Native (concrete) on a numeric operand — propagate its kind for promotion.
+		if len(n.Args) == 1 {
+			return e.incDecKind(n.Args[0])
+		}
 	}
 	// math/* all return float64.
 	if _, ok := stdlibNumericParams[sym.Name]; ok {
@@ -2189,9 +2201,9 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "zero?":
 			return e.emitRuntimeCall("_glispIsZero", n.Args, 1)
 		case "inc":
-			return e.emitRuntimeCall("_glispInc", n.Args, 1)
+			return e.emitIncDec("+", n.Args)
 		case "dec":
-			return e.emitRuntimeCall("_glispDec", n.Args, 1)
+			return e.emitIncDec("-", n.Args)
 		// sort conveniences
 		case "sort":
 			e.needImport("sort")
@@ -2919,6 +2931,47 @@ func spreadArgs(args []ast.Node) (leading []ast.Node, spread ast.Node, ok bool, 
 
 var arithHelpers = map[string]string{
 	"+": "_glispAdd", "-": "_glispSub", "*": "_glispMul", "/": "_glispDiv", "mod": "_glispMod",
+}
+
+// incDecKind reports the concrete numeric kind ("int"/"float") of an inc/dec
+// operand, or "" when it isn't statically a concrete number (an `any` value, an
+// untyped expression). A bare int literal counts as int so (inc 5) stays native.
+func (e *Emitter) incDecKind(arg ast.Node) string {
+	if k := e.numericKind(arg); k != "" {
+		return k
+	}
+	if _, ok := arg.(*ast.IntLit); ok {
+		return "int"
+	}
+	return ""
+}
+
+// emitIncDec lowers (inc x)/(dec x). On a statically concrete-numeric operand it
+// emits native (x + 1)/(x - 1) so the result keeps its Go int/float64 type — this
+// is what lets a recur rebind a typed loop counter ((recur (inc i) …)) and an
+// (inc x) tail in an -> int fn compile without an any→int mismatch. On an
+// `any`/unknown operand it falls back to the _glispInc/_glispDec helper (which
+// returns `any` and is handled by the any-seam).
+func (e *Emitter) emitIncDec(op string, args []ast.Node) error {
+	arg := args[0]
+	switch e.incDecKind(arg) {
+	case "int", "float":
+		lit := "1"
+		if e.incDecKind(arg) == "float" {
+			lit = "1.0"
+		}
+		e.write("(")
+		if err := e.emitExpr(arg); err != nil {
+			return err
+		}
+		e.writef(" %s %s)", op, lit)
+		return nil
+	}
+	helper := "_glispInc"
+	if op == "-" {
+		helper = "_glispDec"
+	}
+	return e.emitRuntimeCall(helper, args, 1)
 }
 
 // stdlibNumericParams maps a stdlib-qualified call form to the Go parameter
@@ -3807,6 +3860,10 @@ var builtinFnValues = map[string]struct {
 	"even?": {"_glispIsEven", false, ""}, "odd?": {"_glispIsOdd", false, ""},
 	"pos?": {"_glispIsPos", false, ""}, "neg?": {"_glispIsNeg", false, ""},
 	"zero?": {"_glispIsZero", false, ""},
+	// sequence accessors / length (unary helpers) and str (variadic concat).
+	"count": {"_glispLen", false, ""}, "len": {"_glispLen", false, ""},
+	"first": {"_glispFirst", false, ""}, "last": {"_glispLast", false, ""},
+	"str": {"_glispStr", true, ""},
 	"identity": {"", false, ""},
 }
 

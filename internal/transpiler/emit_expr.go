@@ -967,6 +967,16 @@ var anyReturningBuiltins = map[string]bool{
 	"pp": true, "time-it": true, "as->": true, "tap->": true, "tap->>": true,
 }
 
+// fnReturningBuiltins are built-in forms whose Go emission is an `any`-typed
+// function value (the runtime helpers return `any`). A direct call of one —
+// `((comp f g) x)` — must assert it to a func type first, like any other `any`
+// head; recognising them here lets exprIsAny drive that (and marks a let binding
+// to one as `any` so `(let [h (comp f g)] (h x))` works too).
+var fnReturningBuiltins = map[string]bool{
+	"comp": true, "juxt": true, "partial": true,
+	"complement": true, "fnil": true, "constantly": true,
+}
+
 // exprIsAny reports whether n is statically known to emit a Go `any` value.
 // Conservative: it only returns true for values it can prove are `any` (so that
 // arithmetic/comparison on them routes through the numeric coercion helpers);
@@ -1003,7 +1013,7 @@ func (e *Emitter) exprIsAny(n ast.Node) bool {
 			}
 			return true
 		}
-		if anyReturningBuiltins[sym.Name] {
+		if anyReturningBuiltins[sym.Name] || fnReturningBuiltins[sym.Name] {
 			return true
 		}
 		// A core fn (cli/parse-opts, …) is registered under its mangled name;
@@ -2464,6 +2474,15 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 	if err != nil {
 		return err
 	}
+	// A call whose head is statically Go `any` — an untyped/`any`-bound local
+	// holding a function, a map/slice lookup, or a function-returning builtin
+	// (comp/juxt/partial/…) — can't be invoked as `head(args)` (Go: "any is not a
+	// function"). Assert it to a func type first: `f.(func(any) any)(x)`. This is
+	// the idiom for calling a function passed as a value. Spreading into such a
+	// value isn't supported (rare) and falls through to the normal path.
+	if !hasSpread && e.exprIsAny(n.Head) {
+		return e.emitAnyFnCall(n.Head, leading)
+	}
 	// When the callee is a known user function, thread each parameter's type to
 	// its argument so struct-typed params accept plain map literals.
 	var paramTypes []string
@@ -2538,6 +2557,35 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			return err
 		}
 		e.write("...")
+	}
+	e.write(")")
+	return nil
+}
+
+// emitAnyFnCall emits a call to an `any`-typed function value by asserting it to
+// a `func(any, …) any` of the call's arity before invoking it:
+// `head.(func(any) any)(x)`. Glisp lambdas with untyped params compile to exactly
+// that shape, so the assertion matches; a value holding a typed fn (passed
+// through the `any` seam) panics at runtime, mirroring the dynamic typing.
+func (e *Emitter) emitAnyFnCall(head ast.Node, args []ast.Node) error {
+	if err := e.emitExpr(head); err != nil {
+		return err
+	}
+	e.write(".(func(")
+	for i := range args {
+		if i > 0 {
+			e.write(", ")
+		}
+		e.write("any")
+	}
+	e.write(") any)(")
+	for i, arg := range args {
+		if i > 0 {
+			e.write(", ")
+		}
+		if err := e.emitExpr(arg); err != nil {
+			return err
+		}
 	}
 	e.write(")")
 	return nil

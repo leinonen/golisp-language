@@ -359,6 +359,70 @@ each is independently shippable and reviewable.
 
 ---
 
+## Ergonomics backlog
+
+Concrete, mostly-contained improvements that smooth day-to-day writing. Grounded
+against the current transpiler; ordered by leverage. None require a new ADR —
+they extend existing mechanisms (the `any`-seam, the macro engine, destructuring).
+
+### Tier 1 — highest leverage (higher-order code)
+
+- **Call an `any`-typed function value directly.** `(f x)` where `f` is an
+  untyped param or `any`-bound local fails to compile (`any is not a function`),
+  forcing `(apply f [x])`:
+  ```clojure
+  (defn apply-it [f x] (f x))   ; → Go error today
+  ```
+  Fix: when a call head is a symbol bound to an `any` value (not a known
+  fn/builtin/method/in-scope concrete-typed fn), emit `f.(func(any) any)(x)` (or
+  route through `_glispApply` for arity-flexibility). Unlocks idiomatic callbacks,
+  strategy fns, handler registries, and direct invocation of `comp`/`juxt`/
+  `partial` results (`((juxt f g) x)`). Small emit change in `emitCallExpr`, large
+  payoff. **Top pick.**
+- **`some->` / `some->>` and `cond->` / `cond->>` core macros.** Only `->`/`->>`
+  exist (`internal/macro/core.glsp`); these are natural ports on the same engine.
+  ```clojure
+  (some-> req :user :profile :email str/lower)   ; nil-safe; stops at first nil
+  (cond-> resp                                    ; conditional building
+    authed?   (assoc :token tok)
+    has-body? (assoc :body b))
+  ```
+  `some->` alone removes stacks of nested `if-let`/nil-guards in web/JSON/DB code.
+
+### Tier 2 — destructuring parity with Clojure
+
+- **Map destructuring `:keys` / `:or` / `:as`.** Keys must currently be symbols;
+  `{:keys [name age] :or {age 0} :as whole}` errors. These three forms are the
+  most-used in Clojure. (`mapDestructureEntries` in `emit_expr.go`.)
+- **Sequential `& rest`** — `[a b & more]` in `let`/param destructure position
+  (fn rest-params exist, but not inside a destructure pattern).
+
+### Tier 3 — numeric / type-seam polish (documented gaps)
+
+- **Cross-type `=` / `not=`.** `int64(1) == int(1)` is `false` in Go, so an
+  arithmetic result (boxed `int64`) compared to an `int` literal silently
+  mismatches. A `_glispEquals` for any-operands would close the footgun already
+  flagged in the `any`-type constraints notes.
+- **Remaining numeric seams**: `loop` scalar bindings aren't `any`-marked (no
+  coercion on recur-rebound scalars), `int↔int64` doesn't auto-promote (only
+  `int↔float64`), and a concrete `int` passed to a `float64` *param* isn't coerced.
+
+### Tier 4 — comprehension / control niceties
+
+- **`for` `:let` / `:while`** — currently a hard error (`emitFor` only supports
+  `:when`); both are common in comprehensions. **`doseq` multiple bindings**
+  (cartesian) + `:when`/`:let` for parity with `for`.
+- **`condp`** — predicate-dispatch sibling of `cond`/`case`.
+
+### Tier 5 — atoms / interop
+
+- **Typed deref for non-scalar atom elements.** Only scalar element types get a
+  coerced `(deref a)` today; map/slice/struct-element atoms stay `any` (the
+  documented any-seam limitation). A struct-element atom could deref to its
+  declared type behind a checked assertion.
+
+---
+
 ## Open questions / candidate revisits
 
 Each needs its own ADR before adoption — listed so they're tracked, not assumed.

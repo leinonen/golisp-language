@@ -1162,7 +1162,15 @@ var fnReturningBuiltins = map[string]bool{
 func (e *Emitter) exprIsAny(n ast.Node) bool {
 	switch v := n.(type) {
 	case *ast.Symbol:
-		return e.localAny[v.Name]
+		if e.localAny[v.Name] {
+			return true
+		}
+		// An untyped global bound to an `any` value (def add5 (partial + 5)) is
+		// `any` too — but only when not shadowed by an in-scope local.
+		if !e.localVars[v.Name] {
+			return e.globalAny[v.Name]
+		}
+		return false
 	case *ast.CallExpr:
 		sym, ok := v.Head.(*ast.Symbol)
 		if !ok {

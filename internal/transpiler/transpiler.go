@@ -335,6 +335,12 @@ type Emitter struct {
 	// mapped to "int" or "float". Populated by the pre-pass so arithmetic on a
 	// typed global promotes like a local. Not scoped (globals always in scope).
 	globalNumeric map[string]string
+	// globalAny: untyped top-level (def name <any-value>) bindings whose value is
+	// statically `any` (e.g. (def add5 (partial + 5))). Populated by the pre-pass
+	// so exprIsAny treats the global like an `any` local — letting a global that
+	// holds a function value be called via the func-value assertion instead of an
+	// uncompilable any(args) call. Not scoped (globals always in scope).
+	globalAny map[string]bool
 	// ifaces: definterface method tables by interface name (populated by pre-pass).
 	ifaces map[string]methodSet
 	// methods: defmethod method tables by bare receiver struct name (pre-pass).
@@ -549,6 +555,22 @@ func (e *Emitter) emitFile(nodes []ast.Node) error {
 	declEmitter.imports = e.imports
 	declEmitter.requires = e.requires
 	declEmitter.goPkgs = e.goPkgs
+
+	// Untyped (def name <value>) globals whose value is statically `any` (e.g.
+	// (def add5 (partial + 5))) are recorded so exprIsAny treats the global like
+	// an `any` local — letting it be called via the func-value assertion. Computed
+	// here (after the type tables above are set) since exprIsAny consults them.
+	globalAny := map[string]bool{}
+	for _, n := range declNodes {
+		if d, ok := n.(*ast.DefDecl); ok && d.TypeAnnot == nil && d.Value != nil {
+			if declEmitter.exprIsAny(d.Value) {
+				globalAny[d.Name] = true
+			}
+		}
+	}
+	declEmitter.globalAny = globalAny
+	e.globalAny = globalAny
+
 	for _, n := range nodes {
 		if _, ok := n.(*ast.NSDecl); ok {
 			continue

@@ -1514,29 +1514,53 @@ func TestArityChecking(t *testing.T) {
 	}
 }
 
-// TestHOFTypedFnDiagnostic verifies that passing a typed user fn where a
-// runtime helper expects func(any) any is rejected at transpile time instead
-// of panicking at runtime with an interface-conversion error.
+// TestHOFTypedFnDiagnostic verifies the handling of a typed fn passed where a
+// runtime helper expects func(any) any. A single scalar-param fn (user, core,
+// or stdlib-fronting) is auto-wrapped in an adapting closure so the bare form
+// just works; a fn that can't be bridged (multi-param typed, non-scalar param,
+// void/undeclared return) is rejected at transpile time with a position-tagged
+// diagnostic instead of panicking at runtime with an interface-conversion error.
 func TestHOFTypedFnDiagnostic(t *testing.T) {
 	tests := []struct {
 		name    string
 		src     string
-		wantErr string // "" = must transpile cleanly
+		wantErr string // expected error substring ("" = must transpile cleanly)
+		wantSub string // substring that must appear in clean output ("" = skip)
 	}{
 		{
-			name:    "typed param rejected",
+			name:    "typed scalar param auto-wraps",
 			src:     `(defn double-it [x int] -> int (* x 2)) (defn f [xs []any] (map double-it xs))`,
-			wantErr: "double-it has a typed param (int)",
+			wantSub: `_glispMap(func(_hofArg1 any) any { return doubleIt(_glispToInt(_hofArg1)) }, xs)`,
 		},
 		{
-			name:    "typed return rejected",
+			name:    "core fn auto-wraps",
+			src:     `(defn f [xs []any] (map str/upper xs))`,
+			wantSub: `func(_hofArg1 any) any { return _gcore_str_upper(_glispToString(_hofArg1)) }`,
+		},
+		{
+			name:    "typed return with any param auto-wraps",
 			src:     `(defn flag [x any] -> bool (nil? x)) (defn f [xs []any] (filter flag xs))`,
-			wantErr: "flag has return type bool",
+			wantSub: `func(_hofArg1 any) any { return flag(_hofArg1) }`,
+		},
+		{
+			name:    "multi-param typed fn rejected",
+			src:     `(defn add [a int b int] -> int (+ a b)) (defn f [xs []any] (map add xs))`,
+			wantErr: "add has a typed param (int)",
+		},
+		{
+			name:    "struct-param fn rejected",
+			src:     `(defstruct P x int) (defn area [p P] -> int (:x p)) (defn f [xs []any] (map area xs))`,
+			wantErr: "area has a typed param (P)",
 		},
 		{
 			name:    "void fn rejected",
 			src:     `(defn show [x any] -> void (println x)) (defn f [xs []any] (map show xs))`,
 			wantErr: "show has return type void",
+		},
+		{
+			name:    "undeclared-return fn rejected",
+			src:     `(defn ident [x] x) (defn f [xs []any] (map ident xs))`,
+			wantErr: "ident has no declared return type",
 		},
 		{
 			name:    "any fn accepted",
@@ -1561,10 +1585,13 @@ func TestHOFTypedFnDiagnostic(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Transpile(tt.src)
+			got, err := Transpile(tt.src)
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
+				}
+				if tt.wantSub != "" && !strings.Contains(got, tt.wantSub) {
+					t.Errorf("expected output to contain %q\ngot:\n%s", tt.wantSub, got)
 				}
 				return
 			}
@@ -1791,6 +1818,21 @@ func TestTypedMapAndIIFE(t *testing.T) {
 		{
 			name:    "map with typed param falls back to runtime path",
 			src:     decls + `(defn f [xs []any] -> []any (map (fn [v Book] -> string (:title v)) xs))`,
+			wantSub: "_glispMap",
+		},
+		{
+			name:    "typed map bridges bare core fn into element loop",
+			src:     `(defn f [xs []any] -> []string (map str/upper xs))`,
+			wantSub: "_gcore_str_upper(_glispToString(",
+		},
+		{
+			name:    "typed map bridges bare user fn into element loop",
+			src:     `(defn up [s string] -> string s) (defn f [xs []any] -> []string (map up xs))`,
+			wantSub: "append(_m1, up(_glispToString(_x2)))",
+		},
+		{
+			name:    "typed map bare fn with return mismatch stays _glispMap",
+			src:     `(defn n [s string] -> int 1) (defn f [xs []any] -> []string (map n xs))`,
 			wantSub: "_glispMap",
 		},
 		// --- IIFE type propagation (expression / non-tail position) ---

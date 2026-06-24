@@ -258,24 +258,15 @@ func (e *Emitter) tryEmitTypedMap(n *ast.CallExpr, hint string) (bool, error) {
 	if elem == "" || elem == "any" {
 		return false, nil
 	}
-	fn, ok := n.Args[0].(*ast.FnExpr)
+	// applyElem emits the per-element expression `f(x)` (asserted/converted to
+	// elem when needed), or returns ok=false when the fn arg isn't bridgeable to
+	// a typed loop. Two shapes are handled: a single untyped-param lambda, and a
+	// bare adaptable fn symbol (user/core/stdlib-fronting) whose declared return
+	// is elem or any — the same fns the HOF gate auto-wraps, so (map str/upper xs)
+	// works in a `[]string` position just as it does in `[]any`.
+	applyElem, ok := e.typedMapElemEmitter(n.Args[0], elem)
 	if !ok {
 		return false, nil
-	}
-	// Single untyped, non-destructured param only.
-	if len(fn.Params) != 1 {
-		return false, nil
-	}
-	p := fn.Params[0]
-	if p.IsRest || p.Pattern != nil || p.TypeAnnot != nil {
-		return false, nil
-	}
-	ret := e.formatReturnType(fn.ReturnType)
-	switch ret {
-	case "void":
-		return false, nil
-	case "":
-		ret = "any"
 	}
 
 	r := e.fresh("m")
@@ -293,13 +284,9 @@ func (e *Emitter) tryEmitTypedMap(n *ast.CallExpr, hint string) (bool, error) {
 	e.nl()
 	e.push()
 	e.writeIndent()
-	e.writef("%s = append(%s, (", r, r)
-	if err := e.emitExpr(fn); err != nil {
+	e.writef("%s = append(%s, ", r, r)
+	if err := applyElem(x); err != nil {
 		return true, err
-	}
-	e.writef(")(%s)", x)
-	if ret == "any" {
-		e.writef(".(%s)", elem)
 	}
 	e.write(")")
 	e.nl()
@@ -310,6 +297,76 @@ func (e *Emitter) tryEmitTypedMap(n *ast.CallExpr, hint string) (bool, error) {
 	e.writeIndent()
 	e.write("}()")
 	return true, nil
+}
+
+// typedMapElemEmitter builds the closure that, given the loop variable name x,
+// emits `fn(x)` converted to the element type elem — for the typed-map loop. It
+// recognises a single untyped-param lambda and a bare adaptable fn symbol; it
+// returns ok=false for anything else (keyword fns, typed-param lambdas, multi-
+// param/non-scalar/return-mismatched symbols), leaving map to the `_glispMap`
+// `[]any` path.
+func (e *Emitter) typedMapElemEmitter(fnArg ast.Node, elem string) (func(x string) error, bool) {
+	switch fn := fnArg.(type) {
+	case *ast.FnExpr:
+		if len(fn.Params) != 1 {
+			return nil, false
+		}
+		p := fn.Params[0]
+		if p.IsRest || p.Pattern != nil || p.TypeAnnot != nil {
+			return nil, false
+		}
+		ret := e.formatReturnType(fn.ReturnType)
+		switch ret {
+		case "void":
+			return nil, false
+		case "":
+			ret = "any"
+		}
+		return func(x string) error {
+			e.write("(")
+			if err := e.emitExpr(fn); err != nil {
+				return err
+			}
+			e.writef(")(%s)", x)
+			if ret == "any" {
+				e.writef(".(%s)", elem)
+			}
+			return nil
+		}, true
+	case *ast.Symbol:
+		if e.localVars[fn.Name] {
+			return nil, false
+		}
+		sig, found := e.symbols[e.coreResolvedName(fn.Name)]
+		if !found {
+			return nil, false
+		}
+		// Only bridge the fns the HOF gate would auto-wrap (single scalar param),
+		// and only when the declared return fits the element type without a lossy
+		// conversion — elem itself, or `any` (asserted). Other shapes fall back.
+		if len(sig.paramTypes) != 1 {
+			return nil, false
+		}
+		pre, post, ok := hofArgConversion(sig.paramTypes[0])
+		if !ok {
+			return nil, false
+		}
+		assert := sig.retType == "any"
+		if sig.retType != elem && !assert {
+			return nil, false
+		}
+		return func(x string) error {
+			if err := e.emitExpr(fn); err != nil {
+				return err
+			}
+			e.writef("(%s%s%s)", pre, x, post)
+			if assert {
+				e.writef(".(%s)", elem)
+			}
+			return nil
+		}, true
+	}
+	return nil, false
 }
 
 // typedSeqBuiltins lists sequence-returning built-ins whose result is a sequence
@@ -3452,8 +3509,16 @@ func (e *Emitter) emitRuntimeArg(fn string, idx int, arg ast.Node) error {
 			return nil
 		}
 		if sym, ok := arg.(*ast.Symbol); ok && !e.localVars[sym.Name] {
-			if sig, found := e.symbols[sym.Name]; found {
+			// Resolve core/stdlib-fronting callees (str/upper, slurp, …) to the
+			// mangled name they're registered under so their signatures are checked
+			// too — not just user defns.
+			if sig, found := e.symbols[e.coreResolvedName(sym.Name)]; found {
 				if reason := hofIncompatibleReason(sig); reason != "" {
+					// Auto-wrap a single scalar-param fn in an adapting func(any) any
+					// closure so the bare form (map str/upper coll) just works.
+					if done, err := e.tryEmitHofAdapter(sym, sig); done {
+						return err
+					}
 					return fmt.Errorf("%s has %s and cannot be passed as a function value (built-in higher-order forms require any-typed params and -> any); wrap it in a lambda like (fn [x] (%s x)) or declare it with any types (at %s)",
 						sym.Name, reason, sym.Name, sym.Pos())
 				}
@@ -3483,6 +3548,50 @@ func hofIncompatibleReason(sig *fnSig) string {
 	default:
 		return fmt.Sprintf("return type %s", sig.retType)
 	}
+}
+
+// tryEmitHofAdapter emits an adapting `func(_hofArgN any) any { return callee(conv(_hofArgN)) }`
+// closure when a HOF-incompatible fn can be safely bridged — letting bare core/
+// stdlib/user fns like (map str/upper coll) work without a hand-written lambda.
+// It returns done=true (having emitted the closure) only when the fn takes
+// exactly one param whose type is a scalar the `any`-seam helpers can convert
+// (numeric or string) or untyped/`any`, and declares a concrete value return.
+// Multi-param fns, non-scalar params, and void/undeclared returns can't be
+// bridged to func(any) any and return done=false, leaving the caller to raise
+// the position-tagged diagnostic.
+func (e *Emitter) tryEmitHofAdapter(sym *ast.Symbol, sig *fnSig) (done bool, err error) {
+	if len(sig.paramTypes) != 1 || sig.retType == "" || sig.retType == "void" {
+		return false, nil
+	}
+	pre, post, ok := hofArgConversion(sig.paramTypes[0])
+	if !ok {
+		return false, nil
+	}
+	argName := e.fresh("hofArg")
+	e.writef("func(%s any) any { return ", argName)
+	if err := e.emitExpr(sym); err != nil { // emits the callee name + import side effects
+		return true, err
+	}
+	e.writef("(%s%s%s) }", pre, argName, post)
+	return true, nil
+}
+
+// hofArgConversion returns the wrapper text that bridges an `any` value to a
+// single Go param type pt inside a HOF adapter closure, and whether pt is
+// bridgeable. Numeric and string params route through the forgiving any-seam
+// helpers; an untyped/`any` param passes through unchanged. Any other type
+// (struct, slice, pointer, interface) isn't bridgeable here.
+func hofArgConversion(pt string) (pre, post string, ok bool) {
+	switch pt {
+	case "", "any":
+		return "", "", true
+	case "string":
+		return "_glispToString(", ")", true
+	}
+	if pre, post, ok := numericCoercion(pt); ok {
+		return pre, post, true
+	}
+	return "", "", false
 }
 
 func (e *Emitter) emitRuntimeCall(fn string, args []ast.Node, arity int) error {

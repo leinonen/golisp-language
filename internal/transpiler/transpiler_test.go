@@ -747,6 +747,10 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "reduce 2-arg uses first element as init", src: `(defn f [xs] (reduce + xs))`, wantSub: "_glispReduce2("},
 		{name: "reduce 3-arg keeps explicit init", src: `(defn f [xs] (reduce + 0 xs))`, wantSub: "_glispReduce(func"},
 		{name: "reduce max as fn value", src: `(defn f [xs] (reduce max xs))`, wantSub: "_glispMax("},
+		// A global def bound to a function value (partial/comp/…) is `any`; calling
+		// it must go through the func-value assertion, not a bare add5(10).
+		{name: "any-global fn value is called via assertion", src: `(def add5 (partial + 5)) (defn use [] (add5 10))`, wantSub: "add5.(func(any) any)(10)"},
+		{name: "concrete global fn value calls natively", src: `(defn g [x int] -> int (* x 2)) (def h g) (defn use [] (h 3))`, wantSub: "h(3)"},
 		{name: "eq vector literals uses helper", src: `(defn f [] (= [1 2] [1 2]))`, wantSub: "_glispEquals("},
 		{name: "eq map literals uses helper", src: `(defn f [] (= {:a 1} {:a 1}))`, wantSub: "_glispEquals("},
 		{name: "eq concrete ints stays native", src: `(defn f [a int b int] (= a b))`, wantSub: "(a == b)", wantNot: "_glispEquals"},

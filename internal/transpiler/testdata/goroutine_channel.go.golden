@@ -475,6 +475,19 @@ func _glispReduce(f any, init any, coll any) any {
 	return acc
 }
 
+func _glispReduce2(f any, coll any) any {
+	fn := f.(func(any, any) any)
+	s := _glispToSlice(coll)
+	if len(s) == 0 {
+		return nil
+	}
+	acc := s[0]
+	for _, v := range s[1:] {
+		acc = fn(acc, v)
+	}
+	return acc
+}
+
 func _glispReverse(coll any) []any {
 	s := _glispToSlice(coll)
 	result := make([]any, len(s))
@@ -626,6 +639,11 @@ func _glispFnil(f any, def any) any {
 
 func _glispApply(f any, args any) any {
 	s := _glispToSlice(args)
+	// A variadic function value (e.g. an operator like + passed as a value)
+	// satisfies func(...any) any but none of the fixed-arity assertions below.
+	if vf, ok := f.(func(...any) any); ok {
+		return vf(s...)
+	}
 	switch len(s) {
 	case 0:
 		return f.(func() any)()

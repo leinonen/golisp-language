@@ -735,6 +735,18 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "eq any operand uses helper", src: `(defn f [x] (= x 1))`, wantSub: "_glispEquals(x, 1)"},
 		{name: "not= any operand negates helper", src: `(defn f [x] (not= x 1))`, wantSub: "!_glispEquals(x, 1)"},
 		{name: "eq boxed arithmetic vs literal", src: `(defn f [x] (= (+ x 1) 3))`, wantSub: "_glispEquals(_glispAdd(x, 1), 3)"},
+		// Built-ins / operators passed as first-class function values to HOFs:
+		// they must be wrapped in a closure of the consuming helper's arity, not
+		// emitted as a bare (undefined) or empty identifier.
+		{name: "map inc as fn value", src: `(defn f [xs] (map inc xs))`, wantSub: "func(_fnv10 any) any { return _glispInc(_fnv10) }"},
+		{name: "filter even? as fn value", src: `(defn f [xs] (filter even? xs))`, wantSub: "func(_fnv10 any) any { return _glispIsEven(_fnv10) }"},
+		{name: "reduce + as fn value is binary", src: `(defn f [xs] (reduce + 0 xs))`, wantSub: "func(_fnv10 any, _fnv11 any) any { return _glispAdd(_fnv10, _fnv11) }"},
+		{name: "partial + as fn value is variadic", src: `(defn f [] ((partial + 10) 5))`, wantSub: "...any) any { return _glispAdd("},
+		{name: "map identity as fn value", src: `(defn f [xs] (map identity xs))`, wantSub: "func(_fnv10 any) any { return _fnv10 }"},
+		{name: "comp inc dec as fn values", src: `(defn f [] ((comp inc dec) 5))`, wantSub: "_glispInc"},
+		{name: "reduce 2-arg uses first element as init", src: `(defn f [xs] (reduce + xs))`, wantSub: "_glispReduce2("},
+		{name: "reduce 3-arg keeps explicit init", src: `(defn f [xs] (reduce + 0 xs))`, wantSub: "_glispReduce(func"},
+		{name: "reduce max as fn value", src: `(defn f [xs] (reduce max xs))`, wantSub: "_glispMax("},
 		{name: "eq vector literals uses helper", src: `(defn f [] (= [1 2] [1 2]))`, wantSub: "_glispEquals("},
 		{name: "eq map literals uses helper", src: `(defn f [] (= {:a 1} {:a 1}))`, wantSub: "_glispEquals("},
 		{name: "eq concrete ints stays native", src: `(defn f [a int b int] (= a b))`, wantSub: "(a == b)", wantNot: "_glispEquals"},

@@ -1342,6 +1342,24 @@ func (e *Emitter) emitPromotedOperand(a ast.Node, promote bool) error {
 	return e.emitExpr(a)
 }
 
+// eqNeedsHelper reports whether `=`/`not=` over these operands must use the
+// _glispEquals value-comparison helper instead of a native Go ==/!=: an `any`
+// operand (the cross-type numeric footgun, or a panic when it holds a slice/map),
+// a concrete int/float mix (native `int == float64` won't compile), or a
+// collection literal (slices/maps aren't comparable with native ==).
+func (e *Emitter) eqNeedsHelper(args []ast.Node) bool {
+	if e.anyOperand(args) || e.mixesIntFloat(args) {
+		return true
+	}
+	for _, a := range args {
+		switch a.(type) {
+		case *ast.VectorLit, *ast.MapLit, *ast.SetLit:
+			return true
+		}
+	}
+	return false
+}
+
 // anyOperand reports whether any of args is statically Go `any`.
 func (e *Emitter) anyOperand(args []ast.Node) bool {
 	for _, a := range args {
@@ -3001,9 +3019,28 @@ func (e *Emitter) emitBinOp(op string, args []ast.Node) error {
 	if len(args) != 2 {
 		return fmt.Errorf("%s requires exactly 2 arguments", op)
 	}
+	// `=`/`not=`: a native interface `==` is wrong across dynamic numeric types
+	// (int64(1) != int(1), so a boxed arithmetic result never matches an int
+	// literal) and is illegal on uncomparable collections. Route through
+	// _glispEquals for value semantics when the helper is needed.
+	if (op == "==" || op == "!=") && e.eqNeedsHelper(args) {
+		e.needImport("_num")
+		if op == "!=" {
+			e.write("!")
+		}
+		e.write("_glispEquals(")
+		if err := e.emitExpr(args[0]); err != nil {
+			return err
+		}
+		e.write(", ")
+		if err := e.emitExpr(args[1]); err != nil {
+			return err
+		}
+		e.write(")")
+		return nil
+	}
 	// Numeric auto-coercion for ordering comparisons: native `any < int` is a Go
 	// compile error, so route through a helper that coerces both sides to float64.
-	// `==`/`!=` are left native — interface comparison compiles as-is.
 	if helper, ok := cmpHelpers[op]; ok && e.anyOperand(args) {
 		e.needImport("_num")
 		e.writef("%s(", helper)

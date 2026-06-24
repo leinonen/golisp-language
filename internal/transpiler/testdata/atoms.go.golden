@@ -1188,6 +1188,59 @@ func _glispGt(a, b any) bool { return _glispNumCmp(a, b) > 0 }
 func _glispLe(a, b any) bool { return _glispNumCmp(a, b) <= 0 }
 func _glispGe(a, b any) bool { return _glispNumCmp(a, b) >= 0 }
 
+// _glispEqNum reports whether v holds a Go numeric value, returning it as both
+// int64 and float64 plus whether it is a floating-point (vs integral) type.
+// Unlike _glispNumVal it distinguishes non-numbers (isNum=false) from a zero
+// value, which _glispEquals needs to decide between numeric and value equality.
+func _glispEqNum(v any) (i int64, f float64, isFloat bool, isNum bool) {
+	switch n := v.(type) {
+	case int:
+		return int64(n), float64(n), false, true
+	case int8:
+		return int64(n), float64(n), false, true
+	case int16:
+		return int64(n), float64(n), false, true
+	case int32:
+		return int64(n), float64(n), false, true
+	case int64:
+		return n, float64(n), false, true
+	case uint:
+		return int64(n), float64(n), false, true
+	case uint8:
+		return int64(n), float64(n), false, true
+	case uint16:
+		return int64(n), float64(n), false, true
+	case uint32:
+		return int64(n), float64(n), false, true
+	case uint64:
+		return int64(n), float64(n), false, true
+	case float32:
+		return 0, float64(n), true, true
+	case float64:
+		return 0, n, true, true
+	}
+	return 0, 0, false, false
+}
+
+// _glispEquals is the = / not= comparison over any-typed values. Two numbers
+// compare by value regardless of their dynamic Go type — integral pairs exactly
+// as int64 (closing the int64(1) == int(1) footgun, where boxed arithmetic
+// results never matched int literals), a pair involving a float as float64
+// (so (= 1 1.0) is true, consistent with the ordering operators). Anything else
+// uses reflect.DeepEqual, which gives value equality for strings/bools and for
+// slices/maps without the runtime panic native == raises on uncomparable types.
+func _glispEquals(a, b any) bool {
+	ai, af, aFloat, aNum := _glispEqNum(a)
+	bi, bf, bFloat, bNum := _glispEqNum(b)
+	if aNum && bNum {
+		if aFloat || bFloat {
+			return af == bf
+		}
+		return ai == bi
+	}
+	return reflect.DeepEqual(a, b)
+}
+
 type _glispAtom struct {
 	mu  sync.Mutex
 	val any

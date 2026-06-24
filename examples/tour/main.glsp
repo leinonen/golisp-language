@@ -125,7 +125,7 @@
   ; Variadic spread: pass a runtime slice into a variadic fn via & xs
   (let [xs [3 5 7]] (println (labeled-total "spread" & xs)))
   ; Fibonacci via typed loop/recur (i, a, b are int — no any-boxing)
-  (let [fibs (map (fn [n] (fib n)) (range 10))]
+  (let [fibs (map fib (range 10))]
     (println "fib(0..9):" (str/join " " (map (fn [n] (str n)) fibs))))
   ; Typed let binding: sep is string, not any
   (let [sep string ", "
@@ -167,7 +167,7 @@
       ; Collect and rank by average score.
       ; Sequential destructuring: [[top second third] ranked]
       (let [results (map (fn [_] (recv! ch)) classes)
-            ranked (sort-by (fn [{avg :avg}] avg) results)
+            ranked (sort-by :avg results)
             [top second third] ranked]
         (println "\n=== Class Report ===")
         (doseq [r ranked]

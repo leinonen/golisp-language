@@ -67,7 +67,7 @@
           (let [keep? (fn [s] (or (str/blank? region) (= (:region s) region)))
                 pipeline (comp (map to-sale) (filter keep?))
                 sales (sequence pipeline rows)
-                ranked (reverse (sort-by (fn [s] (:amount s)) sales))
+                ranked (reverse (sort-by :amount sales))
                 topn int (:top opts)
                 shown (if (> topn 0) (take topn ranked) ranked)
                 total (reduce (fn [acc s] (+ acc (:amount s))) 0 shown)]

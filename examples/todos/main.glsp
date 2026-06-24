@@ -50,7 +50,7 @@
 
 (defn todo-list [items any] -> any
   [:div#todo-list
-   [:ul.todos (map (fn [t] (todo-item t)) items)]
+   [:ul.todos (map todo-item items)]
    [:p.summary (format "%d of %d done" (len (filter :done items)) (len items))]])
 
 ;;; The css/js live in static/, served by web/serve-files. Prefer the

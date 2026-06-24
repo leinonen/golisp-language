@@ -367,18 +367,21 @@ they extend existing mechanisms (the `any`-seam, the macro engine, destructuring
 
 ### Tier 1 — highest leverage (higher-order code)
 
-- **Call an `any`-typed function value directly.** `(f x)` where `f` is an
-  untyped param or `any`-bound local fails to compile (`any is not a function`),
-  forcing `(apply f [x])`:
+- ✅ **Call an `any`-typed function value directly.** `(f x)` where `f` is an
+  untyped param or `any`-bound local used to fail to compile (`any is not a
+  function`), forcing `(apply f [x])`:
   ```clojure
-  (defn apply-it [f x] (f x))   ; → Go error today
+  (defn apply-it [f x] -> any (f x))   ; now: f.(func(any) any)(x)
   ```
-  Fix: when a call head is a symbol bound to an `any` value (not a known
-  fn/builtin/method/in-scope concrete-typed fn), emit `f.(func(any) any)(x)` (or
-  route through `_glispApply` for arity-flexibility). Unlocks idiomatic callbacks,
-  strategy fns, handler registries, and direct invocation of `comp`/`juxt`/
-  `partial` results (`((juxt f g) x)`). Small emit change in `emitCallExpr`, large
-  payoff. **Top pick.**
+  Done: in the general-call path of `emitCallExpr`, a head that `exprIsAny`
+  proves is Go `any` (untyped/`any`-bound local, map/slice lookup, or a
+  function-returning builtin) is asserted to a `func(any, …) any` of the call's
+  arity before invoking (`emitAnyFnCall`). `comp`/`juxt`/`partial`/`complement`/
+  `fnil`/`constantly` are recognised as `any`-returning (`fnReturningBuiltins`),
+  so `((juxt f g) x)` and `(let [h (comp f g)] (h x))` work too. Concrete
+  let-bound lambdas (Go infers a real `func` type) keep the native call. A value
+  holding a typed fn panics at runtime, mirroring the dynamic typing. Spreading
+  `& xs` into an `any` head is not supported.
 - **`some->` / `some->>` and `cond->` / `cond->>` core macros.** Only `->`/`->>`
   exist (`internal/macro/core.glsp`); these are natural ports on the same engine.
   ```clojure

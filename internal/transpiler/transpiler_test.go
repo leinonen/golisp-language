@@ -1605,6 +1605,76 @@ func TestHOFTypedFnDiagnostic(t *testing.T) {
 	}
 }
 
+// TestCallAnyFnValue verifies that a call whose head is statically Go `any`
+// (an untyped/`any`-bound local holding a function, a map/slice lookup, or a
+// function-returning builtin) is asserted to a func type before invocation,
+// instead of emitting an uncompilable `any(args)` call.
+func TestCallAnyFnValue(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		wantSub string
+		wantNot string
+	}{
+		{
+			name:    "single-arg fn param",
+			src:     `(defn apply-it [f x] -> any (f x))`,
+			wantSub: "f.(func(any) any)(x)",
+		},
+		{
+			name:    "multi-arg fn param",
+			src:     `(defn call2 [f a b] -> any (f a b))`,
+			wantSub: "f.(func(any, any) any)(a, b)",
+		},
+		{
+			name:    "zero-arg fn param",
+			src:     `(defn run-it [f] -> any (f))`,
+			wantSub: "f.(func() any)()",
+		},
+		{
+			name:    "function looked up from a map",
+			src:     `(defn dispatch [ops k x] -> any ((get ops k) x))`,
+			wantSub: ".(func(any) any)(x)",
+		},
+		{
+			name:    "direct call of a comp result",
+			src:     `(defn f [] -> any ((comp str/upper str/trim) "x"))`,
+			wantSub: `.(func(any) any)("x")`,
+		},
+		{
+			name:    "let-bound comp result is callable",
+			src:     `(defn f [] -> any (let [h (comp str/upper str/trim)] (h "x")))`,
+			wantSub: `h.(func(any) any)("x")`,
+		},
+		{
+			name:    "concrete let-bound lambda keeps native call",
+			src:     `(defn f [] -> any (let [g (fn [x] x)] (g 1)))`,
+			wantSub: "g(1)",
+			wantNot: "g.(func", // scoped to the callee, not the runtime helpers
+		},
+		{
+			name:    "known user fn keeps native call",
+			src:     `(defn g [x int] -> int x) (defn f [] -> int (g 1))`,
+			wantSub: "g(1)",
+			wantNot: "g.(func",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Transpile(tt.src)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantSub != "" && !strings.Contains(got, tt.wantSub) {
+				t.Errorf("output missing %q\n--- got ---\n%s", tt.wantSub, got)
+			}
+			if tt.wantNot != "" && strings.Contains(got, tt.wantNot) {
+				t.Errorf("output should not contain %q\n--- got ---\n%s", tt.wantNot, got)
+			}
+		})
+	}
+}
+
 // TestMethodDispatch verifies dot-free method dispatch: (area s) emits
 // s.Area() when s is statically known to hold a declared struct or interface
 // type with a matching method, with built-ins, user functions, and in-scope
@@ -1663,7 +1733,7 @@ func TestMethodDispatch(t *testing.T) {
 		{
 			name:    "param shadows method",
 			src:     decls + `(defn f [area any c Circle] -> any (area c))`,
-			wantSub: "area(c)",
+			wantSub: "area.(func(any) any)(c)", // any-typed param holds a fn value, not the method
 		},
 		{
 			name:    "untyped receiver stays plain call",

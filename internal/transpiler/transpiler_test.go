@@ -71,6 +71,7 @@ func TestTranspileSnippets(t *testing.T) {
 		src     string
 		wantSub string // substring that must appear in output
 		wantNot string // substring that must NOT appear ("" = skip)
+		wantErr bool   // true if transpilation is expected to fail
 	}{
 		{
 			name:    "defn basic",
@@ -612,6 +613,67 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defn greet [{name :name}] name)`,
 			wantSub: `_glispGet(_p`,
 		},
+		// 6c: Tier 2 destructuring — nesting, & rest, :as, :keys, :or
+		{
+			name:    "nested sequential destructure binds via temp",
+			src:     `(defn f [v] (let [[[a b] c] v] a))`,
+			wantSub: `_glispGet(_d`,
+		},
+		{
+			name:    "sequential rest binds via _glispDrop",
+			src:     `(defn f [v] (let [[head & tail] v] head))`,
+			wantSub: `tail := _glispDrop(int64(1), _v`,
+		},
+		{
+			name:    "sequential :as binds whole source",
+			src:     `(defn f [v] (let [[a :as all] v] all))`,
+			wantSub: `all := _v`,
+		},
+		{
+			name:    "map :keys shorthand uses symbol name as key",
+			src:     `(defn f [m] (let [{:keys [name age]} m] name))`,
+			wantSub: `name := _glispGet(_m`,
+		},
+		{
+			name:    "map :keys second key",
+			src:     `(defn f [m] (let [{:keys [name age]} m] age))`,
+			wantSub: `age := _glispGet(_m`,
+		},
+		{
+			name:    "map :or supplies default via _glispGetD",
+			src:     `(defn f [m] (let [{:keys [age] :or {age 99}} m] age))`,
+			wantSub: `age := _glispGetD(_m`,
+		},
+		{
+			name:    "map :or default value emitted",
+			src:     `(defn f [m] (let [{:keys [age] :or {age 99}} m] age))`,
+			wantSub: `, 99)`,
+		},
+		{
+			name:    "map :as binds whole source",
+			src:     `(defn f [m] (let [{:keys [x] :as whole} m] whole))`,
+			wantSub: `whole := _m`,
+		},
+		{
+			name:    "typed key with :or default wraps _glispGetD",
+			src:     `(defn f [m] (let [{n :count :- int :or {n 7}} m] n))`,
+			wantSub: `n := _glispToInt(_glispGetD(_m`,
+		},
+		{
+			name:    "& rest must be followed by a binding",
+			src:     `(defn f [v] (let [[a &] v] a))`,
+			wantErr: true,
+		},
+		{
+			name:    "& rest must be last (except :as)",
+			src:     `(defn f [v] (let [[a & b c] v] a))`,
+			wantErr: true,
+		},
+		{
+			name:    "unsupported map destructure helper key",
+			src:     `(defn f [m] (let [{:foo x} m] x))`,
+			wantErr: true,
+		},
 		{
 			name:    "keyword as fn 1-arg",
 			src:     `(defn f [m] (:name m))`,
@@ -1036,6 +1098,12 @@ func TestTranspileSnippets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := Transpile(tt.src)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected transpile error, got none\nfull output:\n%s", got)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("transpile error: %v", err)
 			}

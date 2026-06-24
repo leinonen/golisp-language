@@ -1,0 +1,20 @@
+(ns main)
+
+;; Exercises Tier 2 destructuring: nested sequential patterns, "& rest" tails,
+;; ":as" whole-value bindings, and the map ":keys" / ":or" / ":as" helpers.
+;; These compose with the existing positional and {name :key} forms and work in
+;; let bindings and fn/defn params alike.
+;; Map destructure with :keys shorthand, an :or default, and an :as whole-map
+;; binding — all in a function parameter.
+(defn describe [{:keys [name age] :or {age 0} :as person}] -> string
+  (fmt/sprintf "%s (%v) from %v" name age person))
+
+;; Sequential destructure with a nested pattern, a rest tail, and :as.
+(defn head-info [pair] -> string
+  (let [[[x y] & rest :as whole] pair]
+    (fmt/sprintf "x=%v y=%v rest=%v whole=%v" x y rest whole)))
+
+(defn main [] -> void
+  (fmt/println (describe {:name "Ada"}))
+  (fmt/println (describe {:name "Bo" :age 7}))
+  (fmt/println (head-info [[1 2] 3 4 5])))

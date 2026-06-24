@@ -723,12 +723,23 @@ func TestTranspileSnippets(t *testing.T) {
 		// Truthiness: any-typed conditions wrap in _glispTruthy; statically
 		// bool conditions emit as-is
 		{name: "if truthy wrap", src: `(defn f [x] (if x 1 2))`, wantSub: "if _glispTruthy(x)"},
-		{name: "if bool no wrap", src: `(defn f [x] (if (= x 1) 1 2))`, wantSub: "if (x == 1)"},
+		{name: "if bool no wrap", src: `(defn f [x] (if (= x 1) 1 2))`, wantSub: "if _glispEquals(x, 1)", wantNot: "_glispTruthy(_glispEquals"},
+		{name: "if bool no wrap typed", src: `(defn f [x int] (if (= x 1) 1 2))`, wantSub: "if (x == 1)"},
 		{name: "when truthy wrap", src: `(defn f [x] (when x 1))`, wantSub: "if _glispTruthy(x)"},
 		{name: "cond truthy wrap", src: `(defn f [x] (cond x 1 :else 2))`, wantSub: "if _glispTruthy(x)"},
 		{name: "and truthy operands", src: `(defn f [a b] (if (and a b) 1 2))`, wantSub: "_glispTruthy(a) && _glispTruthy(b)"},
 		{name: "not truthy wrap", src: `(defn f [a] (not a))`, wantSub: "!(_glispTruthy(a))"},
 		{name: "if user bool fn no wrap", src: "(defn p? [x] -> bool true)\n(defn f [x] (if (p? x) 1 2))", wantSub: "if isP(x)"},
+
+		// Cross-type =/not= (value equality via _glispEquals)
+		{name: "eq any operand uses helper", src: `(defn f [x] (= x 1))`, wantSub: "_glispEquals(x, 1)"},
+		{name: "not= any operand negates helper", src: `(defn f [x] (not= x 1))`, wantSub: "!_glispEquals(x, 1)"},
+		{name: "eq boxed arithmetic vs literal", src: `(defn f [x] (= (+ x 1) 3))`, wantSub: "_glispEquals(_glispAdd(x, 1), 3)"},
+		{name: "eq vector literals uses helper", src: `(defn f [] (= [1 2] [1 2]))`, wantSub: "_glispEquals("},
+		{name: "eq map literals uses helper", src: `(defn f [] (= {:a 1} {:a 1}))`, wantSub: "_glispEquals("},
+		{name: "eq concrete ints stays native", src: `(defn f [a int b int] (= a b))`, wantSub: "(a == b)", wantNot: "_glispEquals"},
+		{name: "eq mixed concrete int float uses helper", src: `(defn f [a int] (= a 1.0))`, wantSub: "_glispEquals(a, 1.0)"},
+		{name: "eq concrete strings stays native", src: `(defn f [a string b string] (= a b))`, wantSub: "(a == b)", wantNot: "_glispEquals"},
 
 		// Map operations
 		{name: "assoc", src: `(defn f [m] (assoc m "k" 1))`, wantSub: "_glispAssoc("},

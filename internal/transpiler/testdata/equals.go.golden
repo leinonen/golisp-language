@@ -6,34 +6,12 @@ import (
 	"strconv"
 )
 
-func firstTwo(v any) {
-	_v1 := v
-	a := _glispGet(_v1, int64(0))
-	b := _glispGet(_v1, int64(1))
-	(fmt.Sprintf("%v", a) + fmt.Sprintf("%v", b))
+func checks(n any) string {
+	return fmt.Sprintf("arith=%v num=%v vec=%v map=%v", _glispEquals(_glispAdd(n, 1), 3), (1 == 1.0), _glispEquals([]any{1, 2, 3}, []any{1, 2, 3}), !_glispEquals(map[string]any{"a": 1}, map[string]any{"a": 2}))
 }
 
-func getName(_p2 any) {
-	name := _glispGet(_p2, "name")
-	name
-}
-
-func applyFn(v any) {
-	f := func(_p3 any) any {
-		x := _glispGet(_p3, int64(0))
-		y := _glispGet(_p3, int64(1))
-		return _glispAdd(x, y)
-	}
-	f
-}
-
-func multiDestruct(m any, v any) {
-	_m4 := m
-	k := _glispGet(_m4, "key")
-	_v5 := v
-	a := _glispGet(_v5, int64(0))
-	b := _glispGet(_v5, int64(1))
-	(fmt.Sprintf("%v", k) + fmt.Sprintf("%v", a) + fmt.Sprintf("%v", b))
+func main() {
+	fmt.Println(checks(2))
 }
 
 // --- glisp runtime helpers (generated) ---

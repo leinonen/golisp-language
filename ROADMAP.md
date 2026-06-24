@@ -419,13 +419,15 @@ they extend existing mechanisms (the `any`-seam, the macro engine, destructuring
 
 ### Tier 3 — numeric / type-seam polish (documented gaps)
 
-- **Cross-type `=` / `not=`.** `int64(1) == int(1)` is `false` in Go, so an
-  arithmetic result (boxed `int64`) compared to an `int` literal silently
-  mismatches. A `_glispEquals` for any-operands would close the footgun already
-  flagged in the `any`-type constraints notes.
+- [x] **Cross-type `=` / `not=`.** Routed through `_glispEquals` when an operand
+  is `any`, the form mixes concrete int/float, or an operand is a collection
+  literal — so a boxed `int64` arithmetic result compares value-equal to an `int`
+  literal, `(= 1 1.0)` is true, and slices/maps compare by value (was a compile
+  error / runtime panic). Concrete same-typed scalars stay native `==`.
 - **Remaining numeric seams**: `loop` scalar bindings aren't `any`-marked (no
-  coercion on recur-rebound scalars), `int↔int64` doesn't auto-promote (only
-  `int↔float64`), and a concrete `int` passed to a `float64` *param* isn't coerced.
+  coercion on recur-rebound scalars; now lower-risk since `=` is value-based),
+  `int↔int64` doesn't auto-promote (only `int↔float64`), and a concrete `int`
+  passed to a `float64` *param* isn't coerced.
 
 ### Tier 4 — comprehension / control niceties
 

@@ -2080,7 +2080,10 @@ func (p *parser) parseParamList() ([]ast.Param, error) {
 
 func (p *parser) parseBody() ([]ast.Node, error) {
 	var body []ast.Node
-	for p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF {
+	// skipComments before each closing-delimiter check so a trailing comment
+	// right before ")" (e.g. "(+ 1 2 3) ; note") terminates the loop instead of
+	// being handed to parseExpr, which would then hit ")" and error.
+	for p.skipComments(); p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF; p.skipComments() {
 		node, err := p.parseExpr()
 		if err != nil {
 			return nil, err

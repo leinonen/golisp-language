@@ -195,9 +195,11 @@ func buildProgram(defs []string, input string, isDecl bool) string {
 		b.WriteString(input)
 		b.WriteString("\n(defn -main [])\n")
 	} else {
-		b.WriteString("(defn -main []\n  (fmt/Println ")
+		// Closing parens go on their own line: a trailing line comment on the
+		// input (e.g. "(+ 1 2 3) ; note") would otherwise swallow them.
+		b.WriteString("(defn -main []\n  (fmt/Println\n")
 		b.WriteString(input)
-		b.WriteString("))\n")
+		b.WriteString("\n  ))\n")
 	}
 	return b.String()
 }
@@ -211,9 +213,11 @@ func buildProgramStmt(defs []string, input string) string {
 		b.WriteString(d)
 		b.WriteByte('\n')
 	}
-	b.WriteString("(defn -main []\n  ")
+	// Closing paren on its own line so a trailing line comment on the input
+	// doesn't comment it out.
+	b.WriteString("(defn -main []\n")
 	b.WriteString(input)
-	b.WriteString(")\n")
+	b.WriteString("\n)\n")
 	return b.String()
 }
 

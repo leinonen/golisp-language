@@ -39,7 +39,7 @@ var builtinArity = map[string][2]int{
 	"doseq": {2, -1}, "dotimes": {2, -1},
 
 	// collection / sequence operations
-	"map": {1, 2}, "map-indexed": {2, 2}, "filter": {1, 2}, "reduce": {3, 3}, "reverse": {1, 1},
+	"map": {1, 2}, "map-indexed": {2, 2}, "filter": {1, 2}, "reduce": {2, 3}, "reverse": {1, 1},
 	"contains?": {2, 2}, "some": {2, 2}, "every?": {2, 2}, "sort-by": {2, 2},
 	"flatten": {1, 1}, "take": {1, 2}, "drop": {1, 2}, "for": {2, -1}, "mod": {2, 2},
 	"transduce": {4, 4}, "sequence": {2, 2},

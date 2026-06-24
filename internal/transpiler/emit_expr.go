@@ -2034,6 +2034,11 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 			}
 			return e.emitRuntimeCall("_glispFilter", n.Args, 2)
 		case "reduce":
+			// 2-arg (reduce f coll): init is the first element of coll, matching
+			// Clojure. 3-arg (reduce f init coll) is the explicit-init form.
+			if len(n.Args) == 2 {
+				return e.emitRuntimeCall("_glispReduce2", n.Args, 2)
+			}
 			return e.emitRuntimeCall("_glispReduce", n.Args, 3)
 		case "transduce":
 			e.needImport("_xf")
@@ -3761,18 +3766,72 @@ var fnArgHelpers = map[string]int{
 	"_glispComp": -1, "_glispJuxt": -1,
 }
 
+// hofFnArity gives the fixed arg count a runtime HOF helper invokes its function
+// value with when it differs from the default (1, i.e. func(any) any). _glispReduce
+// calls its fn binary; partial/apply dispatch through _glispApply, so a -1 marks a
+// variadic consumer position.
+var hofFnArity = map[string]int{
+	"_glispReduce":  2,
+	"_glispReduce2": 2,
+	"_glispPartial": -1,
+	"_glispApply":   -1,
+}
+
+// builtinFnValues lists built-in functions and operators that may be passed as
+// first-class function values to higher-order forms (map/filter/reduce/comp/
+// partial/…). Each maps to the runtime helper to invoke; variadic=true marks the
+// helpers that take ...any (the arithmetic operators and max/min). imp is a
+// needImport key required for that helper ("" = always-present base runtime).
+// identity has an empty helper — it returns its argument inline. When such a
+// symbol appears in a function position, emitRuntimeArg wraps it in a closure of
+// the shape the consuming helper asserts, instead of emitting a bare (undefined,
+// for inc/even?/max/…) or empty (for +/-/…) identifier.
+var builtinFnValues = map[string]struct {
+	helper   string
+	variadic bool
+	imp      string
+}{
+	"+": {"_glispAdd", true, "_num"}, "-": {"_glispSub", true, "_num"},
+	"*": {"_glispMul", true, "_num"}, "/": {"_glispDiv", true, "_num"},
+	"mod": {"_glispMod", true, "_num"},
+	"max": {"_glispMax", true, ""}, "min": {"_glispMin", true, ""},
+	"inc": {"_glispInc", false, ""}, "dec": {"_glispDec", false, ""},
+	"even?": {"_glispIsEven", false, ""}, "odd?": {"_glispIsOdd", false, ""},
+	"pos?": {"_glispIsPos", false, ""}, "neg?": {"_glispIsNeg", false, ""},
+	"zero?": {"_glispIsZero", false, ""},
+	"identity": {"", false, ""},
+}
+
 // emitRuntimeArg emits one argument of a runtime-helper call. In a function
-// position it (a) lowers a bare keyword to a _glispGet lookup closure and
-// (b) rejects user fns with typed signatures at transpile time — the runtime
-// helpers assert func(any) any, so a func(int) int would panic at runtime
-// with an opaque interface-conversion message.
+// position it (a) lowers a bare keyword to a _glispGet lookup closure, (b) wraps
+// a built-in/operator passed as a function value (inc, +, even?, …) in a closure
+// of the arity the consuming helper expects, and (c) rejects user fns with typed
+// signatures at transpile time — the runtime helpers assert func(any) any, so a
+// func(int) int would panic at runtime with an opaque interface-conversion message.
 func (e *Emitter) emitRuntimeArg(fn string, idx int, arg ast.Node) error {
-	if fnPos, ok := fnArgHelpers[fn]; ok && (fnPos == -1 || fnPos == idx) {
-		if kw, ok := arg.(*ast.KeywordLit); ok {
+	fnPos, ok := fnArgHelpers[fn]
+	isFnArg := ok && (fnPos == -1 || fnPos == idx)
+	// _glispReduce isn't in fnArgHelpers (its fn slot is binary, so keyword
+	// lowering — which builds a unary closure — must not apply), but a built-in
+	// value passed to it still needs wrapping.
+	if (fn == "_glispReduce" || fn == "_glispReduce2") && idx == 0 {
+		isFnArg = true
+	}
+	if isFnArg {
+		arity := 1
+		if a, ok := hofFnArity[fn]; ok {
+			arity = a
+		}
+		// Keyword lowering builds a unary func(any) any, so only apply it where a
+		// unary fn is expected.
+		if kw, ok := arg.(*ast.KeywordLit); ok && arity == 1 {
 			e.writef("func(_kwM any) any { return _glispGet(_kwM, %q) }", kw.Value)
 			return nil
 		}
 		if sym, ok := arg.(*ast.Symbol); ok && !e.localVars[sym.Name] {
+			if done, err := e.tryEmitBuiltinFnValue(sym, arity); done {
+				return err
+			}
 			// Resolve core/stdlib-fronting callees (str/upper, slurp, …) to the
 			// mangled name they're registered under so their signatures are checked
 			// too — not just user defns.
@@ -3790,6 +3849,58 @@ func (e *Emitter) emitRuntimeArg(fn string, idx int, arg ast.Node) error {
 		}
 	}
 	return e.emitExpr(arg)
+}
+
+// tryEmitBuiltinFnValue emits a closure wrapping a built-in/operator that is being
+// passed as a function value. arity is the arg count the consuming HOF helper
+// invokes the value with (-1 = a variadic consumer like partial/apply). Returns
+// done=false when sym is not a known built-in function value, leaving the caller
+// to handle it.
+func (e *Emitter) tryEmitBuiltinFnValue(sym *ast.Symbol, arity int) (bool, error) {
+	bf, ok := builtinFnValues[sym.Name]
+	if !ok {
+		return false, nil
+	}
+	if bf.imp != "" {
+		e.needImport(bf.imp) // e.g. _glispAdd/… live in glispNumRuntime ("_num")
+	}
+	base := e.fresh("fnv")
+	if arity < 0 {
+		// Variadic consumer position (partial/apply): emit a ...any closure that
+		// _glispApply can call regardless of the eventual arg count.
+		switch {
+		case bf.helper == "": // identity
+			e.writef("func(%s ...any) any { if len(%s) > 0 { return %s[0] }; return nil }", base, base, base)
+		case bf.variadic:
+			e.writef("func(%s ...any) any { return %s(%s...) }", base, bf.helper, base)
+		default: // unary helper (inc, even?, …) — call with the first arg
+			e.writef("func(%s ...any) any { return %s(%s[0]) }", base, bf.helper, base)
+		}
+		return true, nil
+	}
+	// Fixed-arity consumer position: build func(p0 any, p1 any, …) any.
+	e.write("func(")
+	for i := 0; i < arity; i++ {
+		if i > 0 {
+			e.write(", ")
+		}
+		e.writef("%s%d any", base, i)
+	}
+	e.write(") any { return ")
+	if bf.helper == "" { // identity (arity 1)
+		e.writef("%s0", base)
+	} else {
+		e.writef("%s(", bf.helper)
+		for i := 0; i < arity; i++ {
+			if i > 0 {
+				e.write(", ")
+			}
+			e.writef("%s%d", base, i)
+		}
+		e.write(")")
+	}
+	e.write(" }")
+	return true, nil
 }
 
 // hofIncompatibleReason returns a non-empty description when a user fn's

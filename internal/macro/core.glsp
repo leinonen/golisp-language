@@ -38,3 +38,78 @@
         `(~form ~acc)))
     x
     forms))
+
+;;; (some-> x form...) — nil-short-circuiting thread-first. Like -> but stops and
+;;; yields nil the moment any step's input is nil, so (some-> req :user :email)
+;;; replaces a stack of nil-guards. Each step nil-checks the threaded value
+;;; before feeding it in; the final value (which may be nil) is the result.
+;;; The (let …) wrapper is built as data — `(list 'let (vector g acc) …)` — since
+;;; a syntax-quoted `(let [~g …])` would make the parser reject ~g in the binding
+;;; pattern; the leniently-parsed `if` body stays a syntax-quote.
+;;; The bound value is wrapped in (do …) so it lands as Go `any` — `nil?` can't
+;;; compare a concrete non-nilable type (a raw int) against nil, and the macro
+;;; can't know the step's type at expansion time. The macro-engine `let` bridge
+;;; has no typed-binding form, so (do …) is the laundering route to `any`.
+(defmacro some-> [x & forms]
+  (reduce
+    (fn [acc form]
+      (let [g (gensym "someThread")]
+        (list 'let (vector g (list 'do acc))
+          (if (list? form)
+            `(if (nil? ~g) nil (~(first form) ~g ~@(rest form)))
+            `(if (nil? ~g) nil (~form ~g))))))
+    x
+    forms))
+
+;;; (some->> x form...) — nil-short-circuiting thread-last. Like ->> but stops at
+;;; the first nil step, mirroring some->.
+(defmacro some->> [x & forms]
+  (reduce
+    (fn [acc form]
+      (let [g (gensym "someThread")]
+        (list 'let (vector g (list 'do acc))
+          (if (list? form)
+            `(if (nil? ~g) nil (~(first form) ~@(rest form) ~g))
+            `(if (nil? ~g) nil (~form ~g))))))
+    x
+    forms))
+
+;;; (cond-> x test form test form ...) — conditional thread-first. Threads x
+;;; through each form whose paired test is truthy, accumulating; tests that are
+;;; falsy leave the value unchanged. Unlike cond, *every* clause is checked.
+;;; (cond-> resp authed? (assoc :token t) body? (assoc :body b)).
+(defmacro cond-> [x & clauses]
+  (first
+    (reduce
+      (fn [state item]
+        (let [expr (first state) pend (second state)]
+          (if (nil? pend)
+            [expr item]
+            (let [g (gensym "condThread")]
+              (vector
+                (list 'let (vector g expr)
+                  (if (list? item)
+                    `(if ~pend (~(first item) ~g ~@(rest item)) ~g)
+                    `(if ~pend (~item ~g) ~g)))
+                nil)))))
+      [x nil]
+      clauses)))
+
+;;; (cond->> x test form test form ...) — conditional thread-last. Like cond->
+;;; but threads the value as the last argument of each chosen form.
+(defmacro cond->> [x & clauses]
+  (first
+    (reduce
+      (fn [state item]
+        (let [expr (first state) pend (second state)]
+          (if (nil? pend)
+            [expr item]
+            (let [g (gensym "condThread")]
+              (vector
+                (list 'let (vector g expr)
+                  (if (list? item)
+                    `(if ~pend (~(first item) ~@(rest item) ~g) ~g)
+                    `(if ~pend (~item ~g) ~g)))
+                nil)))))
+      [x nil]
+      clauses)))

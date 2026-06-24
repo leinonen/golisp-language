@@ -676,3 +676,53 @@ func TestRunDirFromForeignCWD(t *testing.T) {
 		t.Errorf("stdout = %q, want it to contain %q", out.String(), "dir build ok")
 	}
 }
+
+// TestRunThreadingMacros verifies the some->/some->>/cond->/cond->> core macros
+// compile and behave: some-> short-circuits on nil, cond-> gates each step on
+// its test, and both thread-last variants insert the value as the last arg.
+func TestRunThreadingMacros(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go toolchain not available")
+	}
+	dir := t.TempDir()
+	src := `(ns main)
+
+(defn lookup [m any k string] -> any (get m k))
+
+(defn main [] -> void
+  ; some-> threads first-arg, short-circuits at the first nil step
+  (let [m {"user" {"email" "A@B.COM"}}]
+    (fmt/println "hit:" (some-> m (lookup "user") (lookup "email") str/lower))
+    (fmt/println "miss:" (some-> m (lookup "nobody") (lookup "email"))))
+  ; some->> threads last-arg
+  (fmt/println "sl:" (some->> [1 2 3] (map (fn [n] (* n 10))) (reduce (fn [a b] (+ a b)) 0)))
+  ; cond-> gates each step on its paired test; every clause checked
+  (let [base {"id" 1}]
+    (fmt/println "cond:" (cond-> base true (assoc "a" 2) false (assoc "b" 3))))
+  ; cond->> threads last-arg
+  (fmt/println "cl:" (cond->> 5 true (- 10) false (* 100))))
+`
+	path := filepath.Join(dir, "threading.glsp")
+	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errBuf bytes.Buffer
+	code, err := RunWithIO(path, Options{}, nil, nil, &out, &errBuf)
+	if err != nil {
+		t.Fatalf("RunWithIO: %v\nstderr: %s", err, errBuf.String())
+	}
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0\nstderr: %s", code, errBuf.String())
+	}
+	for _, want := range []string{
+		"hit: a@b.com",        // full chain resolves + str/lower
+		"miss: <nil>",         // short-circuits at missing key
+		"sl: 60",              // (1+2+3)*10 summed
+		"cond: map[a:2 id:1]", // true clause applied, false skipped
+		"cl: 5",               // (- 10 5) = 5, false (* 100) skipped
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("stdout missing %q\n--- stdout ---\n%s", want, out.String())
+		}
+	}
+}

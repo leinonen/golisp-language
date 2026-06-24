@@ -405,13 +405,17 @@ they extend existing mechanisms (the `any`-seam, the macro engine, destructuring
   code too. `some->` alone removes stacks of nested `if-let`/nil-guards in
   web/JSON/DB code.
 
-### Tier 2 — destructuring parity with Clojure
+### Tier 2 — destructuring parity with Clojure ✅ (shipped)
 
-- **Map destructuring `:keys` / `:or` / `:as`.** Keys must currently be symbols;
-  `{:keys [name age] :or {age 0} :as whole}` errors. These three forms are the
-  most-used in Clojure. (`mapDestructureEntries` in `emit_expr.go`.)
-- **Sequential `& rest`** — `[a b & more]` in `let`/param destructure position
-  (fn rest-params exist, but not inside a destructure pattern).
+- [x] **Map destructuring `:keys` / `:or` / `:as`.** `{:keys [name age] :or {age 0}
+  :as whole}` expands to per-key bindings (the symbol doubles as its lookup key),
+  `:or` defaults route through `_glispGetD`, and `:as` binds the whole map.
+  Composes with the existing `{name :key}` and `:- Type` forms.
+  (`mapDestructureEntries` / `emitMapDestructure` in `emit_expr.go`.)
+- [x] **Sequential `& rest`** — `[a b & more]` binds the remaining elements via
+  `_glispDrop`, in `let`/param/`if-let`/`when-let` positions.
+- [x] **Nested patterns + `:as`** — `[[a b] & rest :as whole]` and nested maps
+  recurse via a fresh temp per level (`emitBindTarget` / `emitSeqDestructure`).
 
 ### Tier 3 — numeric / type-seam polish (documented gaps)
 

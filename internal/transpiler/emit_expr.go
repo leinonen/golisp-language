@@ -674,45 +674,108 @@ func (e *Emitter) emitParamDestructs(destructs []paramDestruct) error {
 }
 
 // mapDestructEntry is one binding from a map destructure pattern: the local name,
-// the source key it reads, and an optional Go type from a ":- Type" annotation.
+// the source key it reads, an optional Go type from a ":- Type" annotation, and
+// an optional default value supplied by an ":or {name default}" entry.
 type mapDestructEntry struct {
 	bind string
 	key  string
-	typ  string // Go type, "" when untyped
+	typ  string   // Go type, "" when untyped
+	def  ast.Node // default value (from :or), nil when none
 }
 
-// mapDestructureEntries flattens a map destructure pattern's pairs into bindings,
-// folding any ":- Type" annotation pair into the binding it follows. The pattern
-// {name :name :- string age :age} yields name:string (typed) and age (untyped).
-// Annotation types must be simple type names (string, int, Product, *Product,
+// mapDestructResult is the flattened form of a map destructure pattern: the
+// per-key bindings plus an optional ":as name" whole-value binding.
+type mapDestructResult struct {
+	entries []mapDestructEntry
+	asName  string // ":as name" whole-value binding, "" when absent
+}
+
+// mapDestructureEntries flattens a map destructure pattern's pairs into bindings.
+// A symbol-keyed pair is a {name :key} binding, with any following ":- Type"
+// annotation pair folded in (so {name :name :- string} yields name:string). The
+// keyword-keyed pairs are the Clojure helpers: ":keys [a b]" expands to a binding
+// per symbol (the binding name doubles as its lookup key), ":as name" binds the
+// whole value, and ":or {name default}" supplies defaults applied to bindings by
+// name. Annotation types must be simple names (string, int, Product, *Product,
 // web/Request); bracketed types like []string are not supported here.
-func mapDestructureEntries(pat *ast.MapLit) ([]mapDestructEntry, error) {
-	var entries []mapDestructEntry
+func mapDestructureEntries(pat *ast.MapLit) (mapDestructResult, error) {
+	var res mapDestructResult
+	defaults := map[string]ast.Node{}
 	pairs := pat.Pairs
+	// First pass: collect :as and :or so a default applies regardless of where
+	// it sits relative to the binding it modifies.
+	for i := 0; i < len(pairs); i++ {
+		kw, ok := pairs[i].Key.(*ast.KeywordLit)
+		if !ok {
+			continue
+		}
+		switch kw.Value {
+		case "as":
+			sym, ok := pairs[i].Value.(*ast.Symbol)
+			if !ok {
+				return res, fmt.Errorf("map destructure :as must bind a symbol, got %T", pairs[i].Value)
+			}
+			res.asName = sym.Name
+		case "or":
+			m, ok := pairs[i].Value.(*ast.MapLit)
+			if !ok {
+				return res, fmt.Errorf("map destructure :or must be a map of defaults, got %T", pairs[i].Value)
+			}
+			for _, dp := range m.Pairs {
+				dsym, ok := dp.Key.(*ast.Symbol)
+				if !ok {
+					return res, fmt.Errorf("map destructure :or keys must be symbols, got %T", dp.Key)
+				}
+				defaults[dsym.Name] = dp.Value
+			}
+		}
+	}
+	// Second pass: build entries from :keys vectors and {name :key} pairs.
 	for i := 0; i < len(pairs); i++ {
 		if isAnnotKey(pairs[i].Key) {
-			return nil, fmt.Errorf("destructure annotation ':-' has no preceding binding")
+			return res, fmt.Errorf("destructure annotation ':-' has no preceding binding")
+		}
+		if kw, ok := pairs[i].Key.(*ast.KeywordLit); ok {
+			switch kw.Value {
+			case "keys":
+				vec, ok := pairs[i].Value.(*ast.VectorLit)
+				if !ok {
+					return res, fmt.Errorf("map destructure :keys must be a vector of symbols, got %T", pairs[i].Value)
+				}
+				for _, el := range vec.Elements {
+					sym, ok := el.(*ast.Symbol)
+					if !ok {
+						return res, fmt.Errorf("map destructure :keys elements must be symbols, got %T", el)
+					}
+					res.entries = append(res.entries, mapDestructEntry{bind: sym.Name, key: sym.Name, def: defaults[sym.Name]})
+				}
+			case "as", "or":
+				// collected in the first pass
+			default:
+				return res, fmt.Errorf("unsupported map destructure key :%s (expected :keys, :as, or :or)", kw.Value)
+			}
+			continue
 		}
 		sym, ok := pairs[i].Key.(*ast.Symbol)
 		if !ok {
-			return nil, fmt.Errorf("map destructure keys must be symbols, got %T", pairs[i].Key)
+			return res, fmt.Errorf("map destructure keys must be symbols, got %T", pairs[i].Key)
 		}
 		kw, ok := pairs[i].Value.(*ast.KeywordLit)
 		if !ok {
-			return nil, fmt.Errorf("map destructure values must be keywords, got %T", pairs[i].Value)
+			return res, fmt.Errorf("map destructure values must be keywords, got %T", pairs[i].Value)
 		}
-		ent := mapDestructEntry{bind: sym.Name, key: kw.Value}
+		ent := mapDestructEntry{bind: sym.Name, key: kw.Value, def: defaults[sym.Name]}
 		if i+1 < len(pairs) && isAnnotKey(pairs[i+1].Key) {
 			tsym, ok := pairs[i+1].Value.(*ast.Symbol)
 			if !ok {
-				return nil, fmt.Errorf("destructure type annotation for %q must be a simple type name, got %T", sym.Name, pairs[i+1].Value)
+				return res, fmt.Errorf("destructure type annotation for %q must be a simple type name, got %T", sym.Name, pairs[i+1].Value)
 			}
 			ent.typ = typeExprToGo(tsym.Name)
 			i++ // consume the annotation pair
 		}
-		entries = append(entries, ent)
+		res.entries = append(res.entries, ent)
 	}
-	return entries, nil
+	return res, nil
 }
 
 // isAnnotKey reports whether a map-pair key is the ":-" destructure annotation marker.
@@ -721,55 +784,169 @@ func isAnnotKey(key ast.Node) bool {
 	return ok && kw.Value == "-"
 }
 
-// emitDestructureBindings emits variable bindings from a VectorLit or MapLit pattern.
+// emitDestructureBindings emits variable bindings from a VectorLit (sequential)
+// or MapLit (map) destructure pattern, recursing into nested patterns.
 func (e *Emitter) emitDestructureBindings(src string, pattern ast.Node) error {
 	switch pat := pattern.(type) {
 	case *ast.VectorLit:
-		for i, el := range pat.Elements {
-			sym, ok := el.(*ast.Symbol)
-			if !ok {
-				return fmt.Errorf("sequential destructure elements must be symbols, got %T", el)
-			}
-			if sym.Name == "_" {
-				continue // discard: emitting `_ := ...` is illegal Go
-			}
-			e.registerAnyVar(sym.Name) // _glispGet returns any
-			e.writeIndent()
-			e.writef("%s := _glispGet(%s, int64(%d))\n", identToGo(sym.Name), src, i)
-		}
+		return e.emitSeqDestructure(src, pat)
 	case *ast.MapLit:
-		entries, err := mapDestructureEntries(pat)
-		if err != nil {
-			return err
-		}
-		for _, ent := range entries {
-			if ent.bind == "_" {
-				continue // discard
-			}
-			name := identToGo(ent.bind)
-			e.writeIndent()
-			switch ent.typ {
-			case "":
-				// Untyped: value stays any via the runtime lookup.
-				e.writef("%s := _glispGet(%s, %q)\n", name, src, ent.key)
-			case "string":
-				e.writef("%s := _glispToString(_glispGet(%s, %q))\n", name, src, ent.key)
-			case "int":
-				e.writef("%s := _glispToInt(_glispGet(%s, %q))\n", name, src, ent.key)
-			case "float64":
-				e.writef("%s := _glispToFloat64(_glispGet(%s, %q))\n", name, src, ent.key)
-			default:
-				// Checked assertion: zero value if absent or the wrong type.
-				e.writef("%s, _ := _glispGet(%s, %q).(%s)\n", name, src, ent.key, ent.typ)
-			}
-			if ent.typ != "" {
-				e.registerVarType(ent.bind, ent.typ)
-			} else {
-				e.registerAnyVar(ent.bind) // untyped _glispGet returns any
-			}
-		}
+		return e.emitMapDestructure(src, pat)
 	default:
 		return fmt.Errorf("unsupported destructure pattern: %T", pattern)
+	}
+}
+
+// emitBindTarget binds the Go expression valueExpr to a destructure target: a
+// symbol (direct `:=`), "_" (discarded), or a nested vector/map pattern (bound
+// to a fresh temp, then recursively destructured). isAny marks whether
+// valueExpr's static Go type is `any` (true for _glispGet lookups, false for the
+// []any rest slice) so the binding is tracked correctly for numeric coercion.
+func (e *Emitter) emitBindTarget(target ast.Node, valueExpr string, isAny bool) error {
+	switch t := target.(type) {
+	case *ast.Symbol:
+		if t.Name == "_" {
+			return nil // discard: emitting `_ := ...` is illegal Go
+		}
+		if isAny {
+			e.registerAnyVar(t.Name)
+		} else {
+			e.registerLocalVar(t.Name)
+		}
+		e.writeIndent()
+		e.writef("%s := %s\n", identToGo(t.Name), valueExpr)
+		return nil
+	case *ast.VectorLit, *ast.MapLit:
+		tmp := e.fresh("d")
+		e.writeIndent()
+		e.writef("%s := %s\n", tmp, valueExpr)
+		return e.emitDestructureBindings(tmp, target)
+	default:
+		return fmt.Errorf("invalid destructure target: %T", target)
+	}
+}
+
+// emitSeqDestructure emits a sequential (vector) destructure: positional
+// elements via _glispGet, an optional "& rest" tail bound to the remaining
+// elements via _glispDrop, and an optional ":as whole" binding of the source.
+// Elements may themselves be nested vector/map patterns.
+func (e *Emitter) emitSeqDestructure(src string, pat *ast.VectorLit) error {
+	elems := pat.Elements
+	pos := 0 // positional index into the collection
+	for j := 0; j < len(elems); j++ {
+		el := elems[j]
+		if sym, ok := el.(*ast.Symbol); ok && sym.Name == "&" {
+			if j+1 >= len(elems) {
+				return fmt.Errorf("'&' in destructure must be followed by a binding")
+			}
+			// Only an :as binding may follow the rest tail.
+			if j+2 < len(elems) {
+				if kw, ok := elems[j+2].(*ast.KeywordLit); !ok || kw.Value != "as" {
+					return fmt.Errorf("destructure '& rest' must be the last binding (except :as)")
+				}
+			}
+			if err := e.emitBindTarget(elems[j+1], fmt.Sprintf("_glispDrop(int64(%d), %s)", pos, src), false); err != nil {
+				return err
+			}
+			j++ // consume rest target
+			continue
+		}
+		if kw, ok := el.(*ast.KeywordLit); ok && kw.Value == "as" {
+			if j+1 >= len(elems) {
+				return fmt.Errorf("destructure ':as' must be followed by a symbol")
+			}
+			asSym, ok := elems[j+1].(*ast.Symbol)
+			if !ok {
+				return fmt.Errorf("destructure ':as' must bind a symbol, got %T", elems[j+1])
+			}
+			if asSym.Name != "_" {
+				e.registerAnyVar(asSym.Name)
+				e.writeIndent()
+				e.writef("%s := %s\n", identToGo(asSym.Name), src)
+			}
+			j++ // consume as target
+			continue
+		}
+		if err := e.emitBindTarget(el, fmt.Sprintf("_glispGet(%s, int64(%d))", src, pos), true); err != nil {
+			return err
+		}
+		pos++
+	}
+	return nil
+}
+
+// emitMapDestructure emits a map destructure: per-key bindings (with optional
+// ":- Type" annotation and ":or" default), an optional ":as" whole-map binding,
+// and ":keys" shorthand — all flattened by mapDestructureEntries.
+func (e *Emitter) emitMapDestructure(src string, pat *ast.MapLit) error {
+	res, err := mapDestructureEntries(pat)
+	if err != nil {
+		return err
+	}
+	if res.asName != "" && res.asName != "_" {
+		e.registerAnyVar(res.asName)
+		e.writeIndent()
+		e.writef("%s := %s\n", identToGo(res.asName), src)
+	}
+	for _, ent := range res.entries {
+		if ent.bind == "_" {
+			continue // discard
+		}
+		name := identToGo(ent.bind)
+		// emitLookup writes the raw value lookup — _glispGetD when an :or default
+		// is supplied (falls back to it on a missing/nil key), else _glispGet.
+		emitLookup := func() error {
+			if ent.def != nil {
+				e.writef("_glispGetD(%s, %q, ", src, ent.key)
+				if err := e.emitExpr(ent.def); err != nil {
+					return err
+				}
+				e.write(")")
+				return nil
+			}
+			e.writef("_glispGet(%s, %q)", src, ent.key)
+			return nil
+		}
+		e.writeIndent()
+		switch ent.typ {
+		case "":
+			// Untyped: value stays any via the runtime lookup.
+			e.writef("%s := ", name)
+			if err := emitLookup(); err != nil {
+				return err
+			}
+		case "string":
+			e.writef("%s := _glispToString(", name)
+			if err := emitLookup(); err != nil {
+				return err
+			}
+			e.write(")")
+		case "int":
+			e.writef("%s := _glispToInt(", name)
+			if err := emitLookup(); err != nil {
+				return err
+			}
+			e.write(")")
+		case "float64":
+			e.writef("%s := _glispToFloat64(", name)
+			if err := emitLookup(); err != nil {
+				return err
+			}
+			e.write(")")
+		default:
+			// Checked assertion: zero value if absent or the wrong type.
+			e.writef("%s, _ := ", name)
+			if err := emitLookup(); err != nil {
+				return err
+			}
+			e.writef(".(%s)", ent.typ)
+		}
+		e.write("\n")
+		if ent.typ != "" {
+			e.registerVarType(ent.bind, ent.typ)
+		} else {
+			e.registerAnyVar(ent.bind) // untyped lookup returns any
+		}
 	}
 	return nil
 }

@@ -4,7 +4,7 @@
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
 ;               destructuring (map and sequential), keyword lookup (:key m),
 ;               panic/recover, assert, format, parse-int, parse-float, repeat, interpose,
-;               variadic spread (& xs)
+;               variadic spread (& xs), threading macros (some->, cond->)
 (ns main)
 
 ; --- Named types (deftype) ---
@@ -56,6 +56,22 @@
     (get u "admin") (str (get u "name") " (admin)")
     (get u "name") (str (get u "name"))
     :else "anonymous"))
+
+; --- Threading macros: some-> (nil-safe) and cond-> (conditional build) ---
+; some-> threads a value through each step, short-circuiting to nil the moment
+; any step's input is nil — so a missing key anywhere yields nil, not a crash.
+;;; The uppercased city from a nested user→address→city map, or nil if absent.
+(defn city-of [u any] -> any
+  (some-> u (get "address") (get "city") str/upper))
+
+; cond-> threads x through each form whose paired test is truthy, accumulating;
+; falsy tests leave the value unchanged and *every* clause is checked (unlike
+; cond). Ideal for assembling a map whose fields depend on flags.
+;;; Builds a user summary map, adding fields only when their flag is set.
+(defn summarize-user [name string admin bool verified bool] -> any
+  (cond-> {"name" name}
+          admin (assoc "role" "admin")
+          verified (assoc "verified" true)))
 
 ; --- Panic and recover ---
 ; recover must be called from a deferred function to catch panics.
@@ -110,6 +126,15 @@
            (describe-user {"name" "bob" "admin" true})
            "|"
            (describe-user {}))
+  ; some-> short-circuits on a missing key; cond-> builds a map per-flag
+  (println "city:"
+           (city-of {"address" {"city" "berlin"}})
+           "|"
+           (city-of {"name" "ada"}))
+  (println "summary:"
+           (summarize-user "ada" true false)
+           "|"
+           (summarize-user "bob" false true))
   ; switch / case dispatch and an assert invariant guard
   (println "status 404:"
            (http-status 404)

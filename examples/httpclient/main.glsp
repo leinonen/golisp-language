@@ -1,5 +1,5 @@
 ; HTTP client example
-; Demonstrates: http/get, http/post, http/put, http/delete, http/request, if-err, json/decode
+; Demonstrates: http/get, http/post, http/put, http/delete, http/request, if-err, json/decode, some->
 ; Uses httpbin.org — a free HTTP echo service for testing.
 (ns main)
 
@@ -29,7 +29,7 @@
     (println "url:" (get body "url")))
   (println "\n=== GET /get?foo=bar ===")
   (when-let [qbody (fetch "https://httpbin.org/get?foo=bar")]
-    (println "foo=" (get (get qbody "args") "foo")))
+    (println "foo=" (some-> qbody (get "args") (get "foo"))))
   (println "\n=== GET /bearer ===")
   (if-err [bresp berr] (http/get "https://httpbin.org/bearer" {"Authorization" "Bearer secret-token"})
     (println "failed:" (.Error berr))

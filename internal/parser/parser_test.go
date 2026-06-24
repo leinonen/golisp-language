@@ -511,6 +511,28 @@ func TestTrailingCommentInBindings(t *testing.T) {
 	}
 }
 
+func TestTrailingCommentBeforeClose(t *testing.T) {
+	// A ; comment as the last thing before a closing ) used to make parseBody
+	// hand the comment to parseExpr, which then hit the ) and errored with
+	// "unexpected )". parseBody now skips comments before the close check.
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{"call arg", "(+ 1 2 3) ; sum"},
+		{"close on next line", "(defn f []\n  (g 1) ; note\n  )"},
+		{"comment mid-args then close", "(f 1 ; one\n 2 ; two\n )"},
+		{"nested close after comment", "(defn f []\n  (fmt/Println\n  (+ 1 2 3) ; aaa\n  ))"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := ParseString(c.src); err != nil {
+				t.Errorf("parse error: %v", err)
+			}
+		})
+	}
+}
+
 func TestUnclosedDelimiter(t *testing.T) {
 	// Missing the final ) on a multi-line defn: error should point at the
 	// opening ( on line 1, not the end of the file.

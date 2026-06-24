@@ -382,15 +382,23 @@ they extend existing mechanisms (the `any`-seam, the macro engine, destructuring
   let-bound lambdas (Go infers a real `func` type) keep the native call. A value
   holding a typed fn panics at runtime, mirroring the dynamic typing. Spreading
   `& xs` into an `any` head is not supported.
-- **`some->` / `some->>` and `cond->` / `cond->>` core macros.** Only `->`/`->>`
-  exist (`internal/macro/core.glsp`); these are natural ports on the same engine.
+- ✅ **`some->` / `some->>` and `cond->` / `cond->>` core macros.** Ported onto
+  the existing macro engine (`internal/macro/core.glsp`), alongside `->`/`->>`.
   ```clojure
-  (some-> req :user :profile :email str/lower)   ; nil-safe; stops at first nil
-  (cond-> resp                                    ; conditional building
-    authed?   (assoc :token tok)
-    has-body? (assoc :body b))
+  (some-> req (get "user") (get "email") str/lower) ; nil-safe; stops at first nil
+  (cond-> resp                                       ; conditional building
+    authed? (assoc "token" tok)
+    body?   (assoc "body" b))
   ```
-  `some->` alone removes stacks of nested `if-let`/nil-guards in web/JSON/DB code.
+  Each step expands to a nested nil-guarded `let` (some->) / test-gated `let`
+  (cond->) built via `(list 'let (vector g …) …)` + `gensym` (a syntax-quoted
+  `let` would make the parser reject `~g` in the binding pattern). `some->`
+  launders the threaded value to `any` via `(do …)` so the `nil?` guard compiles
+  over concrete types. Required teaching `exprIsAny` that a `let` in value
+  position is `any` (it emits `func() any { … }()`) so cond->'s nested let-IIFEs
+  thread through arithmetic steps — a latent gap that bit other `let`-bound-block
+  code too. `some->` alone removes stacks of nested `if-let`/nil-guards in
+  web/JSON/DB code.
 
 ### Tier 2 — destructuring parity with Clojure
 

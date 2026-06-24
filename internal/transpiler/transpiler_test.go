@@ -747,6 +747,17 @@ func TestTranspileSnippets(t *testing.T) {
 		{name: "reduce 2-arg uses first element as init", src: `(defn f [xs] (reduce + xs))`, wantSub: "_glispReduce2("},
 		{name: "reduce 3-arg keeps explicit init", src: `(defn f [xs] (reduce + 0 xs))`, wantSub: "_glispReduce(func"},
 		{name: "reduce max as fn value", src: `(defn f [xs] (reduce max xs))`, wantSub: "_glispMax("},
+		{name: "count as fn value", src: `(defn f [xs] (sort-by count xs))`, wantSub: "func(_fnv10 any) any { return _glispLen(_fnv10) }"},
+		{name: "first as fn value", src: `(defn f [xs] (map first xs))`, wantSub: "_glispFirst(_fnv10)"},
+		{name: "str as fn value via apply", src: `(defn f [xs] (apply str xs))`, wantSub: "...any) any { return _glispStr("},
+		// inc/dec lower to native arithmetic on a concrete-numeric operand (so a
+		// recur rebind of a typed counter and an -> int tail compile), and to the
+		// _glispInc/_glispDec helper on an `any`/unknown operand.
+		{name: "inc on int param is native", src: `(defn f [i int] -> int (inc i))`, wantSub: "return (i + 1)"},
+		{name: "dec on int param is native", src: `(defn f [i int] -> int (dec i))`, wantSub: "(i - 1)"},
+		{name: "inc on float param is native", src: `(defn f [x float64] -> float64 (inc x))`, wantSub: "(x + 1.0)"},
+		{name: "inc on any param uses helper", src: `(defn f [x] (inc x))`, wantSub: "_glispInc(x)"},
+		{name: "inc literal is native", src: `(defn f [] -> int (inc 5))`, wantSub: "(5 + 1)"},
 		// A global def bound to a function value (partial/comp/…) is `any`; calling
 		// it must go through the func-value assertion, not a bare add5(10).
 		{name: "any-global fn value is called via assertion", src: `(def add5 (partial + 5)) (defn use [] (add5 10))`, wantSub: "add5.(func(any) any)(10)"},

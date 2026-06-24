@@ -962,6 +962,17 @@ func _glispDec(n any) any {
 	return _glispToInt(n) - 1
 }
 
+// _glispStr concatenates the string form of each argument. Backs (str …) when it
+// is passed as a function value — (map str coll), (apply str coll) — mirroring
+// the inline (str a b) concatenation via the always-present _glispToString.
+func _glispStr(args ...any) any {
+	s := ""
+	for _, a := range args {
+		s += _glispToString(a)
+	}
+	return s
+}
+
 func _glispDistinct(coll any) []any {
 	s := _glispToSlice(coll)
 	seen := make(map[any]bool)

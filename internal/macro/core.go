@@ -15,29 +15,38 @@ import (
 //go:embed core.glsp
 var coreSource string
 
+// webSource is the web routing DSL prelude (web.glsp): GET/POST/…/defroutes,
+// always available like the language macros (the engine has no per-import macro
+// loading). They expand to golisp/web calls and are inert unless web is imported.
+//
+//go:embed web.glsp
+var webSource string
+
 var (
 	coreOnce  sync.Once
 	coreCache []*ast.MacroDecl
 	coreErr   error
 )
 
-// CoreMacros returns the macros defined by the embedded core prelude. They are
-// parsed once and cached. An error means core.glsp itself is malformed — a bug
-// in glisp, surfaced by the tests.
+// CoreMacros returns the macros defined by the embedded preludes (core.glsp plus
+// the web routing DSL web.glsp). They are parsed once and cached. An error means
+// a prelude itself is malformed — a bug in glisp, surfaced by the tests.
 func CoreMacros() ([]*ast.MacroDecl, error) {
 	coreOnce.Do(func() {
-		nodes, err := parser.ParseString(coreSource)
-		if err != nil {
-			coreErr = fmt.Errorf("internal: core prelude failed to parse: %w", err)
-			return
-		}
-		for _, n := range nodes {
-			md, ok := n.(*ast.MacroDecl)
-			if !ok {
-				coreErr = fmt.Errorf("internal: core prelude may only contain defmacro, found %T", n)
+		for _, src := range []string{coreSource, webSource} {
+			nodes, err := parser.ParseString(src)
+			if err != nil {
+				coreErr = fmt.Errorf("internal: core prelude failed to parse: %w", err)
 				return
 			}
-			coreCache = append(coreCache, md)
+			for _, n := range nodes {
+				md, ok := n.(*ast.MacroDecl)
+				if !ok {
+					coreErr = fmt.Errorf("internal: core prelude may only contain defmacro, found %T", n)
+					return
+				}
+				coreCache = append(coreCache, md)
+			}
 		}
 	})
 	return coreCache, coreErr

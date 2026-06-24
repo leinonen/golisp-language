@@ -6,27 +6,11 @@
    {"id" "3" "title" "Go for a run" "done" false "priority" "medium"}
    {"id" "4" "title" "Read a book" "done" false "priority" "low"}])
 
-(defn health [req web/Request] -> web/Response
-  (web/json-response 200 {"status" "ok" "count" (len tasks)}))
-
-(defn list-tasks [req web/Request] -> web/Response
-  (let [done-param (web/query-param req "done")]
-    (switch done-param
-      "true"
-        (web/json-response 200 (filter (fn [t] (= (get t "done") true)) tasks))
-      "false"
-        (web/json-response 200 (filter (fn [t] (= (get t "done") false)) tasks))
-      :default (web/json-response 200 tasks))))
-
-(defn get-task [req web/Request] -> web/Response
-  (let [id (web/path-param req "id")]
-    (if-let [task (some (fn [t] (if (= (get t "id") id) t nil)) tasks)]
-      (web/json-response 200 task)
-      (web/not-found (str "task " id " not found")))))
-
 ;;; Creates a task from the JSON body. Annotated destructuring pulls typed
 ;;; locals straight out of the parsed body — title/priority as string, done as
 ;;; bool — so the validation below needs no per-field casts or nil-guards.
+;;; Kept as a named handler (the destructuring is the point); the routing DSL
+;;; calls it inline below.
 (defn create-task [req web/Request] -> web/Response
   (if-let [body (web/body-map req)]
     (let [{title    :title    :- string
@@ -41,29 +25,42 @@
            "done"     done})))
     (web/bad-request "invalid or missing JSON body")))
 
-(defn delete-task [req web/Request] -> web/Response
-  (let [id (web/path-param req "id")]
-    (web/json-response 200 {"deleted" id "note" "demo only — no persistence"})))
-
 (defn export-tasks [req web/Request] -> web/Response
   (web/json-response 200
     {"tasks"       tasks
      "count"       (len tasks)
      "exported-by" (get req "identity")}))
 
-(def app web/Handler
-  (web/wrap
-    (web/routes
-      (web/get "/health" health)
-      (web/get "/tasks" list-tasks)
-      (web/get "/tasks/:id" get-task)
-      (web/post "/tasks" create-task)
-      (web/delete "/tasks/:id" delete-task)
-      (web/get "/export" (web/wrap export-tasks web/wrap-auth)))
-    web/wrap-logging
-    web/wrap-recover
-    web/wrap-cors
-    web/wrap-json))
+;;; The routing DSL (Phase 18c): defroutes defines app as a web/Handler, the verb
+;;; macros (GET/POST/…) make each route body a handler, and [id] binds the :id
+;;; path param as a local. req is in scope. The :middleware clause wraps the whole
+;;; chain (outermost-first). A raw (web/get …) still composes — used for /export,
+;;; which carries its own per-route wrap-auth.
+(defroutes app
+  :middleware
+  [web/wrap-logging web/wrap-recover web/wrap-cors web/wrap-json]
+  (GET "/health" [] (web/json-response 200 {"status" "ok" "count" (len tasks)}))
+  (GET "/tasks"
+    []
+    (let [done-param (web/query-param req "done")]
+      (switch done-param
+        "true"
+          (web/json-response 200
+                             (filter (fn [t] (= (get t "done") true)) tasks))
+        "false"
+          (web/json-response 200
+                             (filter (fn [t] (= (get t "done") false)) tasks))
+        :default (web/json-response 200 tasks))))
+  (GET "/tasks/:id"
+    [id]
+    (if-let [task (some (fn [t] (if (= (get t "id") id) t nil)) tasks)]
+      (web/json-response 200 task)
+      (web/not-found (str "task " id " not found"))))
+  (POST "/tasks" [] (create-task req))
+  (DELETE "/tasks/:id"
+    [id]
+    (web/json-response 200 {"deleted" id "note" "demo only — no persistence"}))
+  (web/get "/export" (web/wrap export-tasks web/wrap-auth)))
 
 (defn main [] -> void
   (let [port (sys/env "PORT" "4000")

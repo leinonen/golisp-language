@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"golisp/internal/ast"
+	"golisp/internal/parser"
 )
 
 // unparse converts a parser-specialized form (if/when/do/cond/let/loop/fn/quote)
@@ -46,9 +47,23 @@ func unparse(n ast.Node) (ast.Node, bool) {
 	case *ast.LoopExpr:
 		return callNode(n.Pos(), "loop", prepend(bindingVector(n.Pos(), v.Bindings), v.Body)...), true
 	case *ast.FnExpr:
-		return callNode(n.Pos(), "fn", prepend(paramVector(n.Pos(), v.Params), v.Body)...), true
+		args := []ast.Node{paramVector(n.Pos(), v.Params)}
+		// Preserve a single-symbol return type as `-> ret` so a typed fn template
+		// round-trips (fnNode reads it back). Compound return types are dropped.
+		if v.ReturnType != nil && parser.IsTypeSymbol(v.ReturnType.Text) {
+			args = append(args, ast.NewSymbol(n.Pos(), "->"), ast.NewSymbol(n.Pos(), v.ReturnType.Text))
+		}
+		args = append(args, v.Body...)
+		return callNode(n.Pos(), "fn", args...), true
 	case *ast.QuoteExpr:
 		return callNode(n.Pos(), "quote", v.Form), true
+	case *ast.DefDecl:
+		args := []ast.Node{ast.NewSymbol(n.Pos(), v.Name)}
+		if v.TypeAnnot != nil && parser.IsTypeSymbol(v.TypeAnnot.Text) {
+			args = append(args, ast.NewSymbol(n.Pos(), v.TypeAnnot.Text))
+		}
+		args = append(args, v.Value)
+		return callNode(n.Pos(), "def", args...), true
 	default:
 		return nil, false
 	}
@@ -106,9 +121,41 @@ func specialFormNode(head string, items []Value, pos ast.Position) (ast.Node, bo
 		return bindingFormNode("loop", items, pos)
 	case "fn":
 		return fnNode(items, pos)
+	case "def":
+		return defNode(items, pos)
 	default:
 		return nil, false, nil
 	}
+}
+
+// defNode rebuilds a top-level (def name value) or (def name type value) from a
+// macro expansion, so a macro like defroutes can emit a real declaration. A
+// single-symbol type annotation (parser.IsTypeSymbol) between name and value is
+// recognized; compound types aren't representable here.
+func defNode(items []Value, pos ast.Position) (ast.Node, bool, error) {
+	if len(items) < 2 {
+		return nil, true, fmt.Errorf("def expects a name and a value (at %s)", pos)
+	}
+	name, ok := items[0].(*Sym)
+	if !ok {
+		return nil, true, fmt.Errorf("def name must be a symbol, got %s (at %s)", typeName(items[0]), pos)
+	}
+	rest := items[1:]
+	var annot *ast.TypeExpr
+	if len(rest) == 2 {
+		if ts, ok := rest[0].(*Sym); ok && parser.IsTypeSymbol(ts.Name) {
+			annot = ast.NewTypeExpr(pos, ts.Name)
+			rest = rest[1:]
+		}
+	}
+	if len(rest) != 1 {
+		return nil, true, fmt.Errorf("def expects a single value (at %s)", pos)
+	}
+	val, err := valueToNode(rest[0], pos)
+	if err != nil {
+		return nil, true, err
+	}
+	return ast.NewDefDecl(pos, name.Name, annot, val), true, nil
 }
 
 func condNode(items []Value, pos ast.Position) (ast.Node, bool, error) {
@@ -186,14 +233,24 @@ func fnNode(items []Value, pos ast.Position) (ast.Node, bool, error) {
 	}
 	var params []ast.Param
 	rest := false
-	for _, pv := range vec.Items {
+	for i := 0; i < len(vec.Items); i++ {
+		pv := vec.Items[i]
 		if s, ok := pv.(*Sym); ok && s.Name == "&" {
 			rest = true
 			continue
 		}
 		if s, ok := pv.(*Sym); ok {
-			params = append(params, ast.Param{Name: s.Name, IsRest: rest})
+			p := ast.Param{Name: s.Name, IsRest: rest}
 			rest = false
+			// An immediately following type symbol annotates this param, mirroring
+			// the parser's [name type] rule (parser.IsTypeSymbol disambiguation).
+			if i+1 < len(vec.Items) {
+				if ts, ok := vec.Items[i+1].(*Sym); ok && parser.IsTypeSymbol(ts.Name) {
+					p.TypeAnnot = ast.NewTypeExpr(pos, ts.Name)
+					i++
+				}
+			}
+			params = append(params, p)
 			continue
 		}
 		// destructure pattern (vector/map)
@@ -204,11 +261,22 @@ func fnNode(items []Value, pos ast.Position) (ast.Node, bool, error) {
 		params = append(params, ast.Param{Pattern: pat, IsRest: rest})
 		rest = false
 	}
-	body, err := valuesToNodes(items[1:], pos)
+	bodyItems := items[1:]
+	// Optional `-> ret` return type before the body (single-symbol types only).
+	var ret *ast.TypeExpr
+	if len(bodyItems) >= 2 {
+		if arrow, ok := bodyItems[0].(*Sym); ok && arrow.Name == "->" {
+			if ts, ok := bodyItems[1].(*Sym); ok && parser.IsTypeSymbol(ts.Name) {
+				ret = ast.NewTypeExpr(pos, ts.Name)
+				bodyItems = bodyItems[2:]
+			}
+		}
+	}
+	body, err := valuesToNodes(bodyItems, pos)
 	if err != nil {
 		return nil, true, err
 	}
-	return ast.NewFnExpr(pos, params, nil, body), true, nil
+	return ast.NewFnExpr(pos, params, ret, body), true, nil
 }
 
 func callNode(pos ast.Position, head string, args ...ast.Node) *ast.CallExpr {
@@ -229,8 +297,12 @@ func bindingVector(pos ast.Position, bindings []ast.LetBinding) *ast.VectorLit {
 	return ast.NewVectorLit(pos, elems)
 }
 
-// paramVector reconstructs an fn parameter vector. Type annotations are not
-// preserved; a & rest param is rendered as the `&` symbol followed by the name.
+// paramVector reconstructs an fn parameter vector. A single-symbol type
+// annotation (primitive, qualified like web/Request, pointer, or PascalCase) is
+// preserved so macro-generated fns stay typed — fnNode reads it back with the
+// same parser.IsTypeSymbol rule. Compound types ([]string, map[...]) aren't
+// representable as one symbol and are dropped (the prior behavior). A & rest
+// param is rendered as the `&` symbol followed by the name.
 func paramVector(pos ast.Position, params []ast.Param) *ast.VectorLit {
 	var elems []ast.Node
 	for _, p := range params {
@@ -241,6 +313,9 @@ func paramVector(pos ast.Position, params []ast.Param) *ast.VectorLit {
 			elems = append(elems, p.Pattern)
 		} else {
 			elems = append(elems, ast.NewSymbol(pos, p.Name))
+		}
+		if p.TypeAnnot != nil && parser.IsTypeSymbol(p.TypeAnnot.Text) {
+			elems = append(elems, ast.NewSymbol(pos, p.TypeAnnot.Text))
 		}
 	}
 	return ast.NewVectorLit(pos, elems)

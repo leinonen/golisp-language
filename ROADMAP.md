@@ -318,11 +318,16 @@ each is independently shippable and reviewable.
   `form-param` covers file fields; `(web/uploaded-file req "field")` →
   `{:filename :size :content}` (or a temp-file handle for large uploads). Closes
   the obvious gap between the form helpers and real upload forms.
-- [ ] **Routing DSL via macros** (18c) — the canonical "macros earn their keep"
-  example. A `(defroutes app …)` / `(GET "/users/:id" [id] …)` macro that expands
-  to the existing `routes`/`web/get` calls, binding path params as locals. Pure
-  AST rewrite over the stable runtime — no new Go, written in glisp like the
-  threading macros. Proves the Phase 13 engine on a real DSL.
+- [x] **Routing DSL via macros** (18c) — ✅ `defroutes` + `GET`/`POST`/`PUT`/
+  `DELETE`/`PATCH` (and the general `route-form`) in `internal/macro/web.glsp`,
+  expanding to the existing `web/routes`/`web/get`/`web/wrap` calls and binding
+  `[id]` path params as locals. `defroutes` takes an optional `:middleware [..]`
+  clause. Pure glisp, no new web Go. Proving it on real handlers required three
+  macro-engine enablers (now general capabilities): the AST↔value bridge
+  preserves **typed `fn` params/return** (so handlers match `web.Handler`) and
+  round-trips **`def`** (so `defroutes` defines), and **unmodellable forms pass
+  through opaquely** (`opaqueNode`) so a route body can use `switch`/`if-let`/etc.
+  `examples/api` is refactored onto the DSL.
 - [ ] **Observability middleware** (18d) — `web/wrap-logging` (structured
   per-request `log/*` lines: method, path, status, duration) and
   `web/wrap-metrics` (a pluggable counter/timer hook). Tracing context already

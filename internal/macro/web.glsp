@@ -1,0 +1,64 @@
+;;; glisp web routing DSL — core macros (Phase 18c)
+;;;
+;;; A thin, pure-glisp layer over the stable web runtime (web/get, web/routes,
+;;; web/wrap, web/path-param). These macros expand to ordinary calls into the
+;;; golisp/web package — no new Go — so a route body reads like a handler while
+;;; staying a plain Ring handler underneath. Requires (:import [golisp/web]).
+;;;
+;;; Always available (the macro engine has no per-import macro loading), so the
+;;; verb names GET/POST/PUT/DELETE/PATCH are reserved; a user defmacro of the
+;;; same name shadows the core one.
+
+;;; (route-form web/get "/users/:id" [id] body...) — the workhorse. Builds a
+;;; single typed handler for the given verb function (web/get, web/post, …),
+;;; binding each name in the [bindings] vector to its same-named path param via
+;;; web/path-param. req (the request map) is in scope in the body. Used by the
+;;; verb sugar below; usable directly for verbs without a sugar macro (web/head).
+(defmacro route-form [verb path bindings & body]
+  (if (empty? bindings)
+    (list verb path `(fn [req web/Request] -> web/Response ~@body))
+    (let [bvec (reduce
+                 (fn [acc s] (conj acc s (list 'web/path-param 'req (name s))))
+                 []
+                 bindings)
+          handler-body (concat (list 'let bvec) body)]
+      (list verb path `(fn [req web/Request] -> web/Response ~handler-body)))))
+
+;;; (GET "/users/:id" [id] body...) — match GET on path; bind path params named
+;;; in the vector as locals. Expands to (web/get path (fn [req] ...)).
+(defmacro GET [path bindings & body]
+  `(route-form web/get ~path ~bindings ~@body))
+
+;;; (POST "/users" [] body...) — match POST. See GET.
+(defmacro POST [path bindings & body]
+  `(route-form web/post ~path ~bindings ~@body))
+
+;;; (PUT "/users/:id" [id] body...) — match PUT. See GET.
+(defmacro PUT [path bindings & body]
+  `(route-form web/put ~path ~bindings ~@body))
+
+;;; (DELETE "/users/:id" [id] body...) — match DELETE. See GET.
+(defmacro DELETE [path bindings & body]
+  `(route-form web/delete ~path ~bindings ~@body))
+
+;;; (PATCH "/users/:id" [id] body...) — match PATCH. See GET.
+(defmacro PATCH [path bindings & body]
+  `(route-form web/patch ~path ~bindings ~@body))
+
+;;; (defroutes app
+;;;   :middleware [web/wrap-json web/wrap-recover]   ; optional, outermost-first
+;;;   (GET "/health" [] (web/json-response 200 {"ok" true}))
+;;;   (GET "/users/:id" [id] (web/json-response 200 {"id" id})))
+;;;
+;;; Defines name as a web/Handler from the route forms. The optional leading
+;;; :middleware [..] clause wraps the routes via web/wrap; omit it for routes
+;;; only. Expands to (def name web/Handler (web/wrap (web/routes ...) mws...)).
+(defmacro defroutes [rname & clauses]
+  (let [has-mw (= (first clauses) :middleware)
+        mws (if has-mw (second clauses) [])
+        routes (if has-mw (rest (rest clauses)) clauses)
+        routes-call (concat (list 'web/routes) routes)
+        handler (if (empty? mws)
+                  routes-call
+                  (concat (list 'web/wrap routes-call) mws))]
+    (list 'def rname 'web/Handler handler)))

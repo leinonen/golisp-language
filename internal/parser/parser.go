@@ -2211,6 +2211,12 @@ func isTypeSymbol(text string) bool {
 	return false
 }
 
+// IsTypeSymbol reports whether a single symbol names a type (primitive,
+// qualified like web/Request, pointer like *Circle, or PascalCase like Handler).
+// Exported so the macro AST↔value bridge can disambiguate a typed fn param
+// (`[req web/Request]`) using the same rule the parser applies.
+func IsTypeSymbol(text string) bool { return isTypeSymbol(text) }
+
 // ---------- deftest ----------
 
 func (p *parser) parseDefTest(pos ast.Position) (*ast.DefTestDecl, error) {

@@ -1,0 +1,55 @@
+;;; Sessions via HMAC-signed cookies (web/wrap-session).
+;;;
+;;; The session is an ordinary map carried in a tamper-proof cookie — no
+;;; server-side store. wrap-session decodes the incoming cookie into the request
+;;; and signs the outgoing session map back into a Set-Cookie header. Run it and:
+;;;
+;;;   curl -i -c jar -X POST localhost:8080/login -d 'user=ada'   # sets cookie
+;;;   curl -i -b jar localhost:8080/whoami                        # reads session
+;;;   curl -i -b jar -c jar -X POST localhost:8080/bump           # mutates it
+;;;   curl -i -b jar -X POST localhost:8080/logout                # clears it
+(ns main (:import [golisp/web]))
+
+;; Route bodies bind `req`. Session helpers: (web/session req) reads the current
+;; map; put-session/assoc-session stage the outgoing map (wrap-session signs it
+;; into a Set-Cookie); clear-session deletes the cookie.
+(defroutes app
+  :middleware
+  [web/wrap-logging web/wrap-recover]
+  ;; POST /login — establish a fresh session from a form field.
+  (POST "/login"
+    []
+    (let [user (web/form-param req "user")]
+      (if (blank? user)
+        (web/bad-request "missing 'user'")
+        (web/put-session
+          (web/json-response 200 {:logged-in-as user})
+          {:user   user
+           :visits 0}))))
+  ;; GET /whoami — read the current session.
+  (GET "/whoami"
+    []
+    (let [sess (web/session req)
+          user (get sess "user")]
+      (if (nil? user)
+        (web/unauthorized "not logged in")
+        (web/json-response 200 {:user user :visits (get sess "visits")}))))
+  ;; POST /bump — extend the existing session: stage it, then assoc a new count.
+  (POST "/bump"
+    []
+    (let [sess (web/session req)]
+      (if (nil? (get sess "user"))
+        (web/unauthorized "not logged in")
+        (->
+          (web/json-response 200 {:ok true})
+          (web/put-session sess)
+          (web/assoc-session "visits" (+ (get sess "visits") 1))))))
+  ;; POST /logout — delete the session cookie.
+  (POST "/logout" [] (web/clear-session (web/json-response 200 {:ok true}))))
+
+(defn main [] -> void
+  ;; Secret from SESSION_SECRET if set, else this fallback (use a real secret!).
+  (let [secret (os/env "SESSION_SECRET" "dev-only-change-me")
+        handler (web/wrap app (web/wrap-session {:secret secret :max-age 86400 :http-only true}))]
+    (fmt/println "session demo on :8080")
+    (web/serve-graceful ":8080" handler)))

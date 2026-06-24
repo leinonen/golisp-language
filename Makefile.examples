@@ -1,17 +1,18 @@
-.PHONY: examples examples-clean examples-cli examples-tour examples-api examples-types examples-multifile examples-httpclient examples-data examples-concurrency examples-logparser examples-sec-pipeline examples-patterns examples-movienight examples-todos examples-salesreport
+.PHONY: examples examples-clean examples-cli examples-tour examples-api examples-types examples-multifile examples-httpclient examples-data examples-concurrency examples-logparser examples-sec-pipeline examples-patterns examples-movienight examples-todos examples-salesreport examples-session
 
 BIN ?= glisp
 
 # Each example target needs the glisp binary. The aggregate `examples` target
 # (main Makefile) gets `build` via its own prerequisite, but CI and ad-hoc runs
 # invoke the individual targets directly, so depend on `build` here too.
-examples-cli examples-tour examples-api examples-types examples-multifile examples-httpclient examples-data examples-concurrency examples-logparser examples-sec-pipeline examples-patterns examples-movienight examples-todos examples-salesreport: build
+examples-cli examples-tour examples-api examples-types examples-multifile examples-httpclient examples-data examples-concurrency examples-logparser examples-sec-pipeline examples-patterns examples-movienight examples-todos examples-salesreport examples-session: build
 
 examples-clean:
-	rm -f examples/cli/cli examples/tour/tour examples/api/api examples/types/types examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/concurrency/concurrency examples/logparser/logparser examples/sec-pipeline/sec-pipeline examples/patterns/patterns examples/movienight/movienight examples/todos/todos examples/salesreport/salesreport
+	rm -f examples/cli/cli examples/tour/tour examples/api/api examples/types/types examples/multifile/multifile examples/httpclient/httpclient examples/data/data examples/concurrency/concurrency examples/logparser/logparser examples/sec-pipeline/sec-pipeline examples/patterns/patterns examples/movienight/movienight examples/todos/todos examples/salesreport/salesreport examples/session/session
 	rm -f examples/multifile/glisp_runtime.go examples/multifile/main.go examples/multifile/helpers.go
+	rm -f examples/session/glisp_runtime.go examples/session/main.go
 
-examples: examples-clean examples-cli examples-tour examples-api examples-types examples-multifile examples-httpclient examples-data examples-concurrency examples-logparser examples-sec-pipeline examples-patterns examples-movienight examples-todos examples-salesreport
+examples: examples-clean examples-cli examples-tour examples-api examples-types examples-multifile examples-httpclient examples-data examples-concurrency examples-logparser examples-sec-pipeline examples-patterns examples-movienight examples-todos examples-salesreport examples-session
 
 examples-cli:
 	./$(BIN) build -o examples/cli/cli examples/cli/main.glsp
@@ -54,3 +55,6 @@ examples-todos:
 
 examples-salesreport:
 	./$(BIN) build -o examples/salesreport/salesreport examples/salesreport/main.glsp
+
+examples-session:
+	./$(BIN) build -o examples/session/session examples/session/main.glsp

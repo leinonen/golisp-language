@@ -144,6 +144,7 @@ glisp run examples/cli/main.glsp 3 1 4   # CLI stats tool — (sys/args), no bui
 ./examples/data/data            # collection built-ins + transducer pipelines
 ./examples/concurrency/concurrency # the 6 concurrency primitives + atoms + typed channels
 ./examples/api/api              # REST API with routing, middleware, auth
+./examples/session/session      # login/logout via HMAC-signed session cookies
 ./examples/movienight/movienight # sets, threading macros, partial/comp/juxt, ctx deadlines
 ./examples/todos/todos          # server-rendered todos: hiccup + htmx + SSE live stats + websocket chat
 ./examples/salesreport/salesreport --format json   # the v2 stack together: cli/ + csv/ + transducers + str//path//sys/

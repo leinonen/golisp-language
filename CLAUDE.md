@@ -229,6 +229,17 @@ make examples                              # compile + build examples
 
 Golden files live in `internal/transpiler/testdata/`. Each `.glsp` has a matching `.go.golden`. Run with `-update` to regenerate after intentional output changes. `TestGoldenCompiles` additionally `go vet`s every golden and fails on **import-emission defects** (missing/spurious/bogus imports — the class text comparison can't catch); `any`-seam type mismatches in fragment goldens are ignored. It's skipped under `-short`.
 
+## The Book (`book/`)
+
+The language guide ("The GoLisp Book") is an [mdBook](https://rust-lang.github.io/mdBook/) living in `book/`: `book.toml`, chapters in `book/src/*.md` (foreword, SUMMARY, ch01–ch18, appendix-a/b), styling in `book/theme/`. The generated HTML (`book/book/`) is gitignored — only sources are tracked. Build locally with `mdbook build book`; `make deploy-book` builds + syncs to S3 (`book.golisp.com`) and invalidates the CloudFront cache (distribution id pinned in the `Makefile`).
+
+**Keep the book in sync with the language — this is part of "done", not a follow-up.** Whenever you add, change, or remove a language feature, update the affected chapter(s) and the built-in/tooling appendices in the same change. The book teaches glisp through **runnable code examples**, so:
+
+- **Every code block must be valid, current glisp** that compiles and runs against the binary you just built. After a language change, re-check the examples in the touched chapter(s) — don't assume an older example still works.
+- **Breaking changes require a book update.** If you change syntax, rename a built-in, alter semantics, or remove a form, grep `book/src/` for the old spelling and fix every occurrence (`grep -rn 'old-form' book/src/`). A book example that no longer compiles is a regression.
+- When unsure an example still works, extract it to a scratch `.glsp` and run it through `glisp run` (or `glisp print`) with the freshly built binary — same discipline as `examples/`.
+- New built-ins/forms also need their reference entry: `appendix-a-builtins.md` (built-ins) / `appendix-b-tooling.md` (CLI/LSP), mirroring the LSP doc-map update in `internal/lsp/builtins.go`.
+
 ## Adding a new special form
 
 1. Add AST node(s) to `internal/ast/nodes.go`
@@ -237,6 +248,7 @@ Golden files live in `internal/transpiler/testdata/`. Each `.glsp` has a matchin
 4. Wire into `emitExpr` switch in `transpiler.go`
 5. If it can appear in statement position, also wire into `emitStmtNode`
 6. Add a snippet test in `transpiler_test.go` and/or a golden file
+7. Document it in the relevant `book/src/` chapter (and `appendix-a-builtins.md` if it's a built-in), with a runnable example — see "The Book" above
 
 ## Module system
 

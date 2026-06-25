@@ -1,0 +1,16 @@
+[book]
+title = "The GoLisp Book"
+authors = ["The GoLisp Project"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/leinonen/golisp-language"
+additional-css = ["theme/custom.css"]
+additional-js = ["theme/highlight-golisp.js"]
+
+[output.html.fold]
+enable = true
+level = 1

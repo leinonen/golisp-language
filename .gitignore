@@ -1,6 +1,9 @@
 glisp
 glisp-lsp
 dist/
+
+# Generated mdBook output (book sources live under book/{book.toml,src,theme})
+book/book/
 examples/*/*
 !examples/**/*.glsp
 !examples/*/static/

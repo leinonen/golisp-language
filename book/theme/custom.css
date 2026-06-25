@@ -1,0 +1,27 @@
+:root {
+  --sidebar-width: 260px;
+}
+
+.content main {
+  max-width: 760px;
+}
+
+code {
+  font-size: 0.9em;
+}
+
+pre code {
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.01em;
+}
+
+blockquote {
+  border-left: 3px solid var(--sidebar-active);
+  background: none;
+  font-style: normal;
+  opacity: 0.85;
+}

@@ -1,7 +1,14 @@
-.PHONY: all build build-lsp test test-update install clean fmt fmt-glsp examples examples-clean dist
+.PHONY: all build build-lsp test test-update install clean fmt fmt-glsp examples examples-clean dist deploy-book
 
 BIN     := glisp
 BIN_LSP := glisp-lsp
+
+# Book (mdBook) build + deploy settings. Terraform infra lives outside this repo;
+# the CloudFront distribution id is pinned (was `terraform output -raw
+# cloudfront_distribution_id`).
+MDBOOK       := $(HOME)/.local/bin/mdbook
+BOOK_BUCKET  := book.golisp.com
+BOOK_CF_DIST := E84ONONKY16KG
 
 # Version stamped into the binaries. Defaults to a git-derived tag; the release
 # workflow overrides it with the pushed tag.
@@ -63,3 +70,11 @@ fmt:
 
 fmt-glsp: build
 	find examples -name '*.glsp' | xargs ./$(BIN) fmt
+
+# deploy-book builds the mdBook in book/ and publishes it to S3 + invalidates the
+# CloudFront cache.
+deploy-book:
+	$(MDBOOK) build book
+	aws s3 sync ./book/book s3://$(BOOK_BUCKET) --delete
+	aws cloudfront create-invalidation \
+		--distribution-id $(BOOK_CF_DIST) --paths "/*"

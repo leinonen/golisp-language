@@ -540,6 +540,31 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(ns main) (deftest t (assert-nil nil))`,
 			wantSub: `t.Errorf("assert-nil failed`,
 		},
+		{
+			name:    "assert= uses value equality helper (collections)",
+			src:     `(ns main) (deftest t (assert= (filter even? [1 2]) [2]))`,
+			wantSub: `if !_glispEquals(`,
+		},
+		{
+			name:    "builtin form rejected as function value",
+			src:     `(ns main) (def f (partial map :title))`,
+			wantErr: true,
+		},
+		{
+			name:    "call result of keyword access as function",
+			src:     `(defn f [] (let [h {:g (fn [n] n)}] ((:g h) 1)))`,
+			wantSub: `.(func(any) any)(`,
+		},
+		{
+			name:    "go-val typed channel coerces any tail to element type",
+			src:     `(defn f [] (go-val string (get {} :k)))`,
+			wantSub: `_glispToString(`,
+		},
+		{
+			name:    "struct literal resolves stdlib qualifier",
+			src:     `(defn f [] (http/Client. {}))`,
+			wantSub: `"net/http"`,
+		},
 		// fn default return type
 		{
 			name:    "fn defaults to any return",

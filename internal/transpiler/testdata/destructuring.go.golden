@@ -1252,6 +1252,10 @@ func _glispEqNum(v any) (i int64, f float64, isFloat bool, isNum bool) {
 // (so (= 1 1.0) is true, consistent with the ordering operators). Anything else
 // uses reflect.DeepEqual, which gives value equality for strings/bools and for
 // slices/maps without the runtime panic native == raises on uncomparable types.
+// Slices and maps are compared structurally by recursing through _glispEquals,
+// so a nil slice equals an empty slice (filter/etc. return nil on empty input,
+// while a [] literal is a non-nil []any{}) and element types may differ
+// (a []int compares equal to an equal []any).
 func _glispEquals(a, b any) bool {
 	ai, af, aFloat, aNum := _glispEqNum(a)
 	bi, bf, bFloat, bNum := _glispEqNum(b)
@@ -1260,6 +1264,36 @@ func _glispEquals(a, b any) bool {
 			return af == bf
 		}
 		return ai == bi
+	}
+	va := reflect.ValueOf(a)
+	vb := reflect.ValueOf(b)
+	ka, kb := va.Kind(), vb.Kind()
+	isSeq := func(k reflect.Kind) bool { return k == reflect.Slice || k == reflect.Array }
+	if isSeq(ka) && isSeq(kb) {
+		if va.Len() != vb.Len() {
+			return false
+		}
+		for i := 0; i < va.Len(); i++ {
+			if !_glispEquals(va.Index(i).Interface(), vb.Index(i).Interface()) {
+				return false
+			}
+		}
+		return true
+	}
+	if ka == reflect.Map && kb == reflect.Map {
+		if va.Len() != vb.Len() {
+			return false
+		}
+		for _, k := range va.MapKeys() {
+			bv := vb.MapIndex(k)
+			if !bv.IsValid() {
+				return false
+			}
+			if !_glispEquals(va.MapIndex(k).Interface(), bv.Interface()) {
+				return false
+			}
+		}
+		return true
 	}
 	return reflect.DeepEqual(a, b)
 }

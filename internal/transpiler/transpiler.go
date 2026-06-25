@@ -399,16 +399,24 @@ func (e *Emitter) isModuleAlias(alias string) bool {
 // qualifiers that are not declared module/import aliases — and since a bare
 // import resolves only for stdlib, erroring here cannot break a working build.
 func (e *Emitter) resolveDirectImport(sym *ast.Symbol, qualifier string) error {
+	return e.resolveDirectImportAt(qualifier, sym.Pos())
+}
+
+// resolveDirectImportAt is the position-based core of resolveDirectImport, shared
+// by qualified-symbol resolution and qualified struct-literal types
+// (http/Client. → net/http), so both spellings resolve a bare stdlib qualifier
+// to its full import path instead of leaking a "package X is not in std" Go error.
+func (e *Emitter) resolveDirectImportAt(qualifier string, pos ast.Position) error {
 	paths, ok := stdlibByQualifier[qualifier]
 	if !ok {
-		return fmt.Errorf("unknown package %q — not a stdlib package; declare it in ns, e.g. (:import [path/to/%s]) (at %s)", qualifier, qualifier, sym.Pos())
+		return fmt.Errorf("unknown package %q — not a stdlib package; declare it in ns, e.g. (:import [path/to/%s]) (at %s)", qualifier, qualifier, pos)
 	}
 	if len(paths) > 1 {
 		opts := make([]string, len(paths))
 		for i, p := range paths {
 			opts[i] = "(:import [" + p + "])"
 		}
-		return fmt.Errorf("ambiguous package qualifier %q — declare which one in ns: %s (at %s)", qualifier, strings.Join(opts, " or "), sym.Pos())
+		return fmt.Errorf("ambiguous package qualifier %q — declare which one in ns: %s (at %s)", qualifier, strings.Join(opts, " or "), pos)
 	}
 	e.directImports[paths[0]] = true
 	return nil

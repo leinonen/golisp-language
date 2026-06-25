@@ -16,13 +16,13 @@ func greet(name string) string {
 }
 
 func TestMathOps(t *testing.T) {
-	if (add(1, 2)) != (3) {
+	if !_glispEquals(add(1, 2), 3) {
 		t.Errorf("assert= failed: expected %v, got %v", 3, add(1, 2))
 	}
-	if (add(0, 0)) != (0) {
+	if !_glispEquals(add(0, 0), 0) {
 		t.Errorf("assert= failed: expected %v, got %v", 0, add(0, 0))
 	}
-	if (add(-1, 1)) != (0) {
+	if !_glispEquals(add(-1, 1), 0) {
 		t.Errorf("assert= failed: expected %v, got %v", 0, add(-1, 1))
 	}
 	if !(add(5, 5) > 9) {
@@ -34,7 +34,7 @@ func TestMathOps(t *testing.T) {
 }
 
 func TestStringOps(t *testing.T) {
-	if (greet("world")) != ("hello world") {
+	if !_glispEquals(greet("world"), "hello world") {
 		t.Errorf("assert= failed: expected %v, got %v", "hello world", greet("world"))
 	}
 	if greet("x") == "hello y" {
@@ -1082,3 +1082,227 @@ func _glispNotAny(pred any, coll any) bool {
 }
 
 // --- end glisp runtime helpers ---
+
+// _glispNumVal extracts a numeric value from a as both int64 and float64,
+// reporting whether it was a floating-point value. Non-numbers contribute 0.
+func _glispNumVal(a any) (int64, float64, bool) {
+	switch v := a.(type) {
+	case int:
+		return int64(v), float64(v), false
+	case int8:
+		return int64(v), float64(v), false
+	case int16:
+		return int64(v), float64(v), false
+	case int32:
+		return int64(v), float64(v), false
+	case int64:
+		return v, float64(v), false
+	case uint:
+		return int64(v), float64(v), false
+	case uint8:
+		return int64(v), float64(v), false
+	case uint16:
+		return int64(v), float64(v), false
+	case uint32:
+		return int64(v), float64(v), false
+	case uint64:
+		return int64(v), float64(v), false
+	case float32:
+		return 0, float64(v), true
+	case float64:
+		return 0, v, true
+	}
+	return 0, 0, false
+}
+
+func _glispAdd(args ...any) any {
+	var isum int64
+	var fsum float64
+	anyFloat := false
+	for _, a := range args {
+		i, f, isF := _glispNumVal(a)
+		isum += i
+		fsum += f
+		if isF {
+			anyFloat = true
+		}
+	}
+	if anyFloat {
+		return fsum
+	}
+	return isum
+}
+
+func _glispSub(args ...any) any {
+	if len(args) == 0 {
+		return int64(0)
+	}
+	isum, fsum, anyFloat := _glispNumVal(args[0])
+	for _, a := range args[1:] {
+		i, f, isF := _glispNumVal(a)
+		isum -= i
+		fsum -= f
+		if isF {
+			anyFloat = true
+		}
+	}
+	if anyFloat {
+		return fsum
+	}
+	return isum
+}
+
+func _glispMul(args ...any) any {
+	iprod := int64(1)
+	fprod := 1.0
+	anyFloat := false
+	for _, a := range args {
+		i, f, isF := _glispNumVal(a)
+		iprod *= i
+		fprod *= f
+		if isF {
+			anyFloat = true
+		}
+	}
+	if anyFloat {
+		return fprod
+	}
+	return iprod
+}
+
+func _glispDiv(args ...any) any {
+	if len(args) == 0 {
+		return int64(0)
+	}
+	anyFloat := false
+	for _, a := range args {
+		if _, _, isF := _glispNumVal(a); isF {
+			anyFloat = true
+		}
+	}
+	if anyFloat {
+		_, res, _ := _glispNumVal(args[0])
+		for _, a := range args[1:] {
+			_, f, _ := _glispNumVal(a)
+			res /= f
+		}
+		return res
+	}
+	res, _, _ := _glispNumVal(args[0])
+	for _, a := range args[1:] {
+		i, _, _ := _glispNumVal(a)
+		res /= i
+	}
+	return res
+}
+
+func _glispMod(a, b any) any {
+	ai, _, _ := _glispNumVal(a)
+	bi, _, _ := _glispNumVal(b)
+	return ai % bi
+}
+
+func _glispNumCmp(a, b any) int {
+	_, af, _ := _glispNumVal(a)
+	_, bf, _ := _glispNumVal(b)
+	switch {
+	case af < bf:
+		return -1
+	case af > bf:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func _glispLt(a, b any) bool { return _glispNumCmp(a, b) < 0 }
+func _glispGt(a, b any) bool { return _glispNumCmp(a, b) > 0 }
+func _glispLe(a, b any) bool { return _glispNumCmp(a, b) <= 0 }
+func _glispGe(a, b any) bool { return _glispNumCmp(a, b) >= 0 }
+
+// _glispEqNum reports whether v holds a Go numeric value, returning it as both
+// int64 and float64 plus whether it is a floating-point (vs integral) type.
+// Unlike _glispNumVal it distinguishes non-numbers (isNum=false) from a zero
+// value, which _glispEquals needs to decide between numeric and value equality.
+func _glispEqNum(v any) (i int64, f float64, isFloat bool, isNum bool) {
+	switch n := v.(type) {
+	case int:
+		return int64(n), float64(n), false, true
+	case int8:
+		return int64(n), float64(n), false, true
+	case int16:
+		return int64(n), float64(n), false, true
+	case int32:
+		return int64(n), float64(n), false, true
+	case int64:
+		return n, float64(n), false, true
+	case uint:
+		return int64(n), float64(n), false, true
+	case uint8:
+		return int64(n), float64(n), false, true
+	case uint16:
+		return int64(n), float64(n), false, true
+	case uint32:
+		return int64(n), float64(n), false, true
+	case uint64:
+		return int64(n), float64(n), false, true
+	case float32:
+		return 0, float64(n), true, true
+	case float64:
+		return 0, n, true, true
+	}
+	return 0, 0, false, false
+}
+
+// _glispEquals is the = / not= comparison over any-typed values. Two numbers
+// compare by value regardless of their dynamic Go type — integral pairs exactly
+// as int64 (closing the int64(1) == int(1) footgun, where boxed arithmetic
+// results never matched int literals), a pair involving a float as float64
+// (so (= 1 1.0) is true, consistent with the ordering operators). Anything else
+// uses reflect.DeepEqual, which gives value equality for strings/bools and for
+// slices/maps without the runtime panic native == raises on uncomparable types.
+// Slices and maps are compared structurally by recursing through _glispEquals,
+// so a nil slice equals an empty slice (filter/etc. return nil on empty input,
+// while a [] literal is a non-nil []any{}) and element types may differ
+// (a []int compares equal to an equal []any).
+func _glispEquals(a, b any) bool {
+	ai, af, aFloat, aNum := _glispEqNum(a)
+	bi, bf, bFloat, bNum := _glispEqNum(b)
+	if aNum && bNum {
+		if aFloat || bFloat {
+			return af == bf
+		}
+		return ai == bi
+	}
+	va := reflect.ValueOf(a)
+	vb := reflect.ValueOf(b)
+	ka, kb := va.Kind(), vb.Kind()
+	isSeq := func(k reflect.Kind) bool { return k == reflect.Slice || k == reflect.Array }
+	if isSeq(ka) && isSeq(kb) {
+		if va.Len() != vb.Len() {
+			return false
+		}
+		for i := 0; i < va.Len(); i++ {
+			if !_glispEquals(va.Index(i).Interface(), vb.Index(i).Interface()) {
+				return false
+			}
+		}
+		return true
+	}
+	if ka == reflect.Map && kb == reflect.Map {
+		if va.Len() != vb.Len() {
+			return false
+		}
+		for _, k := range va.MapKeys() {
+			bv := vb.MapIndex(k)
+			if !bv.IsValid() {
+				return false
+			}
+			if !_glispEquals(va.MapIndex(k).Interface(), bv.Interface()) {
+				return false
+			}
+		}
+		return true
+	}
+	return reflect.DeepEqual(a, b)
+}

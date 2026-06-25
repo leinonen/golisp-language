@@ -232,12 +232,16 @@ func (e *Emitter) emitAssertStmt(n ast.Node) error {
 		if len(call.Args) != 2 {
 			return fmt.Errorf("assert= requires 2 arguments")
 		}
+		// Value equality via _glispEquals: native Go == is wrong across dynamic
+		// numeric types and illegal on slices/maps (assert= on collections is a
+		// common test idiom), so always route through the helper.
+		e.needImport("_num")
 		e.writeIndent()
-		e.write("if (")
+		e.write("if !_glispEquals(")
 		if err := e.emitExpr(call.Args[0]); err != nil {
 			return err
 		}
-		e.write(") != (")
+		e.write(", ")
 		if err := e.emitExpr(call.Args[1]); err != nil {
 			return err
 		}

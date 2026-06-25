@@ -95,7 +95,15 @@ func (e *Emitter) emitGoValExpr(n *ast.GoValExpr) error {
 	e.writef("_ch <- func() %s {", elemType)
 	e.nl()
 	e.push()
-	if err := e.emitBody(n.Body, true); err != nil {
+	// The body's tail value is sent on a `chan T`, so emit it under the element
+	// type as the return hint — an `any` tail (e.g. (:body resp)) is then coerced
+	// to T (_glispToString / numeric coercion / assertion) instead of producing a
+	// raw "cannot use any as T" Go error.
+	savedRet := e.currentRetType
+	e.currentRetType = elemType
+	err := e.emitBody(n.Body, true)
+	e.currentRetType = savedRet
+	if err != nil {
 		return err
 	}
 	e.pop()
@@ -637,7 +645,12 @@ func (e *Emitter) emitStructLitExpr(n *ast.StructLitExpr) error {
 	if idx := strings.Index(n.TypeName, "/"); idx > 0 {
 		pkg := n.TypeName[:idx]
 		if !e.isModuleAlias(pkg) {
-			e.directImports[pkg] = true
+			// Resolve the qualifier through the stdlib map so (http/Client. {}) →
+			// net/http, not a bogus bare `import "http"`. Mirrors qualified-symbol
+			// resolution; reached only for non-module qualifiers.
+			if err := e.resolveDirectImportAt(pkg, n.Pos()); err != nil {
+				return err
+			}
 		}
 	}
 	e.writef("%s{", typeName)

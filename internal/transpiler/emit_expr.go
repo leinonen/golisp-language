@@ -1154,6 +1154,30 @@ var fnReturningBuiltins = map[string]bool{
 	"complement": true, "fnil": true, "constantly": true,
 }
 
+// keywordAccessConcrete reports whether a keyword call (:kw x [default]) lowers
+// to direct struct field access (x.Field) with a concrete Go type, rather than
+// the `any`-returning _glispGet/_glispGetD runtime lookup. It mirrors the
+// dispatch in emitCallExpr's KeywordLit branch: only the single-arg form on a
+// symbol whose static type is a declared local struct or a loaded external
+// struct produces concrete field access.
+func (e *Emitter) keywordAccessConcrete(args []ast.Node) bool {
+	if len(args) != 1 {
+		return false
+	}
+	sym, ok := args[0].(*ast.Symbol)
+	if !ok || e.localTypes == nil {
+		return false
+	}
+	typeName, found := e.localTypes[sym.Name]
+	if !found {
+		return false
+	}
+	if si := e.structs[typeName]; si != nil {
+		return true
+	}
+	return e.goFieldSet(typeName) != nil
+}
+
 // exprIsAny reports whether n is statically known to emit a Go `any` value.
 // Conservative: it only returns true for values it can prove are `any` (so that
 // arithmetic/comparison on them routes through the numeric coercion helpers);
@@ -1174,11 +1198,14 @@ func (e *Emitter) exprIsAny(n ast.Node) bool {
 	case *ast.CallExpr:
 		sym, ok := v.Head.(*ast.Symbol)
 		if !ok {
-			// Keyword access (:kw x): `any` only when the target is itself `any`
-			// (untyped map lookup → _glispGet). Typed struct fields keep their
-			// real Go type, so they are not `any`.
-			if _, isKw := v.Head.(*ast.KeywordLit); isKw && len(v.Args) == 1 {
-				return e.exprIsAny(v.Args[0])
+			// Keyword access (:kw x [default]): emits _glispGet/_glispGetD, which
+			// return `any`, EXCEPT when it lowers to a typed struct field (x.Field),
+			// which keeps the field's real Go type. So it is `any` unless it resolves
+			// to concrete field access — independent of whether the target itself is
+			// `any` (a map[string]any target still yields an `any` lookup result,
+			// which is what makes ((:k m) x) a callable function value).
+			if _, isKw := v.Head.(*ast.KeywordLit); isKw && len(v.Args) >= 1 && len(v.Args) <= 2 {
+				return !e.keywordAccessConcrete(v.Args)
 			}
 			return false
 		}
@@ -3896,6 +3923,15 @@ func (e *Emitter) emitRuntimeArg(fn string, idx int, arg ast.Node) error {
 		if sym, ok := arg.(*ast.Symbol); ok && !e.localVars[sym.Name] {
 			if done, err := e.tryEmitBuiltinFnValue(sym, arity); done {
 				return err
+			}
+			// A built-in *form* (map/filter/sort-by/reduce/…) is special-form
+			// dispatched, not a real Go function, so emitting it bare yields a Go
+			// keyword (`map`) or an undefined identifier (`sortBy`). Reject it with a
+			// clear message instead of leaking uncompilable Go — unless it's a
+			// supported fn value (handled by tryEmitBuiltinFnValue above).
+			if _, isBuiltinForm := builtinArity[sym.Name]; isBuiltinForm {
+				return fmt.Errorf("%s is a built-in form and cannot be passed as a function value; wrap it in a lambda, e.g. (fn [x] (%s … x)) (at %s)",
+					sym.Name, sym.Name, sym.Pos())
 			}
 			// Resolve core/stdlib-fronting callees (str/upper, slurp, …) to the
 			// mangled name they're registered under so their signatures are checked

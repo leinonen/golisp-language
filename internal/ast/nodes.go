@@ -864,6 +864,26 @@ func NewIfErrExpr(pos Position, val, errName string, expr, onErr, onOk Node) *If
 	return &IfErrExpr{Pos_: pos, ValName: val, ErrName: errName, Expr: expr, OnErr: onErr, OnOk: onOk}
 }
 
+// TryExpr: (try body... (catch e handler...) (finally cleanup...))
+// The Clojure-style exception form, lowered to Go's defer/recover. Body runs;
+// a panic (from throw, panic, or any runtime fault) is caught by the catch
+// clause, binding the recovered value to CatchBinding. Finally always runs.
+// Both catch and finally are optional but at least one must be present.
+type TryExpr struct {
+	Pos_         Position
+	Body         []Node
+	HasCatch     bool
+	CatchBinding string // name bound to the recovered value (may be "_")
+	CatchBody    []Node
+	Finally      []Node // nil when there is no finally clause
+}
+
+func (n *TryExpr) nodeMarker()   {}
+func (n *TryExpr) Pos() Position { return n.Pos_ }
+func NewTryExpr(pos Position, body []Node, hasCatch bool, catchBinding string, catchBody, finally []Node) *TryExpr {
+	return &TryExpr{Pos_: pos, Body: body, HasCatch: hasCatch, CatchBinding: catchBinding, CatchBody: catchBody, Finally: finally}
+}
+
 // IfLetExpr: (if-let [pat expr] then else?)
 // Binds pat from expr; if the bound value is non-nil, evaluates Then (with the
 // bindings in scope), otherwise Else (nil if omitted). Pattern is a *Symbol,

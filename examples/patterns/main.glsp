@@ -1,12 +1,14 @@
-; patterns — two everyday forms for working with stateful objects.
+; patterns — everyday forms for working with stateful objects and failures.
 ;
 ;   doto      configure an object with a sequence of side-effecting steps,
 ;             then hand it back. Reads as a fluent builder chain.
 ;   with-open bind resources, run a body, and Close() them deterministically —
 ;             in reverse order, even if the body panics.
+;   try/catch contain a panic (from throw, panic, or a runtime fault) without
+;             hand-writing defer/recover; finally always runs.
 ;
-; Both lean on the same idea: structure the lifecycle of an object so the happy
-; path reads top-to-bottom and cleanup is automatic.
+; They lean on the same idea: structure the lifecycle so the happy path reads
+; top-to-bottom and cleanup is automatic.
 (ns main)
 
 ; ── doto: build, configure, return ───────────────────────────────────────────
@@ -87,6 +89,18 @@
   (defer (guard))
   (with-open [f (open-file path)] (panic "boom while reading")))
 
+; ── try/catch/finally: contain a panic without hand-writing defer/recover ─────
+; (try body... (catch e handler...) (finally cleanup...)) lowers to the same
+; defer/recover machinery as above, but reads top-to-bottom. throw raises any
+; value — here a map the handler inspects. finally always runs.
+(defn parse-amount [s string] -> any
+  (try
+    (if (= s "") (throw {:kind "empty" :msg "no amount given"}) (int s))
+    (catch e
+      (do (println "  recovered from" (get e "kind") "-" (get e "msg")) 0))
+    (finally
+      (println "  parse-amount done"))))
+
 (defn main [] -> void
   (println "=== doto: build a report ===")
   (build-report)
@@ -97,4 +111,7 @@
   (println "\n=== with-open: LIFO close ===")
   (println " =>" (copy-file "a.dat" "b.dat"))
   (println "\n=== with-open: cleanup on panic ===")
-  (read-or-fail "flaky.txt"))
+  (read-or-fail "flaky.txt")
+  (println "\n=== try/catch/finally: contain a panic ===")
+  (println " =>" (parse-amount "42"))
+  (println " =>" (parse-amount "")))

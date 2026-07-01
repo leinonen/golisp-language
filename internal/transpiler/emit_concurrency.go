@@ -440,6 +440,70 @@ func (e *Emitter) emitIfErrExprReturn(n *ast.IfErrExpr) error {
 	return e.emitReturnNode(n.OnOk)
 }
 
+// emitTryExpr: (try body... (catch e h...) (finally c...)) → an IIFE whose
+// deferred funcs implement catch (via recover) and finally. Go runs deferred
+// funcs LIFO, so finally is deferred FIRST (runs last) and the recover handler
+// SECOND (runs first): the catch handler runs, then finally. The IIFE returns
+// the body's value, or the catch handler's value when a panic is caught. The
+// body and catch handler are each wrapped in their own `func() any` so the
+// existing return-position machinery yields their last expression's value.
+func (e *Emitter) emitTryExpr(n *ast.TryExpr) error {
+	e.write("func() (_tryResult any) {")
+	e.nl()
+	e.push()
+	if n.Finally != nil {
+		e.line("defer func() {")
+		e.push()
+		if err := e.emitBody(n.Finally, false); err != nil {
+			return err
+		}
+		e.pop()
+		e.line("}()")
+	}
+	if n.HasCatch {
+		e.line("defer func() {")
+		e.push()
+		e.line("if _r := recover(); _r != nil {")
+		e.push()
+		saved := e.pushTypeScope()
+		if n.CatchBinding != "_" && n.CatchBinding != "" {
+			bind := identToGo(n.CatchBinding)
+			e.linef("%s := _r", bind)
+			e.linef("_ = %s", bind)
+			e.registerAnyVar(n.CatchBinding)
+		}
+		e.writeIndent()
+		e.write("_tryResult = func() any {")
+		e.nl()
+		e.push()
+		if err := e.emitBody(n.CatchBody, true); err != nil {
+			e.popTypeScope(saved)
+			return err
+		}
+		e.pop()
+		e.line("}()")
+		e.popTypeScope(saved)
+		e.pop()
+		e.line("}")
+		e.pop()
+		e.line("}()")
+	}
+	e.writeIndent()
+	e.write("_tryResult = func() any {")
+	e.nl()
+	e.push()
+	if err := e.emitBody(n.Body, true); err != nil {
+		return err
+	}
+	e.pop()
+	e.line("}()")
+	e.line("return")
+	e.pop()
+	e.writeIndent()
+	e.write("}()")
+	return nil
+}
+
 // emitPipelineExpr: (pipeline [x src] stage1 stage2 ...) → IIFE chaining goroutines via channels.
 // Each stage reads from the previous channel, transforms x, sends to the next channel.
 // Returns the final chan any.

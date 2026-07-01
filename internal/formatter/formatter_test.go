@@ -472,6 +472,21 @@ func TestFormat(t *testing.T) {
 			input: "(doto (make-builder-with-a-really-long-name) (.WriteString \"alpha\") (.WriteString \"beta\") (.Flush))",
 			want:  "(doto (make-builder-with-a-really-long-name)\n  (.WriteString \"alpha\")\n  (.WriteString \"beta\")\n  (.Flush))\n",
 		},
+		{
+			name:  "try inline when it fits",
+			input: "(try (risky) (catch e 0))",
+			want:  "(try (risky) (catch e 0))\n",
+		},
+		{
+			name:  "try with finally inline",
+			input: "(try (work) (finally (cleanup)))",
+			want:  "(try (work) (finally (cleanup)))\n",
+		},
+		{
+			name:  "try multi-line with catch and finally",
+			input: "(try (println \"a-really-quite-long-first-body-expression\") (catch e (handle-the-error e)) (finally (release-the-resources)))",
+			want:  "(try\n  (println \"a-really-quite-long-first-body-expression\")\n  (catch e\n    (handle-the-error e))\n  (finally\n    (release-the-resources)))\n",
+		},
 	}
 
 	for _, tt := range tests {

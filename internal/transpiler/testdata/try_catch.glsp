@@ -1,0 +1,28 @@
+(defn safe-div [a int b int] -> any
+  (try
+    (if (= b 0)
+      (throw "division by zero")
+      (/ a b))
+    (catch e
+      (do (println "caught:" e) -1))))
+
+(defn with-cleanup [] -> any
+  (try
+    (println "working")
+    (throw {:code 500 :msg "boom"})
+    (catch e
+      (get e "msg"))
+    (finally
+      (println "cleanup"))))
+
+(defn only-finally [] -> any
+  (try
+    42
+    (finally
+      (println "released"))))
+
+(defn ignored-binding [] -> any
+  (try
+    (throw "x")
+    (catch _
+      "recovered")))

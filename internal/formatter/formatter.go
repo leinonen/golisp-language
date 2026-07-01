@@ -222,6 +222,16 @@ func nodeMaxLine(n ast.Node) int {
 		consider(v.Expr)
 		consider(v.OnErr)
 		consider(v.OnOk)
+	case *ast.TryExpr:
+		for _, b := range v.Body {
+			consider(b)
+		}
+		for _, b := range v.CatchBody {
+			consider(b)
+		}
+		for _, b := range v.Finally {
+			consider(b)
+		}
 	case *ast.IfLetExpr:
 		consider(v.Expr)
 		consider(v.Then)
@@ -476,6 +486,8 @@ func (c *cfmt) format(n ast.Node, indent int) string {
 		return c.formatAtom(v, indent)
 	case *ast.IfErrExpr:
 		return c.formatIfErr(v, indent)
+	case *ast.TryExpr:
+		return c.formatTry(v, indent)
 	case *ast.IfLetExpr:
 		return c.formatIfLet(v, indent)
 	case *ast.WhenLetExpr:
@@ -735,6 +747,26 @@ func inline(n ast.Node) string {
 	case *ast.IfErrExpr:
 		return "(if-err [" + v.ValName + " " + v.ErrName + "] " +
 			inline(v.Expr) + " " + inline(v.OnErr) + " " + inline(v.OnOk) + ")"
+	case *ast.TryExpr:
+		parts := []string{"try"}
+		for _, b := range v.Body {
+			parts = append(parts, inline(b))
+		}
+		if v.HasCatch {
+			catch := []string{"(catch", v.CatchBinding}
+			for _, b := range v.CatchBody {
+				catch = append(catch, inline(b))
+			}
+			parts = append(parts, strings.Join(catch, " ")+")")
+		}
+		if v.Finally != nil {
+			fin := []string{"(finally"}
+			for _, b := range v.Finally {
+				fin = append(fin, inline(b))
+			}
+			parts = append(parts, strings.Join(fin, " ")+")")
+		}
+		return "(" + strings.Join(parts, " ") + ")"
 	case *ast.IfLetExpr:
 		s := "(if-let [" + inline(v.Pattern) + " " + inline(v.Expr) + "] " + inline(v.Then)
 		if v.Else != nil {
@@ -1853,6 +1885,35 @@ func (c *cfmt) formatIfErr(v *ast.IfErrExpr, indent int) string {
 	sb.WriteString(ind(indent) + "(if-err [" + v.ValName + " " + v.ErrName + "] " + inline(v.Expr) + "\n")
 	sb.WriteString(c.format(v.OnErr, indent+1) + "\n")
 	sb.WriteString(c.format(v.OnOk, indent+1) + ")")
+	return sb.String()
+}
+
+func (c *cfmt) formatTry(v *ast.TryExpr, indent int) string {
+	il := inline(v)
+	if c.inlineOK(v, indent, il) {
+		return ind(indent) + il
+	}
+	var sb strings.Builder
+	sb.WriteString(ind(indent) + "(try")
+	lastLine := v.Pos().Line
+	c.emitForms(&sb, v.Body, indent+1, lastLine)
+	if len(v.Body) > 0 {
+		lastLine = v.Body[len(v.Body)-1].Pos().Line
+	}
+	if v.HasCatch {
+		sb.WriteString("\n" + ind(indent+1) + "(catch " + v.CatchBinding)
+		c.emitForms(&sb, v.CatchBody, indent+2, lastLine)
+		sb.WriteString(")")
+		if len(v.CatchBody) > 0 {
+			lastLine = v.CatchBody[len(v.CatchBody)-1].Pos().Line
+		}
+	}
+	if v.Finally != nil {
+		sb.WriteString("\n" + ind(indent+1) + "(finally")
+		c.emitForms(&sb, v.Finally, indent+2, lastLine)
+		sb.WriteString(")")
+	}
+	sb.WriteString(")")
 	return sb.String()
 }
 

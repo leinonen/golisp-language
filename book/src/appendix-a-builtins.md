@@ -363,6 +363,8 @@ them (data flows left-to-right).
 | `(wrap-error msg err)` | Wrap error with context |
 | `(errors/is? err target)` | Check error type |
 | `(panic msg)` | Panic |
+| `(throw x)` | Raise x as a panic (Clojure-style; caught by try/catch) |
 | `(recover)` | Catch panic (in deferred fn) |
+| `(try body... (catch e h...) (finally c...))` | Run body; catch a panic, binding it to e; finally always runs |
 | `(assert cond)` | Panic if falsy |
 | `(assert cond msg)` | Panic with message if falsy |

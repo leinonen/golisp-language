@@ -1156,6 +1156,66 @@ func TestTranspileSnippets(t *testing.T) {
 			src:     `(defstruct B n int) (defmethod *B Push [b x int] -> error nil) (defn f [b *B] (doto b (push 9)))`,
 			wantSub: "_dotoTgt1.Push(9)",
 		},
+		{
+			name:    "try/catch is a recover IIFE",
+			src:     `(defn f [] (try (risky) (catch e 0)))`,
+			wantSub: "if _r := recover(); _r != nil {",
+		},
+		{
+			name:    "try/catch binds the recovered value",
+			src:     `(defn f [] (try (risky) (catch e (use e))))`,
+			wantSub: "e := _r",
+		},
+		{
+			name:    "try body runs in an inner IIFE",
+			src:     `(defn f [] (try (risky) (catch e 0)))`,
+			wantSub: "_tryResult = func() any {",
+		},
+		{
+			name:    "try/finally defers cleanup",
+			src:     `(defn f [] (try (work) (finally (cleanup))))`,
+			wantSub: "defer func() {",
+		},
+		{
+			name:    "try/finally with no catch has no recover",
+			src:     `(defn f [] (try (work) (finally (cleanup))))`,
+			wantNot: "recover()",
+		},
+		{
+			name:    "throw lowers to panic",
+			src:     `(defn f [] (throw "boom"))`,
+			wantSub: `panic("boom")`,
+		},
+		{
+			name:    "throw in tail position emits bare panic, no return",
+			src:     `(defn f [] -> any (throw "boom"))`,
+			wantNot: `return panic`,
+		},
+		{
+			name:    "try with underscore catch binding omits assignment",
+			src:     `(defn f [] (try (risky) (catch _ 0)))`,
+			wantNot: "_ := _r",
+		},
+		{
+			name:    "try requires catch or finally",
+			src:     `(defn f [] (try (risky)))`,
+			wantErr: true,
+		},
+		{
+			name:    "try rejects two catch clauses",
+			src:     `(defn f [] (try (risky) (catch a 1) (catch b 2)))`,
+			wantErr: true,
+		},
+		{
+			name:    "try rejects catch after finally",
+			src:     `(defn f [] (try (risky) (finally (c)) (catch e 1)))`,
+			wantErr: true,
+		},
+		{
+			name:    "throw arity is checked",
+			src:     `(defn f [] (throw))`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

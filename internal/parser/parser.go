@@ -601,6 +601,8 @@ func (p *parser) parseList() (ast.Node, error) {
 			return p.parseValues(pos)
 		case "if-err":
 			return p.parseIfErr(pos)
+		case "try":
+			return p.parseTry(pos)
 		case "if-let":
 			return p.parseIfLet(pos)
 		case "when-let":
@@ -1752,6 +1754,106 @@ func (p *parser) parseIfErr(pos ast.Position) (*ast.IfErrExpr, error) {
 		return nil, err
 	}
 	return ast.NewIfErrExpr(pos, valTok.Text, errTok.Text, expr, onErr, onOk), nil
+}
+
+// parseTry parses (try body... (catch e handler...) (finally cleanup...)).
+// Body expressions come first, then an optional catch clause, then an optional
+// finally clause. At least one of catch/finally must be present.
+func (p *parser) parseTry(pos ast.Position) (*ast.TryExpr, error) {
+	p.advance() // "try"
+	var body []ast.Node
+	var hasCatch, seenFinally bool
+	var catchBinding string
+	var catchBody, finally []ast.Node
+	for p.skipComments(); p.peekType() != lexer.TokenRParen && p.peekType() != lexer.TokenEOF; p.skipComments() {
+		// A (catch ...) or (finally ...) clause ends the body.
+		if p.peekType() == lexer.TokenLParen && p.peekAt(1).Type == lexer.TokenSymbol {
+			switch p.peekAt(1).Text {
+			case "catch":
+				if hasCatch {
+					return nil, p.errorf("try: only one catch clause is allowed")
+				}
+				if seenFinally {
+					return nil, p.errorf("try: catch must come before finally")
+				}
+				binding, cbody, err := p.parseCatchClause()
+				if err != nil {
+					return nil, err
+				}
+				hasCatch, catchBinding, catchBody = true, binding, cbody
+				continue
+			case "finally":
+				if seenFinally {
+					return nil, p.errorf("try: only one finally clause is allowed")
+				}
+				fbody, err := p.parseFinallyClause()
+				if err != nil {
+					return nil, err
+				}
+				seenFinally, finally = true, fbody
+				continue
+			}
+		}
+		if hasCatch || seenFinally {
+			return nil, p.errorf("try: body expressions must come before catch/finally")
+		}
+		node, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+		body = append(body, node)
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	if len(body) == 0 {
+		return nil, p.errorf("try requires a body expression")
+	}
+	if !hasCatch && !seenFinally {
+		return nil, p.errorf("try requires a catch or finally clause")
+	}
+	return ast.NewTryExpr(pos, body, hasCatch, catchBinding, catchBody, finally), nil
+}
+
+// parseCatchClause parses (catch e handler...) — the binding symbol followed by
+// a handler body. Go has a single recovery mechanism, so catch binds the whole
+// recovered value (no exception-type filtering).
+func (p *parser) parseCatchClause() (string, []ast.Node, error) {
+	p.advance() // "("
+	p.advance() // "catch"
+	symTok, err := p.expect(lexer.TokenSymbol)
+	if err != nil {
+		return "", nil, p.errorf("catch requires a binding name: (catch e body...)")
+	}
+	body, err := p.parseBody()
+	if err != nil {
+		return "", nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return "", nil, err
+	}
+	if len(body) == 0 {
+		return "", nil, p.errorf("catch requires a handler body")
+	}
+	return symTok.Text, body, nil
+}
+
+// parseFinallyClause parses (finally cleanup...) — a side-effecting body run
+// unconditionally after the try body and any catch handler.
+func (p *parser) parseFinallyClause() ([]ast.Node, error) {
+	p.advance() // "("
+	p.advance() // "finally"
+	body, err := p.parseBody()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(lexer.TokenRParen); err != nil {
+		return nil, err
+	}
+	if len(body) == 0 {
+		return nil, p.errorf("finally requires a body")
+	}
+	return body, nil
 }
 
 // parseBindPattern parses a single binding pattern — a symbol, a sequential

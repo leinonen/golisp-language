@@ -1001,6 +1001,8 @@ func (e *Emitter) emitExpr(n ast.Node) error {
 		return e.emitValuesExpr(v)
 	case *ast.IfErrExpr:
 		return e.emitIfErrExpr(v)
+	case *ast.TryExpr:
+		return e.emitTryExpr(v)
 	case *ast.IfLetExpr:
 		return e.emitIfLetExpr(v)
 	case *ast.WhenLetExpr:
@@ -1399,8 +1401,8 @@ func (e *Emitter) emitReturnNode(n ast.Node) error {
 				e.writeIndent()
 				e.write("return nil\n")
 				return nil
-			case "panic":
-				// panic never returns; `return panic(...)` is invalid Go and
+			case "panic", "throw":
+				// panic/throw never return; `return panic(...)` is invalid Go and
 				// a bare panic satisfies Go's termination analysis.
 				e.writeIndent()
 				if err := e.emitCallExpr(v); err != nil {

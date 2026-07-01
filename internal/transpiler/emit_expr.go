@@ -1246,7 +1246,7 @@ func (e *Emitter) exprIsAny(n ast.Node) bool {
 		if info, ok := e.resolveMethodCall(v); ok {
 			return info.sig.retType == "any"
 		}
-	case *ast.IfExpr, *ast.CondExpr, *ast.WhenExpr, *ast.DoExpr, *ast.SwitchExpr, *ast.IfErrExpr, *ast.LetExpr:
+	case *ast.IfExpr, *ast.CondExpr, *ast.WhenExpr, *ast.DoExpr, *ast.SwitchExpr, *ast.IfErrExpr, *ast.LetExpr, *ast.TryExpr:
 		// Block expressions in value position emit `func() any { … }()` unless a
 		// concrete hint absorbs them (handled in emitExprWithHint before this is
 		// consulted). So their default static type is `any`: a symbol bound to one
@@ -2313,6 +2313,19 @@ func (e *Emitter) emitCallExpr(n *ast.CallExpr) error {
 		case "panic":
 			if len(n.Args) != 1 {
 				return fmt.Errorf("panic: expected 1 argument, got %d at %s", len(n.Args), n.Pos())
+			}
+			e.write("panic(")
+			if err := e.emitExpr(n.Args[0]); err != nil {
+				return err
+			}
+			e.write(")")
+			return nil
+		case "throw":
+			// (throw x) → panic(x). The Clojure-style spelling of panic, paired
+			// with try/catch; accepts any value (an error, a string, or an
+			// ex-info-style map) which the catch clause receives.
+			if len(n.Args) != 1 {
+				return fmt.Errorf("throw: expected 1 argument, got %d at %s", len(n.Args), n.Pos())
 			}
 			e.write("panic(")
 			if err := e.emitExpr(n.Args[0]); err != nil {

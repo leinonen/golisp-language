@@ -219,6 +219,10 @@ var BuiltinDocs = map[string]BuiltinDoc{
 	"close!":   {Sig: "(close! ch)", Doc: "Close channel ch."},
 	"select!":  {Sig: "(select! cases...)", Doc: "Wait on multiple channel operations; execute the first ready case."},
 	"if-err":   {Sig: "(if-err [val err] expr on-err on-ok)", Doc: "Destructure a [value error] pair; evaluate on-err if err is non-nil, on-ok otherwise."},
+	"try":      {Sig: "(try body... (catch e handler...) (finally cleanup...))", Doc: "Run body; if a panic (from throw, panic, or a runtime fault) occurs, bind the recovered value to e and run the catch handler; the finally clause always runs afterward. Both catch and finally are optional but at least one is required. Returns the body's value, or the handler's value on a caught panic. Lowers to Go's defer/recover — Go has a single recovery mechanism, so catch is not filtered by exception type."},
+	"catch":    {Sig: "(catch e handler...)", Doc: "The catch clause of a try form. Binds the recovered panic value to e and runs the handler. Use _ to ignore the value."},
+	"finally":  {Sig: "(finally cleanup...)", Doc: "The finally clause of a try form. Runs cleanup unconditionally after the body and any catch handler — even when the panic is not caught."},
+	"throw":    {Sig: "(throw x)", Doc: "Raise x as a panic, caught by an enclosing try/catch. Accepts any value — an error, a string, or a map (e.g. {:type \"...\" :msg \"...\"}). The Clojure-style spelling of panic."},
 	"if-let":   {Sig: "(if-let [pat expr] then else?)", Doc: "Bind pat from expr; if the value is non-nil, evaluate then (bindings in scope), otherwise else (nil if omitted). Supports destructuring patterns."},
 	"when-let": {Sig: "(when-let [pat expr] body...)", Doc: "Bind pat from expr; if the value is non-nil, evaluate body, otherwise nil. Supports destructuring patterns."},
 

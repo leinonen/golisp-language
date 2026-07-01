@@ -3,7 +3,7 @@
 ;               cond, switch, case, loop/recur, map/filter/reduce, truthiness,
 ;               sort-by, strings, goroutines/channels, if-err, JSON encoding,
 ;               destructuring (map and sequential), keyword lookup (:key m),
-;               panic/recover, assert, format, parse-int, parse-float, repeat, interpose,
+;               panic/recover, try/catch/finally, throw, assert, format, parse-int, parse-float, repeat, interpose,
 ;               variadic spread (& xs), threading macros (some->, cond->)
 (ns main)
 
@@ -92,6 +92,19 @@
   (assert (>= n 0))
   (* n 2))
 
+; --- try / catch / finally ---
+; The Clojure-style exception form: it contains a panic (from throw, panic, or
+; a runtime fault) without a hand-written deferred handler. throw raises any
+; value; the catch binding receives it; finally always runs. Reads top-down.
+;;; Parses s to an int, returning -1 on any failure. finally logs either way.
+(defn parse-or-default [s string] -> any
+  (try
+    (if (= s "") (throw {:kind "empty" :msg "no input"}) (int s))
+    (catch e
+      (do (println "  caught:" (get e "msg")) -1))
+    (finally
+      (println "  (parse attempt finished)"))))
+
 ; --- Tail-recursive loop ---
 ; Typed loop bindings: var i int, var a int, var b int — no any-boxing.
 ; Arithmetic on concrete ints stays int throughout; recur values match.
@@ -147,6 +160,9 @@
   ; Panic and recover
   (println "10/2 =" (safe-divide 10 2))
   (safe-divide 5 0)
+  ; try / catch / finally — contain a panic, inspect the thrown value
+  (println "parse \"42\" =>" (parse-or-default "42"))
+  (println "parse \"\"   =>" (parse-or-default ""))
   ; Variadic spread: pass a runtime slice into a variadic fn via & xs
   (let [xs [3 5 7]] (println (labeled-total "spread" & xs)))
   ; Fibonacci via typed loop/recur (i, a, b are int — no any-boxing)

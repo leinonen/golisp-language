@@ -90,7 +90,7 @@
                   (doseq [s shown] (println (sale-line s)))
                   (println
                     (format "  total: $%d across %d sale(s)"
-                            total
-                            (count shown)))))))))))
+                      total
+                      (count shown)))))))))))
 
 ; one transducer pipeline: raw rows → typed sales → region filter

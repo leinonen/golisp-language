@@ -353,9 +353,9 @@ func TestFormat(t *testing.T) {
 			want:  "(defn f [m any]\n  (let-or [a (get m \"a\") :none b (get m \"b\") :none] (use a b)))\n",
 		},
 		{
-			name:  "call args align under first arg (Style A)",
+			name:  "call args hang 2-space (cursive style)",
 			input: "(combine-results first-result second-result third-result fourth-result fifth-result)",
-			want:  "(combine-results first-result\n                 second-result\n                 third-result\n                 fourth-result\n                 fifth-result)\n",
+			want:  "(combine-results first-result\n  second-result\n  third-result\n  fourth-result\n  fifth-result)\n",
 		},
 		{
 			name:  "long head falls back to 2-space hang past align threshold",
@@ -365,7 +365,7 @@ func TestFormat(t *testing.T) {
 		{
 			name:  "assoc pairs key/value per line",
 			input: "(assoc config :host \"localhost\" :port 8080 :timeout 30 :retries 3 :verbose enabled)",
-			want:  "(assoc config\n       :host \"localhost\"\n       :port 8080\n       :timeout 30\n       :retries 3\n       :verbose enabled)\n",
+			want:  "(assoc config\n  :host \"localhost\"\n  :port 8080\n  :timeout 30\n  :retries 3\n  :verbose enabled)\n",
 		},
 		{
 			name:  "case formats like switch with trailing default",
@@ -385,7 +385,7 @@ func TestFormat(t *testing.T) {
 		{
 			name:  "cond-> pairs test/expr per line",
 			input: "(cond-> base-value pred-one (assoc :a 1) pred-two (assoc :b 2) pred-three (final-x))",
-			want:  "(cond-> base-value\n        pred-one (assoc :a 1)\n        pred-two (assoc :b 2)\n        pred-three (final-x))\n",
+			want:  "(cond-> base-value\n  pred-one (assoc :a 1)\n  pred-two (assoc :b 2)\n  pred-three (final-x))\n",
 		},
 		{
 			name:  "untyped atom",

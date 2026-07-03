@@ -46,10 +46,10 @@
       (switch done-param
         "true"
           (web/json-response 200
-                             (filter (fn [t] (= (get t "done") true)) tasks))
+            (filter (fn [t] (= (get t "done") true)) tasks))
         "false"
           (web/json-response 200
-                             (filter (fn [t] (= (get t "done") false)) tasks))
+            (filter (fn [t] (= (get t "done") false)) tasks))
         :default (web/json-response 200 tasks))))
   (GET "/tasks/:id"
     [id]

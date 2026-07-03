@@ -105,7 +105,7 @@
       (web/bad-request "title must not be blank")
       (do
         (swap! todos
-               (fn [ts] (conj ts {:id (claim-id) :title title :done false})))
+          (fn [ts] (conj ts {:id (claim-id) :title title :done false})))
         (web/render-response 200 (todo-list (deref todos)))))))
 
 ;;; Flips one todo's done flag and returns just that item's fragment.
@@ -159,10 +159,10 @@
   (let [items (deref todos)
         now (time/now)]
     (format "%d of %d done · %d chatting · %s"
-            (len (filter :done items))
-            (len items)
-            (len (deref chat-clients))
-            (.Format now "15:04:05"))))
+      (len (filter :done items))
+      (len items)
+      (len (deref chat-clients))
+      (.Format now "15:04:05"))))
 
 ;;; The canonical SSE producer: go-recover contains panics, the deferred
 ;;; close! ends the stream, and racing (web/done req) in select! stops the
@@ -186,4 +186,4 @@
   (let [handler (web/routes (web/get "/" home) (web/get "/htmx.js" web/htmx-js) (web/get "/static/*path" (web/serve-files "/static/" static-dir)) (web/get "/events" handle-events) (web/get "/chat" (web/websocket chat)) (web/post "/todos" add-todo) (web/post "/todos/:id/toggle" toggle-todo) (web/delete "/todos/:id" delete-todo))]
     (log/info "todos listening" "addr" ":8080")
     (web/serve-graceful ":8080"
-                        (web/wrap handler web/wrap-logging web/wrap-recover))))
+      (web/wrap handler web/wrap-logging web/wrap-recover))))

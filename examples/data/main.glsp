@@ -88,9 +88,9 @@
         tiered (update-in pb ["supplier" "tier"] (fn [n] (- n 1)))]
     (println "  stock before:" (:stock pb) " after x3:" (:stock restocked))
     (println "  tier before: "
-             (get-in pb ["supplier" "tier"])
-             " after -1:"
-             (get-in tiered ["supplier" "tier"])))
+      (get-in pb ["supplier" "tier"])
+      " after -1:"
+      (get-in tiered ["supplier" "tier"])))
   ; --- group-by ---
   (println "\n=== group-by ===")
   (let [by-cat (group-by :category products)]
@@ -100,7 +100,7 @@
   ; --- frequencies ---
   (println "\n=== frequencies ===")
   (println " "
-           (frequencies (map (fn [p] (get-in p ["supplier" "name"])) products)))
+    (frequencies (map (fn [p] (get-in p ["supplier" "name"])) products)))
   ; --- zipmap ---
   (println "\n=== zipmap ===")
   (let [lookup (zipmap (map :name products) (map :price products))]
@@ -120,14 +120,14 @@
     (println "  pricey (≥$50):" (map :name pricey))
     (println "  combined:" (count (concat cheap pricey)) "products")
     (println "  name+category tags:"
-             (mapcat (juxt :name :category) (take 3 products))))
+      (mapcat (juxt :name :category) (take 3 products))))
   ; --- take-while / drop-while over a sorted view ---
   (println "\n=== take-while / drop-while ===")
   (let [price-sorted (sort-by :price products)]
     (println "  budget (<$20): "
-             (map :name (take-while (fn [p] (< (:price p) 2000)) price-sorted)))
+      (map :name (take-while (fn [p] (< (:price p) 2000)) price-sorted)))
     (println "  premium (≥$20):"
-             (map :name (drop-while (fn [p] (< (:price p) 2000)) price-sorted))))
+      (map :name (drop-while (fn [p] (< (:price p) 2000)) price-sorted))))
   ; --- partition / partition-by ---
   (println "\n=== partition / partition-by ===")
   (doseq [batch (partition 3 products)] (println "  batch:" (map :name batch)))
@@ -142,7 +142,7 @@
     (println "  in-stock prices:" (sequence in-stock-prices products))
     ; transduce: fold the stream to a total, no intermediate vector
     (println "  total in-stock value:"
-             (transduce in-stock-prices (fn [a b] (+ a b)) 0 products))
+      (transduce in-stock-prices (fn [a b] (+ a b)) 0 products))
     ; take short-circuits — only the first 2 hardware names are produced
     (let [first-two-hw (comp (filter (fn [p] (= (:category p) "hardware"))) (map :name) (take 2))]
       (println "  first 2 hardware:" (sequence first-two-hw products)))))

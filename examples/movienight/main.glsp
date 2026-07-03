@@ -63,8 +63,8 @@
 (defn ranked-picks [] -> []any
   (let [watched (seen-by-anyone)]
     (->> catalog
-         (filter (fn [m] (not (contains? watched (:title m)))))
-         (sort-by (fn [m] (- 0 (float64 (:rating m))))))))
+      (filter (fn [m] (not (contains? watched (:title m)))))
+      (sort-by (fn [m] (- 0 (float64 (:rating m))))))))
 
 ;;; Finds a catalog entry by exact title; some returns the match itself.
 (defn find-movie [title string] -> any
@@ -106,9 +106,9 @@
   ; conj returns a new set; the original is untouched
   (let [bob+ (conj (get seen "bob") "Amelie")]
     (println "  bob after Amelie:"
-             (count bob+)
-             "titles, was"
-             (len (get seen "bob"))))
+      (count bob+)
+      "titles, was"
+      (len (get seen "bob"))))
   ; map-vals: member → number of titles seen
   (println "  titles per member:" (map-vals (fn [s] (len s)) seen))
   ; sets are sequences: str/join enumerates members in sorted order, and
@@ -122,7 +122,7 @@
     ; every? / not-any? / some over the candidate list
     (println "  all rated 8.0+?    " (every? (fn [m] (>= (:rating m) 8)) picks))
     (println "  none already seen? "
-             (not-any? (fn [m] (contains? (seen-by-anyone) (:title m))) picks))
+      (not-any? (fn [m] (contains? (seen-by-anyone) (:title m))) picks))
     (when-let [old (some (fn [m] (if (< (:year m) 1990) m nil)) picks)]
       (println "  retro option:      " (:title old)))
     ; partial fixes the limit; complement flips the predicate; a bare
@@ -130,11 +130,11 @@
     (let [short? (partial shorter-than? 130)]
       (println "  short night picks: " (map :title (filter short? picks)))
       (println "  epic night picks:  "
-               (map :title (filter (complement short?) picks))))
+        (map :title (filter (complement short?) picks))))
     ; comp pipes title extraction into str/upper; juxt fans one movie out
     ; to several views at once — keywords compose like any other fn
     (println "  marquee:           "
-             (map (comp (fn [t] (str/upper (str t))) :title) (take 2 picks)))
+      (map (comp (fn [t] (str/upper (str t))) :title) (take 2 picks)))
     (println "  title+year pairs:  " (map (juxt :title :year) (take 2 picks)))
     ; max-by / min-by rank the whole candidate list by a key fn
     (println "  highest rated:     " (:title (max-by :rating picks)))
@@ -165,7 +165,7 @@
   ; apply spreads a vector over a 3-arg lambda
   (println "  shopping:"
     (apply (fn [a any b any c any] -> any (format "%v, %v and %v" a b c))
-           ["popcorn" "nachos" "soda"]))
+      ["popcorn" "nachos" "soda"]))
   ; --- availability check under an 80ms context deadline ---
   (println "\n--- streaming check (80ms deadline) ---")
   (let [[ctx cancel] (ctx/with-timeout (ctx/background) 80)

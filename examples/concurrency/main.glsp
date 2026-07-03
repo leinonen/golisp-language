@@ -24,7 +24,7 @@
   (let [counter (atom int 0)
         done (chan bool n)]
     (doseq [_ (range n)]
-           (go (doseq [_ (range per)] (increment! counter)) (send! done true)))
+      (go (doseq [_ (range per)] (increment! counter)) (send! done true)))
     (doseq [_ (range n)] (recv! done))
     (deref counter)))
 

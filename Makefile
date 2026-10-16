@@ -3,9 +3,9 @@
 BIN     := glisp
 BIN_LSP := glisp-lsp
 
-# Book (mdBook) build + deploy settings. Terraform infra lives outside this repo;
-# the CloudFront distribution id is pinned (was `terraform output -raw
-# cloudfront_distribution_id`).
+# Book (mdBook) build + deploy settings. Bucket and distribution live in
+# github.com/leinonen/infrastructure (stacks/websites). Pushes to main that touch
+# book/ deploy via .github/workflows/deploy-book.yml.
 MDBOOK       := $(HOME)/.local/bin/mdbook
 BOOK_BUCKET  := book.golisp.com
 BOOK_CF_DIST := E84ONONKY16KG

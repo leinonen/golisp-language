@@ -1,0 +1,31 @@
+name: Deploy book
+
+on:
+  push:
+    branches: [main]
+    paths: [book/**, .github/workflows/deploy-book.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-book
+  cancel-in-progress: false
+
+jobs:
+  deploy-book:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Role and bucket live in github.com/leinonen/infrastructure (stacks/websites).
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::427055919892:role/book-golisp-com-github-deploy
+          aws-region: eu-north-1
+      - name: Install mdBook
+        run: |
+          mkdir -p ~/.local/bin
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin
+      - run: make deploy-book
